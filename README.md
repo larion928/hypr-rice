@@ -15,8 +15,11 @@ On a fresh Arch (or Arch-based) system, logged in as your normal user:
 curl -fsSL https://raw.githubusercontent.com/larion928/hypr-rice/main/install.sh | bash
 ```
 
-The installer asks everything up front (sudo password, what to do with an existing rice,
-optional apps) and then runs unattended:
+The installer asks everything up front (sudo password, what to do with an existing rice)
+and shows a checklist of programs (space to tick, enter to go on; nothing is ticked by default):
+AyuGram, Telegram, Discord, Steam, Proton for .exe (umu + ProtonPlus), osu!, Ely Prism Launcher,
+Claude Code, Code-OSS, OBS, Chromium, Happ and more, see `packages/apps.txt`.
+Then it runs unattended:
 
 1. installs Hyprland and everything the rice needs from the official repos, `yay` and the AUR bits;
 2. if another rice is found (`~/.config/hypr`, `waybar`, `rofi`, `dunst`, …) it asks first and moves
@@ -27,8 +30,8 @@ optional apps) and then runs unattended:
    Lenovo IdeaPads;
 5. builds the app themes and applies the `claude` theme. Reboot and pick Hyprland.
 
-Running it again updates an existing install. `RICE_THEME=ocean bash install.sh` picks another
-starting theme.
+Running it again updates an existing install; programs already installed start ticked. `RICE_THEME=ocean` picks another starting theme,
+`RICE_APPS=steam,obs` (or `all` / `none`) skips the checklist.
 
 ## Use
 
@@ -47,7 +50,7 @@ Themes: `claude`, `night`, `hacker`, `cyberpunk`, `frieren`, `sakura`, `coffee`,
 ```
 install.sh        installer
 sync.sh           (author) copy the live rice into the repo, check for secrets, commit, push
-packages/         base.txt (repos), aur.txt, extra.txt (optional apps)
+packages/         base.txt (repos), aur.txt, apps.txt (programs for the checklist)
 home/             goes to ~ ; __HOME__ is replaced with your home path
 system/           root helper for folder colours and SDDM, SDDM config, Fn Lock rule
 ```
