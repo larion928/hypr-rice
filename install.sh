@@ -6,7 +6,7 @@
 # It asks its questions first, then installs everything unattended. Safe to run again:
 # packages are installed with --needed, files are refreshed, the old ones go to a backup.
 #
-# Environment overrides: RICE_THEME (default claude), RICE_BRANCH (default main),
+# Environment overrides: RICE_THEME (default: current theme, else claude), RICE_BRANCH (default main),
 # RICE_SRC (where the repo is kept, default ~/.local/share/hypr-rice),
 # RICE_ASSUME=y|n answers every question without asking (unattended runs).
 set -euo pipefail
@@ -14,7 +14,8 @@ set -euo pipefail
 REPO_URL="https://github.com/larion928/hypr-rice.git"
 BRANCH="${RICE_BRANCH:-main}"
 SRC="${RICE_SRC:-$HOME/.local/share/hypr-rice}"
-THEME="${RICE_THEME:-claude}"
+# An update keeps the theme that is active now.
+THEME="${RICE_THEME:-$(cat "$HOME/.config/hypr/current-theme" 2>/dev/null || echo claude)}"
 STAMP=$(date +%Y%m%d-%H%M%S)
 BACKUP="$HOME/.rice-backup-$STAMP"
 MARKER="$HOME/.config/hypr/.rice-installed"
