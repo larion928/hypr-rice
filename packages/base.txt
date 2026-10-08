@@ -63,6 +63,14 @@ ttf-nunito
 noto-fonts
 noto-fonts-emoji
 otf-font-awesome
+# --- libraries the AUR -bin packages use but do not declare
+#     (ayugram-desktop-bin: libsrtp, libvpl, zimg, nss; histui-bin: gstreamer)
+libsrtp
+libvpl
+zimg
+nss
+gstreamer
+gst-plugins-base-libs
 # --- apps of the rice
 code
 chromium
