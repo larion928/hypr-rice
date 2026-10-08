@@ -1,0 +1,18 @@
+{
+  "name": "night",
+  "label": "Night",
+  "font": "JetBrainsMono Nerd Font",
+  "display": "JetBrainsMono Nerd Font",
+  "colors": {
+    "bg": "#0b0b0d",
+    "bg2": "#16171a",
+    "fg": "#c9cace",
+    "accent": "#8a8f98",
+    "accent2": "#a6abb4",
+    "accent3": "#666a72",
+    "muted": "#7c8088",
+    "warn": "#8f8d88",
+    "crit": "#9c7676",
+    "good": "#7f8f7f"
+  }
+}

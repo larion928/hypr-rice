@@ -1,0 +1,6 @@
+# histuid Configuration
+# See /usr/share/doc/histui/histuid.toml.example for all options.
+
+[history]
+# Максимум хранимых/ожидающих уведомлений (0 = без лимита)
+max_notifications = 100

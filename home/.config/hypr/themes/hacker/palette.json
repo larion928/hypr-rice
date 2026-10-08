@@ -1,0 +1,30 @@
+{
+  "name": "hacker",
+  "label": "Hacker",
+  "font": "JetBrainsMono Nerd Font",
+  "display": "JetBrainsMono Nerd Font",
+  "colors": {
+    "bg": "#000000",
+    "bg2": "#0a0f0a",
+    "fg": "#a8f0b0",
+    "accent": "#2bd94a",
+    "accent2": "#57f57a",
+    "accent3": "#17993a",
+    "muted": "#4a7a52",
+    "warn": "#d9c229",
+    "crit": "#ff3b3b",
+    "good": "#2bd94a"
+  },
+  "code": {
+    "bg": "#0b0d0b",
+    "bg2": "#131713",
+    "fg": "#c9d4ca",
+    "muted": "#6b776c",
+    "accent": "#3ddc64",
+    "accent2": "#8fc79a",
+    "accent3": "#5f9f6f",
+    "good": "#b5cf8a",
+    "warn": "#d1b45a",
+    "crit": "#e06c6c"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "frieren",
+  "label": "Frieren",
+  "font": "JetBrainsMono Nerd Font",
+  "display": "Source Serif 4",
+  "colors": {
+    "bg": "#0d0f16",
+    "bg2": "#171a24",
+    "fg": "#d6dce6",
+    "accent": "#8fb0d9",
+    "accent2": "#b3c6e6",
+    "accent3": "#5f7699",
+    "muted": "#7d879b",
+    "warn": "#d9c58f",
+    "crit": "#cf8a8a",
+    "good": "#8fbfa3"
+  }
+}

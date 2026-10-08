@@ -1,0 +1,51 @@
+@import url("colors.css");
+
+/* ocean — полупрозрачная глубина, бирюзовое свечение */
+.notification-popup {
+    background: linear-gradient(180deg, alpha(@bg2, 0.9), alpha(@bg, 0.94));
+    border: 1.5px solid alpha(@accent, 0.6);
+    border-radius: 20px;
+    padding: 12px 18px;
+    min-width: 280px;
+    min-height: 70px;
+    box-shadow: 0 0 22px alpha(@accent, 0.25), inset 0 1px 0 alpha(@accent, 0.2);
+}
+
+.notification-image {
+    width: 36px;
+    height: 36px;
+    border-radius: 18px;
+    margin-right: 14px;
+}
+
+.notification-summary {
+    font-family: "Nunito", sans-serif;
+    font-weight: 800;
+    font-size: 1.15em;
+    color: @accent;
+    margin-bottom: 2px;
+}
+
+.notification-body {
+    font-family: "Nunito", sans-serif;
+    font-size: 0.95em;
+    color: @fg;
+    opacity: 0.9;
+}
+
+progressbar {
+    height: 4px;
+    background-color: alpha(@accent3, 0.4);
+}
+progressbar progress {
+    background: linear-gradient(90deg, @accent, @accent2);
+    border-radius: 2px;
+}
+
+.notification-popup.critical {
+    border-color: @accent2;
+    box-shadow: 0 0 28px alpha(@accent2, 0.4);
+}
+.notification-popup.critical .notification-summary {
+    color: @accent2;
+}

@@ -1,0 +1,79 @@
+@import url("wallust-colors.css");
+
+* {
+    border: none;
+    border-radius: 0;
+    font-family: "JetBrainsMono Nerd Font", monospace;
+    font-weight: bold;
+}
+
+window#waybar {
+    background-color: alpha(@bg, 0.9);
+    border: 1px solid @accent;
+    color: @accent;
+}
+
+/* Применяем увеличенный на 13% размер и на 20% отступы ко всем модулям */
+#workspaces,
+#window,
+#language,
+#pulseaudio,
+#cpu,
+#memory,
+#temperature,
+#battery,
+#network,
+#clock,
+#custom-exit {
+    font-size: 16px;
+    padding: 0 12px;
+    margin: 0 8px;
+}
+
+/* Валидное центрирование воркспейсов через симметричный padding */
+#workspaces button {
+    padding: 2px 8px;
+    margin: 0 4px;
+    color: @accent3;
+    background-color: transparent;
+}
+
+#workspaces button.active {
+    color: @accent;
+    border-bottom: 2px solid @accent;
+}
+
+#clock, #pulseaudio, #cpu, #memory, #temperature, #network, #language {
+    color: @accent;
+}
+
+#custom-exit {
+    color: @crit;
+}
+
+/* Theme switcher button (custom/theme). */
+#custom-theme, #custom-help, #custom-shots {
+    font-size: 16px;
+    padding: 0 10px;
+    margin: 0 4px;
+    color: @accent;
+}
+
+/* Battery (custom/battery): the theme's own icon; a click plays a short animation. */
+#custom-battery {
+    font-size: 16px;
+    margin: 0 8px;
+    padding: 0 12px 0 34px;
+    background-image: url("file://__HOME__/.config/hypr/themes/hacker/assets/battery-0.svg");
+    background-size: 20px 20px;
+    background-repeat: no-repeat;
+    background-position: 8px center;
+}
+
+#custom-battery.charging { color: @good; }
+#custom-battery.warning { color: @warn; }
+#custom-battery.critical { color: @crit; }
+
+
+/* Click animation frames, switched by ~/.config/waybar/scripts/battery --wave. */
+#custom-battery.f1 { background-image: url("file://__HOME__/.config/hypr/themes/hacker/assets/battery-1.svg"); }

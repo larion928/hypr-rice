@@ -1,0 +1,18 @@
+{
+  "name": "sakura",
+  "label": "Sakura",
+  "font": "JetBrainsMono Nerd Font",
+  "display": "Cormorant Garamond",
+  "colors": {
+    "bg": "#1c1418",
+    "bg2": "#281c22",
+    "fg": "#f5dce6",
+    "accent": "#f4a7c0",
+    "accent2": "#ffd1df",
+    "accent3": "#e0525c",
+    "muted": "#9a7f8b",
+    "warn": "#f0c27b",
+    "crit": "#e5484d",
+    "good": "#9fcf9a"
+  }
+}

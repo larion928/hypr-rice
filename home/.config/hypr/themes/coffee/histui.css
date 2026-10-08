@@ -1,0 +1,51 @@
+@import url("colors.css");
+
+/* coffee — эспрессо, карамельная полоска слева, моноширинный шрифт */
+.notification-popup {
+    background: alpha(@bg, 0.96);
+    border: 1px solid alpha(@accent3, 0.7);
+    border-left: 5px solid @accent;
+    border-radius: 6px;
+    padding: 12px 18px;
+    min-width: 280px;
+    min-height: 70px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.notification-image {
+    width: 36px;
+    height: 36px;
+    border-radius: 4px;
+    margin-right: 14px;
+}
+
+.notification-summary {
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 700;
+    font-size: 1.1em;
+    color: @accent;
+    margin-bottom: 2px;
+}
+
+.notification-body {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.9em;
+    color: @fg;
+    opacity: 0.9;
+}
+
+progressbar {
+    height: 4px;
+    background-color: alpha(@accent3, 0.25);
+}
+progressbar progress {
+    background: @accent;
+}
+
+.notification-popup.critical {
+    border-left-color: @crit;
+    border-color: alpha(@crit, 0.7);
+}
+.notification-popup.critical .notification-summary {
+    color: @crit;
+}

@@ -1,0 +1,39 @@
+#!/bin/bash
+# theme-picker — toggle the Quickshell theme switcher (~/.config/quickshell/themes).
+CONF="$HOME/.config/quickshell/themes"
+# Already open: ask it to close. No lock file: anything the overlay starts (changetheme ->
+# waybar, apps from the launcher) would inherit the lock fd and keep it forever.
+if quickshell list -p "$CONF" 2>/dev/null | grep -q "Process ID"; then
+    quickshell ipc -p "$CONF" call picker close >/dev/null 2>&1 || quickshell kill -p "$CONF" >/dev/null 2>&1
+    exit 0
+fi
+export PICKER_DATA="${XDG_RUNTIME_DIR:-/tmp}/theme-picker.json"
+python3 - "$PICKER_DATA" <<'PY'
+import json, sys
+from pathlib import Path
+from PIL import Image
+
+themes_dir = Path.home() / ".config/hypr/themes"
+cache = Path.home() / ".cache/theme-thumbs"
+cache.mkdir(parents=True, exist_ok=True)
+current = (Path.home() / ".config/hypr/current-theme").read_text().strip() if (Path.home() / ".config/hypr/current-theme").exists() else ""
+out = []
+for d in sorted(p for p in themes_dir.iterdir() if (p / "palette.json").exists()):
+    pal = json.loads((d / "palette.json").read_text())
+    ui = json.loads((d / "ui.json").read_text()) if (d / "ui.json").exists() else {}
+    walls = sorted(p for p in d.iterdir() if p.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp"))
+    thumb = ""
+    if walls:
+        src = walls[0]
+        t = cache / f"{d.name}.jpg"
+        # Rebuild only when the wallpaper is newer than the cached thumbnail.
+        if not t.exists() or t.stat().st_mtime < src.stat().st_mtime:
+            im = Image.open(src).convert("RGB")
+            im.thumbnail((640, 360))
+            im.save(t, quality=88)
+        thumb = str(t)
+    out.append({"name": d.name, "dir": str(d), "thumb": thumb, "current": d.name == current,
+                "pal": pal, "ui": ui})
+Path(sys.argv[1]).write_text(json.dumps(out, ensure_ascii=False))
+PY
+exec quickshell -n -p "$CONF"

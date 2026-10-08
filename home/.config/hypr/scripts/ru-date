@@ -1,0 +1,5 @@
+#!/bin/bash
+# Russian "weekday, day month" without needing the ru_RU locale generated.
+days=(воскресенье понедельник вторник среда четверг пятница суббота)
+months=(января февраля марта апреля мая июня июля августа сентября октября ноября декабря)
+echo "${days[$(date +%w)]}, $(date +%-d) ${months[$(( $(date +%-m) - 1 ))]}"

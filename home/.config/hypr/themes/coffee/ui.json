@@ -1,0 +1,14 @@
+{
+  "title": "уведомления",
+  "headerGlyph": "☕",
+  "radius": 8,
+  "cardRadius": 6,
+  "titleFont": "display",
+  "bodyFont": "IBM Plex Mono",
+  "slideMs": 240,
+  "osdStyle": "retro",
+  "folders": "palebrown",
+  "powerStyle": "cards",
+  "batteryAnim": "once",
+  "batteryStep": 0.12
+}

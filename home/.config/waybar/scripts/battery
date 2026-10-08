@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+"""Waybar battery module with a per-theme icon (drawn by the theme's CSS) and a click animation.
+
+  battery          print the module JSON (classes: charging/plugged/discharging, warning/critical, f<N>)
+  battery --wave   called on click: step through the theme's frames (assets/battery-<N>.svg)
+
+GTK cannot animate background-image with keyframes, so the frames are driven from here: each step
+writes the frame number and makes waybar re-run the module, whose CSS maps class f<N> to an image.
+"""
+import json
+import os
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+BAT = Path("/sys/class/power_supply/BAT0")
+AC = Path("/sys/class/power_supply/ADP0")
+HYPR = Path.home() / ".config/hypr"
+FRAME = Path.home() / ".cache/waybar-battery-frame"
+WAVE_PID = Path.home() / ".cache/waybar-battery-wave.pid"
+SIGNAL = 8  # "signal" of custom/battery in config.base.json
+STEP = {"cyberpunk": 0.09, "hacker": 0.16}  # seconds per frame; default below
+
+
+def read(p, default=""):
+    try:
+        return p.read_text().strip()
+    except OSError:
+        return default
+
+
+def refresh():
+    subprocess.run(["pkill", f"-RTMIN+{SIGNAL}", "-x", "waybar"], check=False)
+
+
+def stop_previous_wave():
+    # A click during a running animation restarts it; two animations at once would fight over
+    # FRAME and the first to finish would cut the second short.
+    try:
+        pid = int(read(WAVE_PID))
+        if pid != os.getpid():
+            os.kill(pid, signal.SIGTERM)
+    except (ValueError, ProcessLookupError, PermissionError):
+        pass
+    WAVE_PID.write_text(str(os.getpid()))
+
+
+def wave():
+    stop_previous_wave()
+    theme = read(HYPR / "current-theme", "claude")
+    frames = len(list((HYPR / "themes" / theme / "assets").glob("battery-*.svg")))
+    if frames < 2:
+        return
+    try:
+        ui = json.loads(read(HYPR / "themes" / theme / "ui.json", "{}"))
+    except ValueError:
+        ui = {}
+    if ui.get("batteryAnim") == "pingpong":
+        # Frames are stages of one motion (night: moon phases): play them forward and back.
+        seq = list(range(1, frames)) + list(range(frames - 2, 0, -1))
+    elif ui.get("batteryAnim") == "once":
+        # One motion that ends where it started (sakura turns by a petal, coffee steams).
+        seq = list(range(1, frames))
+    else:
+        # Alternate every extra frame with the idle one: 1 0 1 0 … or 1 0 2 0 …
+        seq = [f for i in range(1, frames) for f in (i, 0)] * (4 if frames == 2 else 2)
+    step = float(ui.get("batteryStep", STEP.get(theme, 0.18)))
+    for f in seq:
+        FRAME.write_text(f"{f} {time.time()}")
+        refresh()
+        time.sleep(step)
+    FRAME.unlink(missing_ok=True)
+    WAVE_PID.unlink(missing_ok=True)
+    refresh()
+
+
+def main():
+    if sys.argv[1:] == ["--wave"]:
+        wave()
+        return
+    cap = int(read(BAT / "capacity", "0") or 0)
+    status = read(BAT / "status")
+    on_ac = read(AC / "online") == "1"
+    if status == "Charging":
+        state, label = "charging", "Заряжается"
+    elif on_ac:
+        state, label = "plugged", "От сети"
+    else:
+        state, label = "discharging", "От батареи"
+    classes = [state]
+    if state == "discharging":
+        if cap <= 15:
+            classes.append("critical")
+        elif cap <= 30:
+            classes.append("warning")
+    try:
+        frame, stamp = FRAME.read_text().split()
+        if time.time() - float(stamp) < 2:  # ignore a frame left over from a killed animation
+            classes.append(f"f{int(frame)}")
+    except (OSError, ValueError):
+        pass
+    print(json.dumps({"text": f"{cap}%", "class": classes, "percentage": cap,
+                      "tooltip": f"{label}: {cap}%"}, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

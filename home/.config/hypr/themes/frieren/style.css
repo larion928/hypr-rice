@@ -1,0 +1,116 @@
+@import url("wallust-colors.css");
+
+* {
+    border: none;
+    border-radius: 0;
+    font-family: "JetBrainsMono Nerd Font", Roboto, Helvetica, Arial, sans-serif;
+    font-weight: bold;
+}
+
+window#waybar {
+    background-color: alpha(@bg, 0.50);
+    border-radius: 12px;
+    color: @fg;
+    transition-property: background-color;
+    transition-duration: .5s;
+}
+
+/* Применяем увеличенный на 13% размер и на 20% отступы ко всем модулям */
+#workspaces,
+#window,
+#language,
+#pulseaudio,
+#cpu,
+#memory,
+#temperature,
+#battery,
+#network,
+#clock,
+#custom-exit {
+    font-size: 16px;
+    padding: 0 12px;
+    margin: 0 8px;
+}
+
+/* Валидное центрирование воркспейсов через симметричный padding */
+#workspaces button {
+    padding: 2px 8px;             /* Симметричные отступы сверху/снизу и слева/справа */
+    margin: 0 4px;
+    color: @accent;
+    background-color: transparent;
+}
+
+#workspaces button.active {
+    color: @fg;
+    background-color: alpha(@accent, 0.3);
+    border-radius: 8px;
+}
+
+#clock {
+    color: @accent;
+}
+
+#battery {
+    color: @good;
+}
+
+#battery.charging, #battery.plugged {
+    color: @crit;
+}
+
+@keyframes blink {
+    to {
+        background-color: @fg;
+        color: @bg;
+    }
+}
+
+#battery.critical:not(.charging) {
+    background-color: @fg;
+    color: @crit;
+    animation-name: blink;
+    animation-duration: 0.5s;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
+}
+
+#pulseaudio {
+    color: @fg;
+}
+
+#pulseaudio.muted {
+    color: @muted;
+}
+
+#custom-exit {
+    color: @crit;
+}
+
+/* Theme switcher button (custom/theme). */
+#custom-theme, #custom-help, #custom-shots {
+    font-size: 16px;
+    padding: 0 10px;
+    margin: 0 4px;
+    color: @accent;
+}
+
+/* Battery (custom/battery): the theme's own icon; a click plays a short animation. */
+#custom-battery {
+    font-size: 16px;
+    margin: 0 8px;
+    padding: 0 12px 0 34px;
+    background-image: url("file://__HOME__/.config/hypr/themes/frieren/assets/battery-0.svg");
+    background-size: 20px 20px;
+    background-repeat: no-repeat;
+    background-position: 8px center;
+}
+
+#custom-battery.charging { color: @good; }
+#custom-battery.warning { color: @warn; }
+#custom-battery.critical { color: @crit; }
+
+
+/* Click animation frames, switched by ~/.config/waybar/scripts/battery --wave. */
+#custom-battery.f1 { background-image: url("file://__HOME__/.config/hypr/themes/frieren/assets/battery-1.svg"); }
+#custom-battery.f2 { background-image: url("file://__HOME__/.config/hypr/themes/frieren/assets/battery-2.svg"); }

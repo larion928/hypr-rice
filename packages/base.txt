@@ -1,0 +1,68 @@
+# Official repositories. Everything the rice itself needs.
+# --- compositor & session
+hyprland
+hyprlock
+xdg-desktop-portal-hyprland
+xdg-desktop-portal-gtk
+sddm
+qt5-graphicaleffects
+qt5-quickcontrols2
+qt5-svg
+polkit
+# --- shell / panels
+quickshell
+qt6-svg
+qt6-declarative
+waybar
+awww
+kitty
+thunar
+thunar-volman
+gvfs
+gvfs-mtp
+tumbler
+# --- audio, network, power
+pipewire
+pipewire-audio
+pipewire-pulse
+pipewire-alsa
+wireplumber
+networkmanager
+bluez
+bluez-utils
+blueman
+brightnessctl
+playerctl
+# --- tools used by the scripts
+git
+base-devel
+rsync
+jq
+python
+python-pillow
+grim
+wl-clipboard
+libnotify
+glib2
+librsvg
+xdg-utils
+xdg-user-dirs
+procps-ng
+curl
+# --- look
+papirus-icon-theme
+nwg-look
+ttf-jetbrains-mono
+ttf-jetbrains-mono-nerd
+ttf-nerd-fonts-symbols
+adobe-source-serif-fonts
+otf-cormorant
+ttf-ibm-plex
+ttf-nunito
+noto-fonts
+noto-fonts-emoji
+otf-font-awesome
+# --- apps of the rice
+code
+chromium
+webkit2gtk-4.1

@@ -1,0 +1,39 @@
+#!/bin/bash
+# shot — themed screenshot. Freezes every output with grim, then a Quickshell overlay
+# (~/.config/quickshell/shot) lets you pick a region in the current theme's style.
+#   shot          select a region (click a window to take just that window)
+#   shot full     whole focused monitor
+# The result goes to ~/Pictures/screenshots/ and to the clipboard.
+set -u
+
+MODE=${1:-region}
+OUTDIR="$HOME/Pictures/screenshots"
+RUN="${XDG_RUNTIME_DIR:-/tmp}/shot"
+THEME=${SHOT_THEME:-$(cat "$HOME/.config/hypr/current-theme" 2>/dev/null || echo claude)}
+
+# One overlay at a time; checked before grim so a second press never captures the overlay.
+# (No lock file: wl-copy and friends started from the overlay would inherit its fd.)
+quickshell list -p "$HOME/.config/quickshell/shot" 2>/dev/null | grep -q "Process ID" && exit 0
+
+mkdir -p "$OUTDIR"
+rm -rf "$RUN"
+mkdir -p "$RUN"
+
+hyprctl monitors -j > "$RUN/monitors.json"
+hyprctl clients -j > "$RUN/clients.json"
+
+# Capture before the overlay maps, otherwise it would end up in the shot.
+for out in $(jq -r '.[].name' "$RUN/monitors.json"); do
+    # Uncompressed: the frame is temporary and compression makes grim ~15x slower.
+    grim -l 0 -o "$out" "$RUN/$out.png" &
+done
+wait
+
+export SHOT_MODE="$MODE"
+export SHOT_RUN="$RUN"
+export SHOT_THEME_DIR="$HOME/.config/hypr/themes/$THEME"
+export SHOT_FOCUSED=$(jq -r '.[] | select(.focused) | .name' "$RUN/monitors.json")
+export SHOT_OUT="$OUTDIR/screenshot_$(date +%Y%m%d_%H%M%S).png"
+export SHOT_CROP="$HOME/.config/quickshell/shot/crop.py"
+
+exec quickshell -n -p "$HOME/.config/quickshell/shot"

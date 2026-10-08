@@ -1,0 +1,170 @@
+{
+    "position": "top",
+    "margin-top": 2,
+    "margin-left": 10,
+    "margin-right": 10,
+    "height": 36,
+    "modules-left": [
+        "hyprland/workspaces",
+        "hyprland/window"
+    ],
+    "modules-right": [
+        "hyprland/language",
+        "pulseaudio",
+        "cpu",
+        "memory",
+        "temperature",
+        "custom/battery",
+        "network",
+        "clock",
+        "custom/histui",
+        "custom/shots",
+        "custom/help",
+        "custom/theme",
+        "custom/exit"
+    ],
+    "hyprland/window": {
+        "format": "{}",
+        "max-length": 35,
+        "rewrite": {
+            "": "Hyprland"
+        },
+        "separate-outputs": true
+    },
+    "hyprland/workspaces": {
+        "format": "{icon}",
+        "on-click": "activate",
+        "format-icons": {
+            "active": "●"
+        },
+        "sort-by-number": true,
+        "all-outputs": false,
+        "persistent-workspaces": {
+            "eDP-1": [
+                1,
+                2,
+                3,
+                4
+            ],
+            "HDMI-A-1": [
+                5,
+                6,
+                7,
+                8
+            ]
+        }
+    },
+    "clock": {
+        "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
+        "format-alt": "{:%Y-%m-%d}"
+    },
+    "cpu": {
+        "format": " {usage}%",
+        "tooltip": false
+    },
+    "memory": {
+        "format": "󰍛 {}% "
+    },
+    "temperature": {
+        "critical-threshold": 80,
+        "format": "{icon} {temperatureC}°C",
+        "format-icons": [
+            "",
+            "",
+            ""
+        ]
+    },
+    "battery": {
+        "states": {
+            "warning": 30,
+            "critical": 15
+        },
+        "format": "{icon}  {capacity}%",
+        "format-full": " {capacity}%",
+        "format-charging": " {capacity}%",
+        "format-plugged": " {capacity}%",
+        "format-alt": "{time} {icon}",
+        "format-icons": [
+            "",
+            "",
+            "",
+            "",
+            ""
+        ]
+    },
+    "network": {
+        "format-wifi": " {signalStrength}%",
+        "format-ethernet": " {cidr}",
+        "tooltip-format": "{ifname} via {gwaddr}",
+        "format-linked": "{ifname} (No IP)",
+        "format-disconnected": "⚠",
+        "format-alt": "{ifname}: {ipaddr}/{cidr}"
+    },
+    "hyprland/language": {
+        "format": "{short}",
+        "rewrite": {
+            "Russian": "RU",
+            "English (US)": "ENG"
+        }
+    },
+    "pulseaudio": {
+        "format": "{icon} {volume}%",
+        "format-bluetooth": "{volume}% {icon} {format_source}",
+        "format-bluetooth-muted": " {icon} {format_source}",
+        "format-muted": " {format_source}",
+        "format-icons": {
+            "headphone": "",
+            "hands-free": "",
+            "headset": "",
+            "phone": "",
+            "portable": "",
+            "car": "",
+            "default": [
+                "",
+                "",
+                ""
+            ]
+        },
+        "on-click": "pavucontrol"
+    },
+    "custom/histui": {
+        "format": " {}",
+        "interval": 5,
+        "return-type": "json",
+        "exec": "histui status",
+        "on-click": "~/.local/bin/notif-panel",
+        "tooltip": true,
+        "on-click-right": "kitty -e histui"
+    },
+    "custom/exit": {
+        "format": "",
+        "on-click": "~/.local/bin/power-menu",
+        "tooltip": false
+    },
+    "custom/theme": {
+        "format": "󰏘",
+        "tooltip": true,
+        "tooltip-format": "Тема оформления (Alt+Shift+T)",
+        "on-click": "~/.local/bin/theme-picker"
+    },
+    "custom/help": {
+        "format": "",
+        "tooltip": true,
+        "tooltip-format": "Как тут всё устроено (Alt+F1)",
+        "on-click": "~/.local/bin/help-panel"
+    },
+    "custom/shots": {
+        "format": "",
+        "tooltip": true,
+        "tooltip-format": "Скриншоты",
+        "on-click": "~/.local/bin/shots-gallery"
+    },
+    "custom/battery": {
+        "exec": "~/.config/waybar/scripts/battery",
+        "return-type": "json",
+        "interval": 15,
+        "signal": 8,
+        "tooltip": true,
+        "on-click": "~/.config/waybar/scripts/battery --wave"
+    }
+}

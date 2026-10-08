@@ -1,0 +1,57 @@
+@import url("colors.css");
+
+/* frieren – нежный лавандовый с серебром */
+.notification-popup {
+    background: linear-gradient(145deg, alpha(@accent2, 0.92), alpha(@accent3, 0.85));
+    border: 1.5px solid @accent;
+    border-radius: 16px;
+    padding: 12px 18px;
+    min-width: 280px;
+    min-height: 70px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(8px);
+}
+
+.notification-image {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    margin-right: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.notification-summary {
+    font-weight: 700;
+    font-size: 1.15em;
+    color: @bg;
+    letter-spacing: 0.3px;
+    margin-bottom: 2px;
+}
+
+.notification-body {
+    font-size: 0.95em;
+    color: @bg2;
+    opacity: 0.9;
+    line-height: 1.4;
+}
+
+progressbar {
+    height: 4px;
+    background-color: alpha(@bg, 0.15);
+}
+progressbar progress {
+    background: linear-gradient(90deg, @accent, @muted);
+    border-radius: 2px;
+}
+
+.notification-popup.critical {
+    background: linear-gradient(145deg, alpha(@bg, 0.95), alpha(@bg2, 0.92));
+    border-color: @accent;
+    box-shadow: 0 0 30px alpha(@accent, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+.notification-popup.critical .notification-summary {
+    color: @accent2;
+}
+.notification-popup.critical .notification-body {
+    color: @accent3;
+}

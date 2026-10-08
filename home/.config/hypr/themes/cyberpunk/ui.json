@@ -1,0 +1,14 @@
+{
+  "title": "// NOTIFICATIONS",
+  "headerGlyph": "◢",
+  "radius": 0,
+  "cardRadius": 2,
+  "border": 2,
+  "titleFont": "font",
+  "bodyFont": "font",
+  "upperTitle": true,
+  "slideMs": 220,
+  "osdStyle": "neon",
+  "folders": "violet",
+  "powerStyle": "cards"
+}

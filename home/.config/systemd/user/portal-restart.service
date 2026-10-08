@@ -1,0 +1,6 @@
+[Unit]
+Description=Restart screen-capture portals (skipped during active capture)
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/portal-restart

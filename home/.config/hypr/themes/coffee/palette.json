@@ -1,0 +1,18 @@
+{
+  "name": "coffee",
+  "label": "Coffee",
+  "font": "JetBrainsMono Nerd Font",
+  "display": "IBM Plex Mono",
+  "colors": {
+    "bg": "#1d1612",
+    "bg2": "#2a201a",
+    "fg": "#ebdbb2",
+    "accent": "#d8a657",
+    "accent2": "#e9c48f",
+    "accent3": "#a9643c",
+    "muted": "#928374",
+    "warn": "#fabd2f",
+    "crit": "#ea6962",
+    "good": "#a9b665"
+  }
+}

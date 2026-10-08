@@ -1,0 +1,18 @@
+[Unit]
+Description=histuid notification daemon
+Documentation=https://github.com/jmylchreest/histui
+After=graphical-session.target
+# no PartOf/WantedBy=graphical-session.target: that target refuses manual start
+# and never activates under Hyprland, so the daemon never autostarted.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/histuid --theme coffee
+# auto-restart every 30 minutes
+RuntimeMaxSec=1800
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

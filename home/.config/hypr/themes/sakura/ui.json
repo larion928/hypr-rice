@@ -1,0 +1,15 @@
+{
+  "title": "Уведомления",
+  "headerGlyph": "✿",
+  "radius": 18,
+  "cardRadius": 14,
+  "titleFont": "display",
+  "bodyFont": "Adwaita Sans",
+  "italicTitle": true,
+  "slideMs": 420,
+  "osdStyle": "pill",
+  "folders": "pink",
+  "powerStyle": "cards",
+  "batteryAnim": "once",
+  "batteryStep": 0.09
+}

@@ -1,0 +1,201 @@
+#!/bin/bash
+# changetheme — переключение темы: обои + фиксированная палитра + конфиги приложений.
+#
+# Тема задаёт структуру (gaps, rounding, шрифты, анимации) и цвета.
+# Палитра темы лежит в themes/<тема>/palette.json, конфиги приложений из неё
+# генерирует ~/.config/hypr/scripts/themegen.py. Обои выбираются случайно и
+# на цвета не влияют.
+
+print_help() {
+  cat <<EOF
+changetheme — переключение темы Hyprland-окружения
+
+ИСПОЛЬЗОВАНИЕ
+  changetheme <имя_темы>             переключиться на тему
+  changetheme --offline <имя_темы>   только записать конфиги, без живой сессии
+                                     (так тему ставит установщик райса из TTY)
+  changetheme -h, --help             эта справка
+
+ДОСТУПНЫЕ ТЕМЫ
+  $(ls ~/.config/hypr/themes/ 2>/dev/null | tr '\n' ' ')
+
+ЧТО ДЕЛАЕТ (по шагам)
+  1. Обои     — берёт случайную картинку (*.png/jpg/jpeg/webp) из
+                ~/.config/hypr/themes/<тема>/ и ставит через awww
+  2. Палитра  — themegen.py apply берёт themes/<тема>/palette.json и пишет:
+                  ~/.config/hypr/palette.lua, palette.json, current-theme
+                  ~/.config/waybar/wallust-colors.css, ~/.config/histui/colors.css
+                  ~/.config/hypr/hyprlock-colors.conf (+ симлинк hyprlock.conf)
+                  ~/.config/gtk-3.0/gtk.css, ~/.config/gtk-4.0/gtk*.css
+                  [engine] theme в ~/.config/drift/config.toml
+                  workbench.colorTheme в settings.json Code - OSS
+                  ~/.config/kitty/theme.conf (открытые окна kitty перекрашиваются сразу)
+                  цвет папок Papirus и экран входа SDDM (через hypr-theme-root)
+                Цвета фиксированы — от обоев не зависят.
+  3. Hyprland — симлинкует themes/<тема>/hypr.lua -> hypr/theme.lua
+                (гэпы, rounding, blur — не цвета, они из палитры),
+                делает hyprctl reload, чтобы рамки перекрасились сразу,
+                и печатает ошибки конфига, если они есть
+  4. Waybar   — копирует themes/<тема>/style.css в waybar/style.css
+                (именно копирует, не симлинк — иначе относительный
+                @import url("wallust-colors.css") внутри не найдётся),
+                перезапускает waybar
+  5. histui   — копирует themes/<тема>/histui.css + текущую палитру
+                colors.css в ~/.config/histui/themes/<тема>/, прописывает
+                --theme <тема> в histuid.service и рестартует демон
+
+СТРУКТУРА ПАПКИ ТЕМЫ (~/.config/hypr/themes/<имя>/)
+  *.png/jpg/jpeg/webp   обои (можно несколько — выбор случайный)
+  assets/               иконки и прочие картинки темы, в выбор обоев не попадают
+  hypr.lua              hl.config{general, decoration} — только структура,
+                        цвета через local c = require("palette")
+                        (c.active / c.active2 / c.inactive)
+  style.css             тема waybar — цвета через @accent/@bg/@fg/…
+                        (см. ~/.config/waybar/wallust-colors.css)
+  histui.css            тема уведомлений — те же переменные,
+                        подключаются через @import url("colors.css")
+  palette.json          цвета темы + шрифты (font, display)
+  hyprlock.conf         экран блокировки, цвета из hyprlock-colors.conf
+  screenshot.qml        оверлей скриншотов (Quickshell), shutter.wav — звук
+
+ЦВЕТА
+  В themes/<тема>/palette.json. Ключи: bg bg2 fg accent accent2 accent3
+  muted warn crit good. Рамки hypr: active=accent, active2=accent2,
+  inactive=muted. После правки палитры: themegen.py build — пересоберёт
+  темы drift, Code - OSS и neoHtop.
+
+ЗАВИСИМОСТИ
+  awww       — демон обоев (обязателен)
+  systemctl --user — управляет histuid.service
+
+ФАЙЛ
+  __HOME__/.local/bin/changetheme
+EOF
+}
+
+OFFLINE=0
+ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help) print_help; exit 0 ;;
+    --offline) OFFLINE=1 ;;
+    *) ARGS+=("$arg") ;;
+  esac
+done
+set -- "${ARGS[@]}"
+
+if [ -z "$1" ]; then
+    echo "Использование: changetheme <имя_темы>"
+    echo "Доступные темы: $(ls ~/.config/hypr/themes/ 2>/dev/null | tr '\n' ' ')"
+    exit 1
+fi
+
+THEME=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+CONFIG_DIR="$HOME/.config/hypr/themes/$THEME"
+
+if [ ! -d "$CONFIG_DIR" ]; then
+    echo "Ошибка: Папка темы '$THEME' не найдена!"
+    exit 1
+fi
+
+# --- 1. Обои ---
+mapfile -t WALLPAPERS < <(find "$CONFIG_DIR" -maxdepth 1 -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" -o -name "*.webp" \))
+
+SELECTED_WALL=""
+if [ ${#WALLPAPERS[@]} -eq 0 ]; then
+    echo "Предупреждение: В папке темы нет изображений."
+else
+    RANDOM_INDEX=$(( RANDOM % ${#WALLPAPERS[@]} ))
+    SELECTED_WALL="${WALLPAPERS[$RANDOM_INDEX]}"
+    echo "Устанавливаю обои: $SELECTED_WALL"
+    # Restored by the autostart in hyprland.lua, so a theme set offline gets its wallpaper too.
+    echo "$SELECTED_WALL" > "$HOME/.config/hypr/current-wallpaper"
+    [ "$OFFLINE" = 1 ] || awww img "$SELECTED_WALL"
+fi
+
+# --- 2. Палитра и конфиги приложений из themes/<тема>/palette.json ---
+if [ -f "$CONFIG_DIR/palette.json" ]; then
+    python3 "$HOME/.config/hypr/scripts/themegen.py" apply "$THEME" --wallpaper "$SELECTED_WALL" \
+        && echo "Применена палитра темы: $THEME"
+else
+    echo "Предупреждение: в теме нет palette.json — цвета остаются от прежней темы"
+fi
+
+# --- 3. Hyprland (структура темы + перечитать конфиг с новой палитрой) ---
+if [ -f "$CONFIG_DIR/hypr.lua" ]; then
+    ln -sfn "$CONFIG_DIR/hypr.lua" "$HOME/.config/hypr/theme.lua"
+else
+    echo "Предупреждение: в теме нет hypr.lua — гэпы/rounding остаются от прежней темы"
+fi
+if [ "$OFFLINE" = 0 ]; then
+    hyprctl reload >/dev/null 2>&1
+    HYPR_ERRORS=$(hyprctl configerrors 2>/dev/null)
+    if [ -n "${HYPR_ERRORS//[[:space:]]/}" ]; then
+        echo "ОШИБКИ конфига Hyprland после переключения:"
+        echo "$HYPR_ERRORS"
+    fi
+fi
+
+# --- 4. Waybar (копируем, чтобы @import url("wallust-colors.css") работал) ---
+if [ -f "$CONFIG_DIR/style.css" ]; then
+    # rm обязателен: если style.css — старый симлинк, cp перезапишет файл темы
+    rm -f "$HOME/.config/waybar/style.css"
+    cp "$CONFIG_DIR/style.css" "$HOME/.config/waybar/style.css"
+    if [ "$OFFLINE" = 0 ]; then
+        killall waybar 2>/dev/null
+        waybar -c "$HOME/.config/waybar/config.json" &>/dev/null &
+        disown
+    fi
+fi
+
+# --- 5. histui (структура темы + палитра рядом) ---
+HISTUI_CSS="$CONFIG_DIR/histui.css"
+if [ -f "$HISTUI_CSS" ]; then
+    rm -rf "$HOME/.config/histui/themes/$THEME"
+    rm -rf "$HOME/.cache/histui/themes/$THEME"
+
+    mkdir -p "$HOME/.config/histui/themes/$THEME"
+
+    cp "$HISTUI_CSS" "$HOME/.config/histui/themes/$THEME/style.css"
+    cp "$HISTUI_CSS" "$HOME/.config/histui/themes/$THEME/theme.css"
+    # палитра, на которую ссылается @import url("colors.css")
+    if [ -f "$HOME/.config/histui/colors.css" ]; then
+        cp "$HOME/.config/histui/colors.css" "$HOME/.config/histui/themes/$THEME/colors.css"
+    fi
+
+    if [ ! -f "$HOME/.config/histui/themes/$THEME/style.css" ]; then
+        echo "ОШИБКА: Не удалось скопировать CSS файл!"
+        exit 1
+    fi
+
+    SERVICE_DIR="$HOME/.config/systemd/user"
+    SERVICE_FILE="$SERVICE_DIR/histuid.service"
+    mkdir -p "$SERVICE_DIR"
+
+    if [ ! -f "$SERVICE_FILE" ]; then
+        cp /usr/lib/systemd/user/histuid.service "$SERVICE_FILE"
+    fi
+
+    sed -i "s|ExecStart=/usr/bin/histuid.*|ExecStart=/usr/bin/histuid --theme $THEME|" "$SERVICE_FILE"
+
+    if [ "$OFFLINE" = 1 ]; then
+        echo "Тема уведомлений histui записана: $THEME"
+        echo "Текущая тема: $THEME!"
+        exit 0
+    fi
+    systemctl --user daemon-reload
+    systemctl --user restart histuid
+
+    sleep 1
+    if systemctl --user is-active --quiet histuid; then
+        echo "Обновлена тема уведомлений для histui: $THEME"
+    else
+        echo "ОШИБКА: Демон histuid не запустился!"
+        systemctl --user status histuid
+        exit 1
+    fi
+else
+    echo "Предупреждение: файл histui.css не найден в теме $THEME, оставляю текущий стиль"
+fi
+
+echo "Текущая тема: $THEME!"

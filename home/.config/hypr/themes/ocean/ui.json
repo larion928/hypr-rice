@@ -1,0 +1,14 @@
+{
+  "title": "Уведомления",
+  "headerGlyph": "≋",
+  "radius": 22,
+  "cardRadius": 16,
+  "titleFont": "display",
+  "bodyFont": "Nunito",
+  "slideMs": 380,
+  "osdStyle": "wave",
+  "folders": "cyan",
+  "powerStyle": "cards",
+  "batteryAnim": "pingpong",
+  "batteryStep": 0.08
+}

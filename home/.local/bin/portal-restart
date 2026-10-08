@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Restarts the screen-capture portals. Skipped while a capture session is live:
+# xdph keeps an "xdph-streaming-N" PipeWire node for exactly as long as a stream exists.
+set -u
+
+if pw-dump 2>/dev/null | jq -e 'any(.[]; .type == "PipeWire:Interface:Node"
+        and ((.info.props["node.name"] // "") | startswith("xdph-streaming-")))' >/dev/null; then
+    echo "screen capture is active, skipping restart"
+    exit 0
+fi
+
+exec systemctl --user restart xdg-desktop-portal-hyprland.service xdg-desktop-portal.service

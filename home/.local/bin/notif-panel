@@ -1,0 +1,13 @@
+#!/bin/bash
+# notif-panel — toggle the themed notification history panel (~/.config/quickshell/notif).
+# History, deletion and Do-Not-Disturb are histui's; the panel only shows them.
+CONF="$HOME/.config/quickshell/notif"
+# Already open: ask it to close. No lock file: anything the overlay starts (changetheme ->
+# waybar, apps from the launcher) would inherit the lock fd and keep it forever.
+if quickshell list -p "$CONF" 2>/dev/null | grep -q "Process ID"; then
+    quickshell ipc -p "$CONF" call panel close >/dev/null 2>&1 || quickshell kill -p "$CONF" >/dev/null 2>&1
+    exit 0
+fi
+THEME=$(cat "$HOME/.config/hypr/current-theme" 2>/dev/null || echo claude)
+export NOTIF_THEME_DIR="$HOME/.config/hypr/themes/$THEME"
+exec quickshell -n -p "$CONF"

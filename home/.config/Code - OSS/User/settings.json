@@ -1,0 +1,29 @@
+{
+  "files.autoSave": "afterDelay",
+  "workbench.colorTheme": "Hypr Coffee",
+  "explorer.confirmDelete": false,
+  "explorer.confirmDragAndDrop": false,
+  "editor.unicodeHighlight.invisibleCharacters": false,
+  "claudeCode.preferredLocation": "panel",
+  "go.toolsManagement.autoUpdate": true,
+  "claudeCode.hideOnboarding": true,
+  "git.autofetch": true,
+  "git.pruneOnFetch": true,
+  "git.confirmSync": false,
+  "git.openRepositoryInParentFolders": "always",
+  "git.mergeEditor": true,
+  "scm.defaultViewMode": "tree",
+  "scm.diffDecorationsGutterAction": "diff",
+  "diffEditor.ignoreTrimWhitespace": false,
+  "git-graph.showStatusBarItem": true,
+  "git-graph.repository.commits.fetchAvatars": false,
+  "git-graph.graph.colours": [
+    "#d8a657",
+    "#e9c48f",
+    "#a9b665",
+    "#fabd2f",
+    "#a9643c",
+    "#ea6962",
+    "#928374"
+  ]
+}

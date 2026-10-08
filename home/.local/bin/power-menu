@@ -1,0 +1,12 @@
+#!/bin/bash
+# power-menu — toggle the themed lock/logout/suspend/reboot/poweroff menu (~/.config/quickshell/power).
+CONF="$HOME/.config/quickshell/power"
+# Already open: ask it to close. No lock file: anything the overlay starts (changetheme ->
+# waybar, apps from the launcher) would inherit the lock fd and keep it forever.
+if quickshell list -p "$CONF" 2>/dev/null | grep -q "Process ID"; then
+    quickshell ipc -p "$CONF" call power close >/dev/null 2>&1 || quickshell kill -p "$CONF" >/dev/null 2>&1
+    exit 0
+fi
+THEME=$(cat "$HOME/.config/hypr/current-theme" 2>/dev/null || echo claude)
+export POWER_THEME_DIR="$HOME/.config/hypr/themes/$THEME"
+exec quickshell -n -p "$CONF"

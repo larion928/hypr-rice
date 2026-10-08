@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+"""Waybar module: how much of the Claude subscription limits is left.
+Every run asks the same endpoint Claude Code's /usage uses and caches the answer in
+~/.cache/claude-usage.json; if that fails, the cache (also fed by ~/.claude/statusline.sh) is shown."""
+import json
+import time
+import urllib.request
+from datetime import datetime
+from pathlib import Path
+
+CACHE = Path.home() / ".cache/claude-usage.json"
+CREDENTIALS = Path.home() / ".claude/.credentials.json"
+USAGE_URL = "https://api.anthropic.com/api/oauth/usage"
+WEEKDAYS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]
+MONTHS = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]
+
+
+def reset_ts(value):
+    # Accept epoch seconds/milliseconds or an ISO string.
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return value / 1000 if value > 1e12 else value
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
+def window(limits, key, now):
+    w = limits.get(key) or {}
+    used = w.get("used_percentage")
+    ts = reset_ts(w.get("resets_at"))
+    if used is None:
+        return None, ts
+    if ts and ts <= now:
+        return 100, None  # the window has rolled over since the last update
+    return max(0, round(100 - used)), ts
+
+
+def fmt_reset(ts, now):
+    if not ts:
+        return ""
+    d = datetime.fromtimestamp(ts)
+    if d.date() == datetime.fromtimestamp(now).date():
+        return f", сброс в {d:%H:%M}"
+    return f", сброс {WEEKDAYS[d.weekday()]} {d.day} {MONTHS[d.month - 1]} {d:%H:%M}"
+
+
+def ago(sec):
+    if sec < 90:
+        return "только что"
+    if sec < 5400:
+        return f"{round(sec / 60)} мин назад"
+    return f"{round(sec / 3600)} ч назад"
+
+
+def fetch(now):
+    # Only reads Claude Code's token; refreshing it is left to Claude Code, which rotates it.
+    oauth = json.loads(CREDENTIALS.read_text()).get("claudeAiOauth") or {}
+    token = oauth.get("accessToken")
+    if not token or oauth.get("expiresAt", 0) / 1000 <= now + 30:
+        return
+    req = urllib.request.Request(USAGE_URL, headers={
+        "Authorization": f"Bearer {token}",
+        "anthropic-beta": "oauth-2025-04-20",
+        "Content-Type": "application/json",
+    })
+    with urllib.request.urlopen(req, timeout=5) as resp:
+        usage = json.load(resp)
+    limits = {}
+    for key in ("five_hour", "seven_day"):
+        w = usage.get(key)
+        if w and w.get("utilization") is not None:
+            limits[key] = {"used_percentage": w["utilization"], "resets_at": w.get("resets_at")}
+    if limits:
+        tmp = CACHE.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"updated": int(now), "rate_limits": limits}))
+        tmp.replace(CACHE)
+
+
+def main():
+    now = time.time()
+    try:
+        fetch(now)
+    except Exception:
+        pass  # offline, expired token, API change: fall back to the cache
+    try:
+        data = json.loads(CACHE.read_text())
+    except (OSError, ValueError):
+        print(json.dumps({"text": "—", "tooltip": "Нет данных: открой Claude Code, лимиты придут с первым ответом",
+                          "class": "nodata"}, ensure_ascii=False))
+        return
+    limits = data.get("rate_limits") or {}
+    five, five_ts = window(limits, "five_hour", now)
+    week, week_ts = window(limits, "seven_day", now)
+    parts = []
+    if five is not None:
+        parts.append(f"{five}%")
+    if week is not None:
+        parts.append(f"нед {week}%")
+    worst = min(x for x in (five, week, 100) if x is not None)
+    cls = "crit" if worst < 10 else "warn" if worst < 25 else "ok"
+    tip = []
+    if five is not None:
+        tip.append(f"Сессия (5 ч): осталось {five}%{fmt_reset(five_ts, now)}")
+    if week is not None:
+        tip.append(f"Неделя: осталось {week}%{fmt_reset(week_ts, now)}")
+    tip.append(f"обновлено {ago(now - data.get('updated', now))}")
+    print(json.dumps({"text": " · ".join(parts) or "—", "tooltip": "\n".join(tip), "class": cls},
+                     ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

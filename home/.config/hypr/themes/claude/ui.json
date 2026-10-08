@@ -1,0 +1,12 @@
+{
+  "title": "Уведомления",
+  "headerIcon": "assets/spark.svg",
+  "radius": 16,
+  "cardRadius": 12,
+  "titleFont": "display",
+  "bodyFont": "Adwaita Sans",
+  "slideMs": 320,
+  "osdStyle": "pill",
+  "folders": "paleorange",
+  "powerStyle": "cards"
+}

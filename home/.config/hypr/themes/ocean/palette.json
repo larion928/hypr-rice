@@ -1,0 +1,18 @@
+{
+  "name": "ocean",
+  "label": "Ocean",
+  "font": "JetBrainsMono Nerd Font",
+  "display": "Nunito",
+  "colors": {
+    "bg": "#050a1f",
+    "bg2": "#0b1433",
+    "fg": "#d6e4ff",
+    "accent": "#5ee6e0",
+    "accent2": "#c77dff",
+    "accent3": "#3a4da7",
+    "muted": "#6a77a0",
+    "warn": "#ffc58f",
+    "crit": "#ff6b8b",
+    "good": "#5ee6a8"
+  }
+}

@@ -1,0 +1,52 @@
+@import url("colors.css");
+
+/* sakura — тёмная слива, розовые лепестки, красный мико для важного */
+.notification-popup {
+    background: linear-gradient(160deg, alpha(@bg2, 0.95), alpha(@bg, 0.92) 70%, alpha(@accent3, 0.25));
+    border: 1.5px solid alpha(@accent, 0.8);
+    border-radius: 18px;
+    padding: 12px 18px;
+    min-width: 280px;
+    min-height: 70px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 18px alpha(@accent, 0.15);
+}
+
+.notification-image {
+    width: 36px;
+    height: 36px;
+    border-radius: 18px;
+    margin-right: 14px;
+    border: 1px solid alpha(@accent, 0.5);
+}
+
+.notification-summary {
+    font-family: "Cormorant Garamond", serif;
+    font-style: italic;
+    font-weight: 700;
+    font-size: 1.3em;
+    color: @accent2;
+    margin-bottom: 2px;
+}
+
+.notification-body {
+    font-size: 0.95em;
+    color: @fg;
+    opacity: 0.9;
+}
+
+progressbar {
+    height: 4px;
+    background-color: alpha(@accent, 0.15);
+}
+progressbar progress {
+    background: linear-gradient(90deg, @accent2, @accent);
+    border-radius: 2px;
+}
+
+.notification-popup.critical {
+    border-color: @accent3;
+    box-shadow: 0 0 26px alpha(@accent3, 0.4);
+}
+.notification-popup.critical .notification-summary {
+    color: @accent3;
+}

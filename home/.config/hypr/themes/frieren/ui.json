@@ -1,0 +1,13 @@
+{
+  "title": "Уведомления",
+  "headerGlyph": "✦",
+  "radius": 18,
+  "cardRadius": 14,
+  "titleFont": "display",
+  "bodyFont": "Adwaita Sans",
+  "italicTitle": true,
+  "slideMs": 480,
+  "osdStyle": "pill",
+  "folders": "bluegrey",
+  "powerStyle": "cards"
+}

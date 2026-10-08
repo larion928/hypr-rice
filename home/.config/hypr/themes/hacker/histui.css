@@ -1,0 +1,47 @@
+@import url("colors.css");
+
+/* hacker – матрица */
+.notification-popup {
+    background-color: alpha(@bg, 0.95);
+    border: 1px solid @accent;
+    border-radius: 0px;
+    padding: 8px 12px;
+    min-width: 275px;
+    min-height: 60px;
+    font-family: "Monospace", "Courier New", monospace;
+    box-shadow: 0 0 10px alpha(@accent, 0.2);
+}
+
+.notification-image {
+    width: 32px;
+    height: 32px;
+    border-radius: 0px;
+    margin-right: 10px;
+}
+
+.notification-summary {
+    color: @accent;
+    font-weight: bold;
+    font-size: 1.1em;
+}
+
+.notification-body {
+    color: @accent3;
+    font-size: 0.95em;
+}
+
+progressbar {
+    height: 5px;
+    background-color: alpha(@accent, 0.2);
+}
+progressbar progress {
+    background-color: @accent;
+}
+
+.notification-popup.critical {
+    background-color: @crit;
+}
+.notification-popup.critical .notification-summary,
+.notification-popup.critical .notification-body {
+    color: @fg;
+}

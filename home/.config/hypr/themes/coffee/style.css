@@ -1,0 +1,104 @@
+@import url("wallust-colors.css");
+
+* {
+    border: none;
+    border-radius: 0;
+    font-family: "JetBrainsMono Nerd Font", Roboto, Helvetica, Arial, sans-serif;
+    font-weight: bold;
+}
+
+window#waybar {
+    background-color: alpha(@bg, 0.82);
+    border-radius: 6px;
+    border: 1px solid alpha(@accent3, 0.6);
+    color: @fg;
+    transition-property: background-color;
+    transition-duration: .5s;
+}
+
+#workspaces,
+#window,
+#language,
+#pulseaudio,
+#cpu,
+#memory,
+#temperature,
+#battery,
+#network,
+#clock,
+#custom-exit {
+    font-size: 16px;
+    padding: 0 12px;
+    margin: 0 8px;
+}
+
+#workspaces button {
+    padding: 2px 8px;
+    margin: 0 4px;
+    color: @muted;
+    background-color: transparent;
+}
+
+#workspaces button:hover {
+    color: @fg;
+    background-color: alpha(@accent3, 0.3);
+    border-radius: 4px;
+}
+
+/* Gruvbox style: a solid caramel block with dark text. */
+#workspaces button.active {
+    color: @bg;
+    background-color: @accent;
+    border-radius: 4px;
+}
+
+#clock {
+    color: @accent;
+}
+
+#pulseaudio {
+    color: @fg;
+}
+
+#pulseaudio.muted {
+    color: @muted;
+}
+
+#custom-exit {
+    color: @crit;
+}
+
+/* Theme switcher, help and screenshots buttons. */
+#custom-theme, #custom-help, #custom-shots {
+    font-size: 16px;
+    padding: 0 10px;
+    margin: 0 4px;
+    color: @accent;
+}
+
+/* Battery (custom/battery): the theme's own icon; a click plays a short animation. */
+#custom-battery {
+    font-size: 16px;
+    margin: 0 8px;
+    padding: 0 12px 0 34px;
+    background-image: url("file://__HOME__/.config/hypr/themes/coffee/assets/battery-0.svg");
+    background-size: 20px 20px;
+    background-repeat: no-repeat;
+    background-position: 8px center;
+}
+
+#custom-battery.charging { color: @good; }
+#custom-battery.warning { color: @warn; }
+#custom-battery.critical { color: @crit; }
+
+#cpu { color: @warn; }
+#memory { color: @accent2; }
+#temperature { color: @accent3; }
+#network { color: @good; }
+
+/* Click animation frames, switched by ~/.config/waybar/scripts/battery --wave. */
+#custom-battery.f1 { background-image: url("file://__HOME__/.config/hypr/themes/coffee/assets/battery-1.svg"); }
+#custom-battery.f2 { background-image: url("file://__HOME__/.config/hypr/themes/coffee/assets/battery-2.svg"); }
+#custom-battery.f3 { background-image: url("file://__HOME__/.config/hypr/themes/coffee/assets/battery-3.svg"); }
+#custom-battery.f4 { background-image: url("file://__HOME__/.config/hypr/themes/coffee/assets/battery-4.svg"); }
+#custom-battery.f5 { background-image: url("file://__HOME__/.config/hypr/themes/coffee/assets/battery-5.svg"); }

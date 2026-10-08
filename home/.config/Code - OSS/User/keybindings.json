@@ -1,0 +1,9 @@
+// Git shortcuts (Git Graph + built-in git).
+[
+    { "key": "ctrl+alt+g", "command": "git-graph.view" },
+    { "key": "ctrl+alt+b", "command": "git.checkout" },
+    { "key": "ctrl+alt+n", "command": "git.branch" },
+    { "key": "ctrl+alt+m", "command": "git.merge" },
+    { "key": "ctrl+alt+c", "command": "git.commit" },
+    { "key": "ctrl+alt+p", "command": "git.pull" }
+]

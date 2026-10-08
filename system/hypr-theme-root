@@ -1,0 +1,51 @@
+#!/bin/bash
+# hypr-theme-root — the only root actions changetheme needs; allowed without a password by
+# /etc/sudoers.d/hypr-theme. Root never reads the user's files here: colours, font and the
+# wallpaper path arrive as arguments and are only checked for format.
+#   hypr-theme-root folders <papirus colour>
+#   hypr-theme-root sddm <wallpaper path> <accent #rrggbb> <bg #rrggbb> <fg #rrggbb> <font>
+set -eu
+THEMES=__HOME__/.config/hypr/themes
+SDDM_THEME=/usr/share/sddm/themes/sugar-candy
+
+die() { echo "hypr-theme-root: $*" >&2; exit 2; }
+hex() { [[ $1 =~ ^#[0-9a-fA-F]{6}$ ]] || die "bad colour: $1"; }
+
+case "${1:-}" in
+folders)
+    case "${2:-}" in
+        adwaita|black|blue|bluegrey|breeze|brown|carmine|cyan|darkcyan|deeporange|green|grey|indigo|\
+        magenta|nordic|orange|palebrown|paleorange|pink|red|teal|violet|white|yaru|yellow) ;;
+        *) die "bad folder colour" ;;
+    esac
+    exec /usr/bin/papirus-folders -C "$2" -t Papirus-Dark
+    ;;
+sddm)
+    [ $# -eq 6 ] || die "usage: sddm WALLPAPER ACCENT BG FG FONT"
+    wall=$2
+    # String checks only: the greeter (user sddm) is the one that opens the file.
+    # Any name (wallpapers may be Cyrillic) except what could break the quoted config value.
+    [[ $wall == "$THEMES"/* && $wall != *..* && ! $wall =~ [\"\\\$\`[:cntrl:]] && $wall =~ \.(png|jpg|jpeg|webp)$ ]] \
+        || die "wallpaper must be an image under $THEMES"
+    hex "$3"; hex "$4"; hex "$5"
+    [[ $6 =~ ^[A-Za-z0-9\ ._-]{1,64}$ ]] || die "bad font name"
+    cat > "$SDDM_THEME/theme.conf.user" <<CONF
+# Written by hypr-theme-root (changetheme). Overrides theme.conf.
+[General]
+Background="file://$wall"
+MainColor="$5"
+AccentColor="$3"
+BackgroundColor="$4"
+Font="$6"
+HeaderText=""
+CONF
+    chmod 644 "$SDDM_THEME/theme.conf.user"
+    if [ ! -f /etc/sddm.conf.d/10-theme.conf ]; then
+        mkdir -p /etc/sddm.conf.d
+        printf '[Theme]\nCurrent=sugar-candy\n' > /etc/sddm.conf.d/10-theme.conf
+    fi
+    ;;
+*)
+    die "unknown command"
+    ;;
+esac

@@ -1,0 +1,57 @@
+@import url("colors.css");
+
+/* night — тёмный, холодный лунный акцент */
+.notification-popup {
+    background: linear-gradient(145deg, alpha(@bg2, 0.92), alpha(@bg, 0.88));
+    border: 1.5px solid @accent;
+    border-radius: 20px;
+    padding: 12px 18px;
+    min-width: 280px;
+    min-height: 70px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(8px);
+}
+
+.notification-image {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    margin-right: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.notification-summary {
+    font-weight: 700;
+    font-size: 1.15em;
+    color: @fg;
+    letter-spacing: 0.3px;
+    margin-bottom: 2px;
+}
+
+.notification-body {
+    font-size: 0.95em;
+    color: @accent3;
+    opacity: 0.9;
+    line-height: 1.4;
+}
+
+progressbar {
+    height: 4px;
+    background-color: alpha(@accent, 0.2);
+}
+progressbar progress {
+    background: linear-gradient(90deg, @accent, @accent3);
+    border-radius: 2px;
+}
+
+.notification-popup.critical {
+    background: linear-gradient(145deg, alpha(@bg, 0.96), alpha(@bg, 0.92));
+    border-color: @accent2;
+    box-shadow: 0 0 30px alpha(@accent, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.notification-popup.critical .notification-summary {
+    color: @accent2;
+}
+.notification-popup.critical .notification-body {
+    color: @fg;
+}

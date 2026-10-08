@@ -1,0 +1,9 @@
+[Unit]
+Description=Restart screen-capture portals every 3 hours
+
+[Timer]
+OnStartupSec=3h
+OnUnitActiveSec=3h
+
+[Install]
+WantedBy=timers.target

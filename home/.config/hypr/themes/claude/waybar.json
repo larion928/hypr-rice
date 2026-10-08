@@ -1,0 +1,25 @@
+{
+    "modules-right": [
+        "hyprland/language",
+        "pulseaudio",
+        "cpu",
+        "memory",
+        "temperature",
+        "custom/battery",
+        "network",
+        "custom/claude",
+        "clock",
+        "custom/histui",
+        "custom/shots",
+        "custom/help",
+        "custom/theme",
+        "custom/exit"
+    ],
+    "custom/claude": {
+        "exec": "~/.config/waybar/scripts/claude-usage",
+        "return-type": "json",
+        "interval": 30,
+        "tooltip": true,
+        "on-click": "xdg-open https://claude.ai/settings/usage"
+    }
+}

@@ -1,0 +1,15 @@
+#!/bin/bash
+# launcher — toggle the themed app launcher (~/.config/quickshell/launcher), bound to Alt+R.
+CONF="$HOME/.config/quickshell/launcher"
+# Already open: ask it to close. No lock file: anything the overlay starts (changetheme ->
+# waybar, apps from the launcher) would inherit the lock fd and keep it forever.
+if quickshell list -p "$CONF" 2>/dev/null | grep -q "Process ID"; then
+    quickshell ipc -p "$CONF" call launcher close >/dev/null 2>&1 || quickshell kill -p "$CONF" >/dev/null 2>&1
+    exit 0
+fi
+THEME=$(cat "$HOME/.config/hypr/current-theme" 2>/dev/null || echo claude)
+[ -f "$HOME/.local/state/launcher/usage.json" ] || { mkdir -p "$HOME/.local/state/launcher"; echo "{}" > "$HOME/.local/state/launcher/usage.json"; }
+export LAUNCHER_THEME_DIR="$HOME/.config/hypr/themes/$THEME"
+# Theme names/labels for the "тема …" commands.
+export LAUNCHER_THEMES=$(for d in "$HOME"/.config/hypr/themes/*/palette.json; do jq -c '{name, label}' "$d"; done | jq -sc .)
+exec quickshell -n -p "$CONF"

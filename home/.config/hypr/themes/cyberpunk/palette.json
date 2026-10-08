@@ -1,0 +1,18 @@
+{
+  "name": "cyberpunk",
+  "label": "Cyberpunk",
+  "font": "JetBrainsMono Nerd Font",
+  "display": "JetBrainsMono Nerd Font",
+  "colors": {
+    "bg": "#0a0612",
+    "bg2": "#150c22",
+    "fg": "#e6d9f2",
+    "accent": "#ff2e88",
+    "accent2": "#21e6ff",
+    "accent3": "#b81e63",
+    "muted": "#7a6b8f",
+    "warn": "#ffcc00",
+    "crit": "#ff2b4e",
+    "good": "#29e68a"
+  }
+}

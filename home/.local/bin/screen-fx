@@ -1,0 +1,14 @@
+#!/bin/bash
+# screen-fx — toggle the current theme's screen shader (themes/<theme>/screen.frag), Alt+Shift+F.
+# Off by default and after every theme switch: a screen shader disables direct scanout.
+STATE="${XDG_RUNTIME_DIR:-/tmp}/screen-fx-on"
+THEME=$(cat "$HOME/.config/hypr/current-theme" 2>/dev/null)
+SHADER="$HOME/.config/hypr/themes/$THEME/screen.frag"
+if [ -f "$STATE" ]; then
+    hyprctl eval 'hl.config({ decoration = { screen_shader = "" } })' >/dev/null
+    rm -f "$STATE"
+elif [ -f "$SHADER" ]; then
+    hyprctl eval "hl.config({ decoration = { screen_shader = \"$SHADER\" } })" >/dev/null && touch "$STATE"
+else
+    notify-send -a "Эффект экрана" "В теме «$THEME» эффекта экрана нет"
+fi

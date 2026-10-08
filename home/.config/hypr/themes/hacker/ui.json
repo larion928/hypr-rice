@@ -1,0 +1,12 @@
+{
+  "title": "~/notifications",
+  "headerGlyph": ">_",
+  "radius": 0,
+  "cardRadius": 0,
+  "titleFont": "font",
+  "bodyFont": "font",
+  "slideMs": 140,
+  "osdStyle": "ascii",
+  "folders": "grey",
+  "powerStyle": "terminal"
+}
