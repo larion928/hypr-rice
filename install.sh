@@ -319,6 +319,7 @@ if [ ${#WARNINGS[@]} -gt 0 ]; then
 fi
 info "Перезагрузись и выбери сеанс Hyprland на экране входа."
 info "Alt+F1 — справка по хоткеям, Alt+R — лаунчер, Alt+Enter — терминал."
-if ask "Перезагрузить сейчас?" n; then
+# Never reboot on RICE_ASSUME alone: an unattended run should leave that to the caller.
+if [ -z "${RICE_ASSUME:-}" ] && ask "Перезагрузить сейчас?" n; then
     sudo systemctl reboot
 fi
