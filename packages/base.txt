@@ -16,6 +16,7 @@ qt6-declarative
 waybar
 awww
 kitty
+fish
 thunar
 thunar-volman
 gvfs

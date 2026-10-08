@@ -8,7 +8,8 @@
 #
 # Environment overrides: RICE_THEME (default: current theme, else claude), RICE_BRANCH (default main),
 # RICE_SRC (where the repo is kept, default ~/.local/share/hypr-rice),
-# RICE_ASSUME=y|n answers every question without asking (unattended runs).
+# RICE_ASSUME=y|n answers every question without asking (unattended runs),
+# RICE_EXTRAS=y|n answers only the optional-apps one.
 set -euo pipefail
 
 REPO_URL="https://github.com/larion928/hypr-rice.git"
@@ -100,7 +101,9 @@ else
 fi
 
 EXTRAS=0
-if ask "Поставить также обычные программы (discord, steam, obsidian, obs, telegram, gimp, osu! и др.)?" n; then
+if [ -n "${RICE_EXTRAS:-}" ]; then
+    [[ $RICE_EXTRAS =~ ^[Yy] ]] && EXTRAS=1
+elif ask "Поставить также обычные программы (discord, steam, obsidian, obs, telegram, gimp, osu! и др.)?" n; then
     EXTRAS=1
 fi
 

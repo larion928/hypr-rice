@@ -17,6 +17,7 @@ PATHS=(
     .config/waybar/scripts
     .config/quickshell
     .config/kitty/kitty.conf
+    .config/fish
     .config/histui/histuid.toml
     .config/systemd/user/histuid.service
     .config/systemd/user/portal-restart.service
@@ -58,6 +59,7 @@ EXCLUDES=(
     --exclude=.config/hypr/theme.lua
     --exclude=.config/hypr/hyprlock.conf
     --exclude=.config/hypr/themes/whitecat-cursor.osk
+    --exclude=.config/fish/functions/neohtop-dev.fish
     --exclude=__pycache__
     --exclude='*.bak*'
     --exclude='*.pyc'
