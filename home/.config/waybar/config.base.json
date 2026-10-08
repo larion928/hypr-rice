@@ -40,17 +40,11 @@
         "sort-by-number": true,
         "all-outputs": false,
         "persistent-workspaces": {
-            "eDP-1": [
+            "*": [
                 1,
                 2,
                 3,
                 4
-            ],
-            "HDMI-A-1": [
-                5,
-                6,
-                7,
-                8
             ]
         }
     },

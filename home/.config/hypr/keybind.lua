@@ -50,6 +50,14 @@ hl.bind(key("SHIFT + F"), hl.dsp.exec_cmd("~/.local/bin/screen-fx"), desc("Оф�
 hl.bind(key("SHIFT + O"), hl.dsp.exec_cmd("killall waybar; waybar -c ~/.config/waybar/config.json --log-level error &"), desc("Оформление | Перезапустить панель"))
 hl.bind(key("F1"), hl.dsp.exec_cmd("~/.local/bin/help-panel"), desc("Система | Эта справка"))
 
+-- Passthrough for VMs and remote desktops: every key, Alt+… included, goes to the focused
+-- window until Super+F12 is pressed again.
+hl.define_submap("passthrough", function()
+    hl.bind("SUPER + F12", hl.dsp.submap("reset"))
+end)
+hl.bind("SUPER + F12", hl.dsp.submap("passthrough"),
+    desc("Система | Сквозной режим клавиш (для виртуалки), выход — снова Super+F12 | Super+F12"))
+
 -- Themed screenshots (~/.local/bin/shot): saved to ~/Pictures/screenshots and copied.
 -- Print: drag a region or click a window; Shift+Print: whole monitor.
 hl.bind("Print",         hl.dsp.exec_cmd("~/.local/bin/shot"), desc("Скриншоты | Область или окно (клик), Enter — весь экран"))

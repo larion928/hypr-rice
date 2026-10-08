@@ -3,6 +3,7 @@
 # then commit and push.
 #   rice-sync            sync, commit, push
 #   rice-sync --dry-run  sync and show the diff, no commit
+# Machine-only files stay out: hypr/monitors.lua, hypr/devices.lua, waybar/config.local.json.
 set -euo pipefail
 
 REPO=$(cd "$(dirname "$(readlink -f "$0")")" && pwd)
