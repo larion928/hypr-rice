@@ -8,8 +8,8 @@
 #
 # Environment overrides: RICE_THEME (default: current theme, else claude), RICE_BRANCH (default main),
 # RICE_SRC (where the repo is kept, default ~/.local/share/hypr-rice),
-# RICE_ASSUME=y|n answers every question without asking (unattended runs),
-# RICE_EXTRAS=y|n answers only the optional-apps one.
+# RICE_ASSUME=y|n answers every yes/no question without asking (unattended runs),
+# RICE_APPS=all|none|id,id,... skips the program picker (ids are in packages/apps.txt).
 set -euo pipefail
 
 REPO_URL="https://github.com/larion928/hypr-rice.git"
@@ -58,6 +58,117 @@ list() {  # package names from a list file, without comments
     grep -v '^[[:space:]]*#' "$1" | sed 's/[[:space:]]*#.*//' | grep -v '^[[:space:]]*$'
 }
 
+trim() { local v=$1; v=${v#"${v%%[![:space:]]*}"}; printf '%s' "${v%"${v##*[![:space:]]}"}"; }
+
+# ---------- program catalog (packages/apps.txt) ----------
+
+APP_IDS=()
+declare -A APP_GROUP APP_NAME APP_SRC
+load_apps() {
+    local id group name src
+    while IFS='|' read -r id group name src; do
+        id=$(trim "$id")
+        APP_IDS+=("$id")
+        APP_GROUP[$id]=$(trim "$group")
+        APP_NAME[$id]=$(trim "$name")
+        APP_SRC[$id]=$(trim "$src")
+    done < <(list "$1")
+}
+
+app_installed() {  # every source of the app is already present
+    local tok
+    for tok in ${APP_SRC[$1]}; do
+        case "$tok" in
+            appimage:*) [ -x "$HOME/Applications/$1.AppImage" ] || return 1 ;;
+            file:*) [ -e "$HOME/${tok#file:}" ] || return 1 ;;
+            aur:*) pacman -Qq "${tok#aur:}" >/dev/null 2>&1 || return 1 ;;
+            *) pacman -Qq "$tok" >/dev/null 2>&1 || return 1 ;;
+        esac
+    done
+}
+
+# Pinned and checksummed: gum 2.x toggles only with "x", 0.17 also with space.
+GUM_VERSION=0.17.0
+GUM_SHA256=69ee169bd6387331928864e94d47ed01ef649fbfe875baed1bbf27b5377a6fdb
+GUM=""
+fetch_gum() {
+    local dir tgz
+    dir=$(mktemp -d)
+    tgz="$dir/gum.tgz"
+    curl -fsSL -o "$tgz" \
+        "https://github.com/charmbracelet/gum/releases/download/v$GUM_VERSION/gum_${GUM_VERSION}_Linux_x86_64.tar.gz" \
+        && echo "$GUM_SHA256  $tgz" | sha256sum -c --quiet - >/dev/null 2>&1 \
+        && tar -xzf "$tgz" -C "$dir" \
+        && GUM=$(find "$dir" -name gum -type f | head -n1) && [ -n "$GUM" ]
+}
+
+PICKED=()
+pick_apps() {
+    local id label opts=() pre=() out
+    if [ -n "${RICE_APPS:-}" ]; then
+        case "$RICE_APPS" in
+            all) PICKED=("${APP_IDS[@]}") ;;
+            none) PICKED=() ;;
+            *) IFS=, read -r -a PICKED <<<"$RICE_APPS" ;;
+        esac
+        info "программы (RICE_APPS): ${PICKED[*]:-нет}"
+        return
+    fi
+    have_tty || { info "нет терминала, дополнительные программы не ставлю"; return; }
+    for id in "${APP_IDS[@]}"; do
+        label="${APP_GROUP[$id]} · ${APP_NAME[$id]}"
+        opts+=("$label=$id")
+        # On an update what is already installed starts ticked.
+        if [ -f "$MARKER" ] && app_installed "$id"; then pre+=("$label"); fi
+    done
+    if fetch_gum; then
+        out=$("$GUM" choose --no-limit --height 22 --label-delimiter="=" \
+            --header "Какие программы поставить?  пробел — отметить · enter — готово · ничего не отмечено — ничего не ставится" \
+            --selected "$(IFS=,; echo "${pre[*]}")" \
+            --cursor "› " --cursor-prefix "[ ] " --selected-prefix "[✓] " --unselected-prefix "[ ] " \
+            --header.foreground "#d97757" --cursor.foreground "#e8a383" --selected.foreground "#8fa876" \
+            "${opts[@]}" </dev/tty) || out=""
+        mapfile -t PICKED <<<"$out"
+    else
+        # No gum (GitHub unreachable, odd terminal): a plain numbered list.
+        local i=1 nums n
+        info "Какие программы поставить? Номера через пробел, Enter — ничего:"
+        for id in "${APP_IDS[@]}"; do
+            printf '      %2d) %s · %s\n' "$i" "${APP_GROUP[$id]}" "${APP_NAME[$id]}"
+            i=$((i + 1))
+        done
+        read -r -p "    > " nums </dev/tty || nums=""
+        for n in $nums; do
+            if [[ $n =~ ^[0-9]+$ ]] && [ "$n" -ge 1 ] && [ "$n" -le ${#APP_IDS[@]} ]; then
+                PICKED+=("${APP_IDS[$((n - 1))]}")
+            fi
+        done
+    fi
+    local clean=()
+    for id in "${PICKED[@]}"; do [ -n "$id" ] && [ -n "${APP_NAME[$id]:-}" ] && clean+=("$id"); done
+    PICKED=("${clean[@]}")
+    if [ ${#PICKED[@]} -gt 0 ]; then
+        ok "выбрано: $(for id in "${PICKED[@]}"; do printf '%s, ' "${APP_NAME[$id]}"; done | sed 's/, $//')"
+    else
+        ok "дополнительные программы не выбраны"
+    fi
+}
+picked() { local id; for id in "${PICKED[@]}"; do [ "$id" = "$1" ] && return 0; done; return 1; }
+
+# Vulkan for 32-bit games: Steam's lib32-vulkan-driver has several providers and
+# --noconfirm would just take the first one, which is wrong for most GPUs.
+gpu_vulkan() {
+    local v
+    for v in /sys/class/drm/card*/device/vendor; do
+        case "$(cat "$v" 2>/dev/null)" in
+            0x1002) echo "vulkan-radeon lib32-vulkan-radeon" ;;
+            0x8086) echo "vulkan-intel lib32-vulkan-intel" ;;
+            0x10de) echo "nvidia-utils lib32-nvidia-utils" ;;
+            0x1af4) echo "vulkan-virtio lib32-vulkan-virtio" ;;
+        esac
+    done | tr ' ' '\n' | sort -u
+}
+
 # ---------- 1. checks ----------
 
 step "Проверки"
@@ -73,7 +184,21 @@ if have_tty; then sudo -v </dev/tty; else sudo -v; fi || die "sudo не сраб
 SUDO_KEEPER=$!
 trap 'kill $SUDO_KEEPER 2>/dev/null || true' EXIT
 
-# ---------- 2. questions ----------
+# ---------- 2. repo ----------
+
+step "Скачиваю hypr-rice"
+sudo pacman -S --needed --noconfirm git >/dev/null
+if [ -d "$SRC/.git" ]; then
+    git -C "$SRC" fetch -q --depth 1 origin "$BRANCH"
+    git -C "$SRC" reset -q --hard "origin/$BRANCH"
+else
+    rm -rf "$SRC"
+    git clone -q --depth 1 -b "$BRANCH" "$REPO_URL" "$SRC"
+fi
+ok "$(git -C "$SRC" log -1 --format='%h  %s')"
+load_apps "$SRC/packages/apps.txt"
+
+# ---------- 3. questions ----------
 
 step "Вопросы (дальше всё пойдёт само)"
 
@@ -100,31 +225,31 @@ else
     ok "система чистая"
 fi
 
-EXTRAS=0
-if [ -n "${RICE_EXTRAS:-}" ]; then
-    [[ $RICE_EXTRAS =~ ^[Yy] ]] && EXTRAS=1
-elif ask "Поставить также обычные программы (discord, steam, obsidian, obs, telegram, gimp, osu! и др.)?" n; then
-    EXTRAS=1
-fi
+pick_apps
 
-# ---------- 3. repo ----------
-
-step "Скачиваю hypr-rice"
-sudo pacman -S --needed --noconfirm git >/dev/null
-if [ -d "$SRC/.git" ]; then
-    git -C "$SRC" fetch -q --depth 1 origin "$BRANCH"
-    git -C "$SRC" reset -q --hard "origin/$BRANCH"
-else
-    rm -rf "$SRC"
-    git clone -q --depth 1 -b "$BRANCH" "$REPO_URL" "$SRC"
-fi
-ok "$(git -C "$SRC" log -1 --format='%h  %s')"
+REPO_APPS=(); AUR_APPS=(); APPIMAGES=(); DROP_FILES=()
+for id in "${APP_IDS[@]}"; do
+    for tok in ${APP_SRC[$id]}; do
+        if ! picked "$id"; then
+            [[ $tok == file:* ]] && DROP_FILES+=("${tok#file:}")
+            continue
+        fi
+        case "$tok" in
+            aur:*) AUR_APPS+=("${tok#aur:}") ;;
+            appimage:*) APPIMAGES+=("$id ${tok#appimage:}") ;;
+            file:*) ;;
+            *) REPO_APPS+=("$tok") ;;
+        esac
+    done
+done
+if picked steam; then mapfile -t -O "${#REPO_APPS[@]}" REPO_APPS < <(gpu_vulkan); fi
 
 # ---------- 4. packages ----------
 
 step "Пакеты из официальных репозиториев"
-if [ "$EXTRAS" = 1 ] && ! grep -q '^\[multilib\]' /etc/pacman.conf; then
-    # steam lives in multilib.
+if printf '%s\n' "${REPO_APPS[@]}" | grep -qE '^(steam|umu-launcher|lib32-.*)$' \
+        && ! grep -q '^\[multilib\]' /etc/pacman.conf; then
+    # steam, umu-launcher and lib32-* live in multilib.
     sudo sed -i '/^#\[multilib\]/{N;s/#\[multilib\]\n#Include/[multilib]\nInclude/}' /etc/pacman.conf
     ok "включён репозиторий multilib"
 fi
@@ -150,26 +275,30 @@ mapfile -t AUR < <(list "$SRC/packages/aur.txt")
 yay -S --needed --noconfirm --answerdiff None --answerclean None --removemake "${AUR[@]}" \
     || warn "часть пакетов из AUR не встала, повтори установщик позже"
 
-if [ "$EXTRAS" = 1 ]; then
-    step "Дополнительные программы"
-    mapfile -t EXTRA < <(list "$SRC/packages/extra.txt")
-    repo_pk=(); aur_pk=()
-    for p in "${EXTRA[@]}"; do
-        if [[ $p == aur:* ]]; then aur_pk+=("${p#aur:}"); else repo_pk+=("$p"); fi
-    done
-    sudo pacman -Sy --needed --noconfirm "${repo_pk[@]}" || warn "часть программ не встала"
-    [ ${#aur_pk[@]} -eq 0 ] || yay -S --needed --noconfirm --answerdiff None --answerclean None "${aur_pk[@]}" \
+if [ ${#PICKED[@]} -gt 0 ]; then
+    step "Выбранные программы"
+    [ ${#REPO_APPS[@]} -eq 0 ] || sudo pacman -S --needed --noconfirm "${REPO_APPS[@]}" \
+        || warn "часть программ из репозиториев не встала"
+    [ ${#AUR_APPS[@]} -eq 0 ] || yay -S --needed --noconfirm --answerdiff None --answerclean None "${AUR_APPS[@]}" \
         || warn "часть программ из AUR не встала"
-    mkdir -p "$HOME/.local/bin"
-    if curl -fL --progress-bar -o "$HOME/.local/bin/osu.AppImage.part" \
-            https://github.com/ppy/osu/releases/latest/download/osu.AppImage; then
-        mv "$HOME/.local/bin/osu.AppImage.part" "$HOME/.local/bin/osu.AppImage"
-        chmod +x "$HOME/.local/bin/osu.AppImage"
-        ok "osu! → ~/.local/bin/osu.AppImage"
-    else
-        rm -f "$HOME/.local/bin/osu.AppImage.part"
-        warn "osu! не скачался"
-    fi
+    for entry in "${APPIMAGES[@]}"; do
+        id=${entry%% *}; url=${entry#* }
+        dest="$HOME/Applications/$id.AppImage"
+        mkdir -p "$HOME/Applications" "$HOME/.local/share/applications"
+        if curl -fL --progress-bar -o "$dest.part" "$url"; then
+            mv "$dest.part" "$dest"
+            chmod +x "$dest"
+            # So the launcher (Alt+R) lists it like any installed app.
+            printf '%s\n' "[Desktop Entry]" "Type=Application" "Name=${APP_NAME[$id]}" "Exec=$dest" \
+                "Icon=applications-games" "Categories=Game;" \
+                > "$HOME/.local/share/applications/hypr-rice-$id.desktop"
+            ok "${APP_NAME[$id]} → ~/Applications/$id.AppImage"
+        else
+            rm -f "$dest.part"
+            warn "${APP_NAME[$id]} не скачался"
+        fi
+    done
+    ok "программ: ${#PICKED[@]}"
 fi
 
 # ---------- 5. files ----------
@@ -209,6 +338,7 @@ done
 chmod +x "$HOME"/.local/bin/* "$HOME"/.config/waybar/scripts/* "$HOME"/.config/hypr/scripts/*.py \
          "$HOME"/.config/hypr/scripts/ru-date "$HOME"/.claude/statusline.sh 2>/dev/null || true
 cd "$HOME"
+for f in "${DROP_FILES[@]}"; do rm -f "$HOME/$f"; done
 ok "${#FILES[@]} файлов"
 
 # Machine-specific files are never overwritten.

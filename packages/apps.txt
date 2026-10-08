@@ -1,0 +1,33 @@
+# Programs offered in the installer's picker; nothing here is installed unless ticked.
+# id | group | name shown | sources (space-separated)
+#   name           package from the official repos ([multilib] is enabled when needed)
+#   aur:name       package from the AUR
+#   appimage:URL   AppImage saved to ~/Applications/<id>.AppImage with a launcher entry
+#   file:path      file of the rice (relative to ~) that only stays when the app is picked
+ayugram     | Общение    | AyuGram                          | aur:ayugram-desktop-bin libsrtp libvpl zimg nss
+telegram    | Общение    | Telegram                         | telegram-desktop
+discord     | Общение    | Discord                          | discord
+steam       | Игры       | Steam                            | steam
+proton      | Игры       | Proton для .exe (umu + ProtonPlus) | umu-launcher aur:protonplus
+gamemode    | Игры       | GameMode                         | gamemode lib32-gamemode
+osu         | Игры       | osu!                             | fuse2 appimage:https://github.com/ppy/osu/releases/latest/download/osu.AppImage
+prism       | Игры       | Ely Prism Launcher (Minecraft)   | fuse2 appimage:https://github.com/ElyPrismLauncher/Launcher/releases/latest/download/PineconeMC-Linux-x86_64.AppImage
+claude      | Разработка | Claude Code                      | aur:claude-code
+code        | Разработка | Code-OSS + темы и Git Graph      | code
+lazygit     | Разработка | lazygit                          | lazygit
+lazydocker  | Разработка | lazydocker                       | lazydocker
+obs         | Медиа      | OBS Studio                       | obs-studio
+gimp        | Медиа      | GIMP                             | gimp
+darktable   | Медиа      | darktable                        | darktable
+rawtherapee | Медиа      | RawTherapee                      | rawtherapee
+cava        | Медиа      | cava (визуализатор звука)        | cava
+chromium    | Интернет   | Chromium                         | chromium
+happ        | Интернет   | Happ (VPN)                       | aur:happ-desktop-bin
+qbittorrent | Интернет   | qBittorrent                      | qbittorrent
+tor         | Интернет   | Tor Browser                      | torbrowser-launcher
+neohtop     | Утилиты    | neoHtop (диспетчер задач)        | webkit2gtk-4.1 file:.local/bin/neohtop
+drift       | Утилиты    | drift                            | aur:drift-bin
+obsidian    | Утилиты    | Obsidian                         | obsidian
+fastfetch   | Утилиты    | fastfetch                        | fastfetch
+pavucontrol | Утилиты    | pavucontrol (микшер)             | pavucontrol
+filelight   | Утилиты    | Filelight (что занимает диск)    | filelight

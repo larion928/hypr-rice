@@ -1,7 +1,5 @@
 # AUR (installed with yay).
 histui-bin
-drift-bin
-ayugram-desktop-bin
 sddm-sugar-candy-git
 papirus-folders
 graphite-gtk-theme

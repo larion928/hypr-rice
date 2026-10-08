@@ -1,4 +1,4 @@
-# Official repositories. Everything the rice itself needs.
+# Official repositories. Everything the rice itself needs; apps are picked in apps.txt.
 # --- compositor & session
 hyprland
 hyprlock
@@ -63,15 +63,6 @@ ttf-nunito
 noto-fonts
 noto-fonts-emoji
 otf-font-awesome
-# --- libraries the AUR -bin packages use but do not declare
-#     (ayugram-desktop-bin: libsrtp, libvpl, zimg, nss; histui-bin: gstreamer)
-libsrtp
-libvpl
-zimg
-nss
+# --- libraries histui-bin uses but does not declare
 gstreamer
 gst-plugins-base-libs
-# --- apps of the rice
-code
-chromium
-webkit2gtk-4.1
