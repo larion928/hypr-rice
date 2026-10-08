@@ -7,7 +7,8 @@
 # packages are installed with --needed, files are refreshed, the old ones go to a backup.
 #
 # Environment overrides: RICE_THEME (default claude), RICE_BRANCH (default main),
-# RICE_SRC (where the repo is kept, default ~/.local/share/hypr-rice).
+# RICE_SRC (where the repo is kept, default ~/.local/share/hypr-rice),
+# RICE_ASSUME=y|n answers every question without asking (unattended runs).
 set -euo pipefail
 
 REPO_URL="https://github.com/larion928/hypr-rice.git"
@@ -33,10 +34,16 @@ die()  { printf '\n%sОшибка:%s %s\n' "$RED" "$R" "$*" >&2; exit 1; }
 WARNINGS=()
 
 # curl | bash: stdin is the script itself, so questions are read from the terminal.
+have_tty() { { : </dev/tty; } 2>/dev/null; }
 ask() {  # ask "question" default(y|n) -> returns 0 for yes
     local q=$1 def=${2:-n} a hint
     [ "$def" = y ] && hint="[Y/n]" || hint="[y/N]"
-    if [ ! -r /dev/tty ]; then
+    if [ -n "${RICE_ASSUME:-}" ]; then
+        info "$q $hint ${RICE_ASSUME} (RICE_ASSUME)"
+        [[ $RICE_ASSUME =~ ^[Yy] ]]
+        return
+    fi
+    if ! have_tty; then
         [ "$def" = y ]
         return
     fi
@@ -58,7 +65,7 @@ curl -fsSI --max-time 10 https://github.com >/dev/null || die "нет интер
 ok "Arch, пользователь $USER, интернет есть"
 
 info "Нужны права администратора, введи пароль sudo:"
-sudo -v </dev/tty || die "sudo не сработал"
+if have_tty; then sudo -v </dev/tty; else sudo -v; fi || die "sudo не сработал"
 # Keep the sudo timestamp fresh for the whole (long) run.
 ( while kill -0 $$ 2>/dev/null; do sudo -n true 2>/dev/null; sleep 50; done ) &
 SUDO_KEEPER=$!
