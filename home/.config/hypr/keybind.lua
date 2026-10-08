@@ -58,6 +58,21 @@ end)
 hl.bind("SUPER + F12", hl.dsp.submap("passthrough"),
     desc("Система | Сквозной режим клавиш (для виртуалки), выход — снова Super+F12 | Super+F12"))
 
+-- VM and remote-desktop windows switch passthrough on by themselves while focused.
+local passthrough_classes = {
+    ["qemu"] = true, ["virt-manager"] = true, ["remote-viewer"] = true,
+    ["VirtualBox Machine"] = true, ["org.remmina.Remmina"] = true,
+}
+hl.on("window.active", function(w)
+    local want = w ~= nil and passthrough_classes[w.class] == true
+    local on = hl.get_current_submap() == "passthrough"
+    if want and not on then
+        hl.dispatch(hl.dsp.submap("passthrough"))
+    elseif on and not want then
+        hl.dispatch(hl.dsp.submap("reset"))
+    end
+end)
+
 -- Themed screenshots (~/.local/bin/shot): saved to ~/Pictures/screenshots and copied.
 -- Print: drag a region or click a window; Shift+Print: whole monitor.
 hl.bind("Print",         hl.dsp.exec_cmd("~/.local/bin/shot"), desc("Скриншоты | Область или окно (клик), Enter — весь экран"))
