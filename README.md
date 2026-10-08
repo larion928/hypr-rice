@@ -30,8 +30,9 @@ Then it runs unattended:
    Lenovo IdeaPads;
 5. builds the app themes and applies the `claude` theme. Reboot and pick Hyprland.
 
-Running it again updates an existing install; programs already installed start ticked. `RICE_THEME=ocean` picks another starting theme,
-`RICE_APPS=steam,obs` (or `all` / `none`) skips the checklist.
+Running it again updates an existing install; programs already installed start ticked.
+`RICE_THEME=ocean` picks another starting theme, `RICE_APPS=steam,obs` (or `all` / `none`)
+skips the checklist.
 
 ## Use
 
