@@ -118,7 +118,9 @@ def gen_waybar(t):
     # Machine-specific bits (outputs in persistent-workspaces, ...), not part of the rice repo.
     local = HOME / ".config/waybar/config.local.json"
     if local.exists():
-        cfg = deep_merge(cfg, json.loads(local.read_text()))
+        # One level deep: a module option given here replaces the shared one as a whole.
+        for mod, opts in json.loads(local.read_text()).items():
+            cfg[mod] = {**cfg[mod], **opts} if isinstance(opts, dict) and isinstance(cfg.get(mod), dict) else opts
     write(HOME / ".config/waybar/config.json", json.dumps(cfg, indent=4, ensure_ascii=False) + "\n")
 
 
