@@ -1,63 +1,101 @@
 # hypr-rice
 
-Hyprland (0.56, Lua config) + Quickshell + Waybar. Eight themes, each with its own palette, fonts,
-window animations, lock screen, screenshot animation and shutter sound, waybar battery icon,
-volume/brightness OSD and SDDM login screen. Code-OSS, AyuGram, kitty, GTK/Thunar, drift and
-neoHtop follow the theme too.
+**Русский** · [English](README.en.md)
 
-![themes](docs/themes.jpg)
+Hyprland (0.56, конфиг на Lua) + Quickshell + Waybar. Восемь тем, у каждой свои цвета, шрифты,
+анимации окон, экран блокировки, анимация и звук скриншота, значок батареи в панели,
+окно громкости и яркости и экран входа SDDM. Под тему подстраиваются Code-OSS, AyuGram, kitty,
+GTK и Thunar, drift и neoHtop.
 
-## Install
+![темы](docs/themes.jpg)
 
-On a fresh Arch (or Arch-based) system, logged in as your normal user:
+## Установка
+
+На свежем Arch (или производном: CachyOS, EndeavourOS и т.п.) войди под своим обычным
+пользователем и выполни:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/larion928/hypr-rice/main/install.sh | bash
 ```
 
-The installer asks everything up front (sudo password, what to do with an existing rice)
-and shows a checklist of programs (space to tick, enter to go on; nothing is ticked by default):
-AyuGram, Telegram, Discord, Steam, Proton for .exe (umu + ProtonPlus), osu!, Ely Prism Launcher,
-Claude Code, Code-OSS, OBS, Chromium, Happ and more, see `packages/apps.txt`.
-Then it runs unattended:
+Установщик сначала задаёт все вопросы, дальше работает сам:
 
-1. installs Hyprland and everything the rice needs from the official repos, `yay` and the AUR bits;
-2. if another rice is found (`~/.config/hypr`, `waybar`, `rofi`, `dunst`, …) it asks first and moves
-   it to `~/.rice-backup-<date>/`; nothing is deleted;
-3. copies the configs, fills in your home path, keeps machine-specific files
-   (`~/.config/hypr/monitors.lua`, `devices.lua`);
-4. sets up SDDM (sugar-candy), the GTK theme, icons, the WhiteCat cursor, services, and Fn Lock on
-   Lenovo IdeaPads;
-5. builds the app themes and applies the `claude` theme. Reboot and pick Hyprland.
+1. **Пароль sudo.** Один раз в начале.
+2. **Старый райс.** Если уже настроено другое окружение (`~/.config/hypr`, `waybar`, `rofi`,
+   `dunst`…), спросит разрешения и уберёт его в `~/.rice-backup-<дата>/`. Ничего не удаляется.
+3. **Программы.** Список с галочками (пробел — отметить, Enter — дальше), по умолчанию ничего не
+   отмечено: браузеры (Firefox, Chromium, Brave, Zen, LibreWolf, Vivaldi), AyuGram, Telegram,
+   Discord, Steam, Proton для `.exe`, osu!, Prism Launcher, Claude Code, Code-OSS, OBS,
+   LibreOffice, Happ и ещё около сорока. Полный список: [`packages/apps.txt`](packages/apps.txt).
+4. **Установка.** Hyprland и всё нужное райсу, конфиги, экран входа SDDM (с Hyprland
+   по умолчанию), тема GTK, иконки, курсор WhiteCat, сервисы, Fn Lock на Lenovo IdeaPad, тема claude.
 
-Running it again updates an existing install; programs already installed start ticked.
-`RICE_THEME=ocean` picks another starting theme, `RICE_APPS=steam,obs` (or `all` / `none`)
-skips the checklist.
+После этого перезагрузись: откроется экран входа с выбранным Hyprland.
 
-## Use
+### Если что-то заблокировано
 
-| Keys | |
+- **AUR недоступен** (ошибки вида `TLS connect error … unexpected eof`). Ничего делать не нужно.
+  AUR-пакеты берутся готовыми из [hypr-rice-pkgs](https://github.com/larion928/hypr-rice-pkgs):
+  их собирает GitHub раз в неделю, они подписаны. Если какого-то пакета там нет, его рецепт
+  скачивается с зеркала AUR на GitHub и собирается на месте.
+- **Зеркала pacman подвисают** (`Operation too slow`). Установщик повторяет загрузку до 6 раз,
+  со второй попытки переключается на запасные зеркала (старый список сохраняется в
+  `/etc/pacman.d/mirrorlist.rice-backup`).
+
+## Менеджер `rice`
+
+После установки в системе остаётся команда `rice`. Её меню открывается в терминале или из
+лаунчера (Alt+R → «Менеджер райса»):
+
+| Команда | Что делает |
 |---|---|
-| Alt + F1 | help with every hotkey |
-| Alt + Shift + T | theme picker (or `changetheme <name>`) |
-| Alt + R | launcher (apps and system commands) |
-| Alt + Enter | kitty |
-| Print / Shift + Print | screenshot of an area or window / the whole screen |
+| `rice apps` | доставить программы: тот же список, установленные уже отмечены |
+| `rice remove` | удалить программы из списка |
+| `rice update` | обновить райс с GitHub (тема и настройки этой машины сохраняются) |
+| `rice upgrade` | обновить систему и программы, включая AUR |
+| `rice repair` | починить: экран входа SDDM, тема GTK, сервисы |
+| `rice report` | собрать отчёт `~/rice-report.txt`, чтобы прислать тому, кто помогает |
+| `rice uninstall` | убрать райс и вернуть последний бэкап |
 
-Themes: `claude`, `night`, `hacker`, `cyberpunk`, `frieren`, `sakura`, `coffee`, `ocean`.
+## Горячие клавиши
 
-## Layout
+| Клавиши | |
+|---|---|
+| Alt + F1 | справка по всем горячим клавишам |
+| Alt + Shift + T | выбор темы (или `changetheme <тема>`) |
+| Alt + R | лаунчер: программы и системные команды |
+| Alt + Enter | терминал kitty |
+| Alt + B | браузер по умолчанию |
+| Alt + E | файлы (Thunar) |
+| Print / Shift + Print | скриншот области или окна / всего экрана |
+| Super + F12 | сквозной режим клавиш для виртуалок (окна QEMU и др. включают его сами) |
+
+Темы: `claude`, `night`, `hacker`, `cyberpunk`, `frieren`, `sakura`, `coffee`, `ocean`.
+
+## Настройки установщика
+
+Переменные окружения перед `bash`, например `curl … | RICE_THEME=ocean bash`:
+
+| Переменная | |
+|---|---|
+| `RICE_THEME=ocean` | тема после установки |
+| `RICE_APPS=steam,obs,firefox` | программы без окна выбора (`all` — все, `none` — никаких) |
+| `RICE_ASSUME=y` | ответить «да» на все вопросы (для автоматической установки) |
+| `RICE_BRANCH=dev` | ставить из другой ветки |
+
+## Устройство репозитория
 
 ```
-install.sh        installer
-sync.sh           (author) copy the live rice into the repo, check for secrets, commit, push
-packages/         base.txt (repos), aur.txt, apps.txt (programs for the checklist)
-home/             goes to ~ ; __HOME__ is replaced with your home path
-system/           root helper for folder colours and SDDM, SDDM config, Fn Lock rule
+install.sh        загрузчик: скачивает репозиторий и запускает rice install
+rice              менеджер райса (установка, программы, обновление, починка, отчёт)
+sync.sh           (для автора) собрать текущий райс в репозиторий, проверить на секреты, отправить
+packages/         base.txt (репозитории), aur.txt, apps.txt (каталог программ)
+home/             раскладывается в ~ ; __HOME__ заменяется на твою домашнюю папку
+system/           root-помощник (цвет папок, SDDM), конфиг SDDM, Fn Lock, ключ репозитория пакетов
 ```
 
-A theme lives in `home/.config/hypr/themes/<name>/`: `palette.json`, `ui.json`, `hypr.lua`,
-`style.css` (waybar), `histui.css`, `hyprlock.conf`, `screenshot.qml`, `shutter.wav`, wallpapers.
-Shared app configs are generated from the palette by `~/.config/hypr/scripts/themegen.py`.
+Тема лежит в `home/.config/hypr/themes/<имя>/`: `palette.json`, `ui.json`, `hypr.lua`,
+`style.css` (waybar), `histui.css`, `hyprlock.conf`, `screenshot.qml`, `shutter.wav` и обои.
+Общие конфиги программ генерируются из палитры скриптом `~/.config/hypr/scripts/themegen.py`.
 
-Wallpapers belong to their authors (most come from wallhaven.cc).
+Обои принадлежат их авторам (в основном с wallhaven.cc).
