@@ -1,0 +1,20 @@
+#!/bin/bash
+# waybar-start — (re)start the rice's waybar and make sure its bar actually appears.
+# Right after login waybar sometimes starts before the output is ready and never maps a bar,
+# so the layer list is checked and waybar restarted once if needed.
+CONF="$HOME/.config/hypr-rice/waybar"
+
+start() {
+    pkill -x waybar 2>/dev/null
+    for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -x waybar >/dev/null || break; sleep 0.2; done
+    setsid -f waybar -c "$CONF/config.json" -s "$CONF/style.css" --log-level error >/dev/null 2>&1
+}
+
+mapped() { hyprctl layers -j 2>/dev/null | grep -q '"namespace": *"waybar"'; }
+
+start
+for _ in 1 2 3 4 5 6 7 8; do
+    sleep 1
+    mapped && exit 0
+done
+start

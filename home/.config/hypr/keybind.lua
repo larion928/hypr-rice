@@ -48,7 +48,7 @@ hl.bind(key("B"), hl.dsp.exec_cmd(browser), desc("Приложения | Бра�
 hl.bind(key("T"), hl.dsp.exec_cmd("AyuGram"), desc("Приложения | AyuGram"))
 hl.bind(key("SHIFT + T"), hl.dsp.exec_cmd("~/.local/bin/theme-picker"), desc("Оформление | Выбор темы"))
 hl.bind(key("SHIFT + F"), hl.dsp.exec_cmd("~/.local/bin/screen-fx"), desc("Оформление | Эффект экрана (в теме hacker)"))
-hl.bind(key("SHIFT + O"), hl.dsp.exec_cmd("killall waybar; waybar -c ~/.config/hypr-rice/waybar/config.json -s ~/.config/hypr-rice/waybar/style.css --log-level error &"), desc("Оформление | Перезапустить панель"))
+hl.bind(key("SHIFT + O"), hl.dsp.exec_cmd("~/.local/bin/waybar-start"), desc("Оформление | Перезапустить панель"))
 hl.bind(key("F1"), hl.dsp.exec_cmd("~/.local/bin/help-panel"), desc("Система | Эта справка"))
 
 -- Passthrough for VMs and remote desktops: every key, Alt+… included, goes to the focused

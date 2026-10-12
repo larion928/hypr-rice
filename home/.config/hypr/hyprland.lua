@@ -19,10 +19,12 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE"
         .. " && systemctl --user restart xdg-desktop-portal-hyprland.service xdg-desktop-portal.service xdg-desktop-portal-gtk.service")
     hl.exec_cmd("systemctl --user start graphical-session.target")
-    hl.exec_cmd("waybar -c ~/.config/hypr-rice/waybar/config.json -s ~/.config/hypr-rice/waybar/style.css")
+    hl.exec_cmd("~/.local/bin/waybar-start")
     -- Session services that must not run under another desktop (its own notification daemon,
     -- portals): started here, stopped at shutdown.
-    hl.exec_cmd("systemctl --user start histuid.service portal-restart.timer")
+    -- Another desktop's notification daemon gets D-Bus-activated by the first notification and
+    -- would keep histuid off the bus; it is closed for this session.
+    hl.exec_cmd("pkill -x mako; pkill -x dunst; pkill -x swaync; systemctl --user start histuid.service portal-restart.timer")
     -- Volume/brightness OSD, follows the current theme on its own.
     hl.exec_cmd("OSD_BACKLIGHT=$(ls -d /sys/class/backlight/* 2>/dev/null | head -n1) quickshell -d -p ~/.config/quickshell/osd")
     hl.exec_cmd("awww-daemon")

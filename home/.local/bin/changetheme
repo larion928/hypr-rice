@@ -142,8 +142,7 @@ if [ -f "$CONFIG_DIR/style.css" ]; then
     rm -f "$HOME/.config/hypr-rice/waybar/style.css"
     cp "$CONFIG_DIR/style.css" "$HOME/.config/hypr-rice/waybar/style.css"
     if [ "$OFFLINE" = 0 ]; then
-        killall waybar 2>/dev/null
-        waybar -c "$HOME/.config/hypr-rice/waybar/config.json" -s "$HOME/.config/hypr-rice/waybar/style.css" &>/dev/null &
+        "$HOME/.local/bin/waybar-start" &>/dev/null &
         disown
     fi
 fi

@@ -16,7 +16,8 @@
 set -euo pipefail
 
 SRC=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)
-BRANCH="${RICE_BRANCH:-main}"
+# Updates follow the branch the rice was installed from.
+BRANCH="${RICE_BRANCH:-$(git -C "$SRC" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)}"
 STAMP=$(date +%Y%m%d-%H%M%S)
 BACKUP="$HOME/.rice-backup-$STAMP"
 MARKER="$HOME/.config/hypr/.rice-installed"

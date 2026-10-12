@@ -42,6 +42,7 @@ PATHS=(
     .local/bin/screen-fx
     .local/bin/mouse-sens
     .local/bin/portal-restart
+    .local/bin/waybar-start
     .local/bin/neohtop
     .claude/statusline.sh
 )
