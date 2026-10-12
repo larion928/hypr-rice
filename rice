@@ -163,11 +163,27 @@ setup_pkg_repo() {
 aur_reachable() { curl -fsSI --max-time 10 https://aur.archlinux.org >/dev/null 2>&1; }
 
 build_from_github_mirror() {  # PKGBUILD from github.com/archlinux/aur, built here
-    local pkg=$1 dir
+    local pkg=$1 dir log="$CACHE/build-$1.log" deps k
+    mkdir -p "$CACHE"
     dir=$(mktemp -d)
     git clone -q --depth 1 --single-branch --branch "$pkg" https://github.com/archlinux/aur.git "$dir/$pkg" \
-        || { rm -rf "$dir"; return 1; }
-    (cd "$dir/$pkg" && makepkg -si --noconfirm --needed) || { rm -rf "$dir"; return 1; }
+        >"$log" 2>&1 || { rm -rf "$dir"; return 1; }
+    # makepkg's own dependency install has no retries, so flaky mirrors break it: do it here.
+    deps=$(cd "$dir/$pkg" && makepkg --printsrcinfo 2>/dev/null \
+        | sed -nE 's/^\s*(depends|makedepends) = ([^<>=]+).*/\2/p' | sort -u)
+    local d need=()
+    # Only what is missing and resolvable from the repos: one AUR name would fail the whole call.
+    # shellcheck disable=SC2086
+    for d in $(pacman -T $deps 2>/dev/null); do
+        pacman -Sp --print-format %n "$d" >/dev/null 2>&1 && need+=("$d")
+    done
+    [ ${#need[@]} -eq 0 ] || pac -S --needed --asdeps "${need[@]}" >>"$log" 2>&1 || true
+    # Upstream signing keys the PKGBUILD trusts (papirus-folders checks its git tag).
+    for k in $(cd "$dir/$pkg" && makepkg --printsrcinfo 2>/dev/null | sed -nE 's/^\s*validpgpkeys = (.*)/\1/p'); do
+        gpg --batch --keyserver hkps://keyserver.ubuntu.com --recv-keys "$k" >>"$log" 2>&1 \
+            || gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys "$k" >>"$log" 2>&1 || true
+    done
+    (cd "$dir/$pkg" && makepkg -si --noconfirm --needed) >>"$log" 2>&1 || { rm -rf "$dir"; return 1; }
     rm -rf "$dir"
 }
 
@@ -204,7 +220,7 @@ aur_install() {  # AUR packages: hypr-rice repo first, then yay, then the GitHub
         info "собираю $pkg (PKGBUILD с зеркала AUR на GitHub)"
         build_from_github_mirror "$pkg" >/dev/null 2>&1 || failed+=("$pkg")
     done
-    [ ${#failed[@]} -eq 0 ] || { warn "не удалось поставить из AUR: ${failed[*]}"; return 1; }
+    [ ${#failed[@]} -eq 0 ] || { warn "не удалось поставить из AUR: ${failed[*]} (логи: ~/.cache/hypr-rice/build-*.log)"; return 1; }
 }
 
 # ---------- program catalog (packages/apps.txt) ----------
