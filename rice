@@ -154,10 +154,12 @@ setup_pkg_repo() {
         sudo pacman-key --lsign-key "$PKG_KEY_FPR" >/dev/null
     fi
     if ! pkg_repo_enabled; then
-        printf '\n%s\n' "[hypr-rice]" "SigLevel = Required DatabaseOptional" "Server = $PKG_REPO_URL" \
+        printf '%s\n' "" "[hypr-rice]" "SigLevel = Required DatabaseOptional" "Server = $PKG_REPO_URL" \
             | sudo tee -a /etc/pacman.conf >/dev/null
         ok "подключён репозиторий hypr-rice (собранные AUR-пакеты)"
     fi
+    # Without a fresh sync pacman does not know the repo's packages yet.
+    pac -Sy >/dev/null || true
 }
 
 aur_reachable() { curl -fsSI --max-time 10 https://aur.archlinux.org >/dev/null 2>&1; }
