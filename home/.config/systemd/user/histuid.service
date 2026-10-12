@@ -8,6 +8,9 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
+# Started only from Hyprland: another desktop's daemon may hold the notification bus name
+# (D-Bus activates mako and the like on the first notification), so it goes first.
+ExecStartPre=-/usr/bin/pkill -x mako|dunst|swaync
 ExecStart=/usr/bin/histuid --theme cyberpunk
 # auto-restart every 30 minutes
 RuntimeMaxSec=1800
