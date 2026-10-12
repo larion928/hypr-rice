@@ -154,11 +154,11 @@
         "on-click": "~/.local/bin/shots-gallery"
     },
     "custom/battery": {
-        "exec": "~/.config/waybar/scripts/battery",
+        "exec": "~/.config/hypr-rice/waybar/scripts/battery",
         "return-type": "json",
         "interval": 15,
         "signal": 8,
         "tooltip": true,
-        "on-click": "~/.config/waybar/scripts/battery --wave"
+        "on-click": "~/.config/hypr-rice/waybar/scripts/battery --wave"
     }
 }

@@ -24,12 +24,12 @@ changetheme — переключение темы Hyprland-окружения
                 ~/.config/hypr/themes/<тема>/ и ставит через awww
   2. Палитра  — themegen.py apply берёт themes/<тема>/palette.json и пишет:
                   ~/.config/hypr/palette.lua, palette.json, current-theme
-                  ~/.config/waybar/wallust-colors.css, ~/.config/histui/colors.css
+                  ~/.config/hypr-rice/waybar/wallust-colors.css, ~/.config/histui/colors.css
                   ~/.config/hypr/hyprlock-colors.conf (+ симлинк hyprlock.conf)
                   ~/.config/gtk-3.0/gtk.css, ~/.config/gtk-4.0/gtk*.css
                   [engine] theme в ~/.config/drift/config.toml
                   workbench.colorTheme в settings.json Code - OSS
-                  ~/.config/kitty/theme.conf (открытые окна kitty перекрашиваются сразу)
+                  ~/.config/hypr-rice/kitty/theme.conf (открытые окна kitty перекрашиваются сразу)
                   цвет папок Papirus и экран входа SDDM (через hypr-theme-root)
                 Цвета фиксированы — от обоев не зависят.
   3. Hyprland — симлинкует themes/<тема>/hypr.lua -> hypr/theme.lua
@@ -51,7 +51,7 @@ changetheme — переключение темы Hyprland-окружения
                         цвета через local c = require("palette")
                         (c.active / c.active2 / c.inactive)
   style.css             тема waybar — цвета через @accent/@bg/@fg/…
-                        (см. ~/.config/waybar/wallust-colors.css)
+                        (см. ~/.config/hypr-rice/waybar/wallust-colors.css)
   histui.css            тема уведомлений — те же переменные,
                         подключаются через @import url("colors.css")
   palette.json          цвета темы + шрифты (font, display)
@@ -139,11 +139,11 @@ fi
 # --- 4. Waybar (копируем, чтобы @import url("wallust-colors.css") работал) ---
 if [ -f "$CONFIG_DIR/style.css" ]; then
     # rm обязателен: если style.css — старый симлинк, cp перезапишет файл темы
-    rm -f "$HOME/.config/waybar/style.css"
-    cp "$CONFIG_DIR/style.css" "$HOME/.config/waybar/style.css"
+    rm -f "$HOME/.config/hypr-rice/waybar/style.css"
+    cp "$CONFIG_DIR/style.css" "$HOME/.config/hypr-rice/waybar/style.css"
     if [ "$OFFLINE" = 0 ]; then
         killall waybar 2>/dev/null
-        waybar -c "$HOME/.config/waybar/config.json" &>/dev/null &
+        waybar -c "$HOME/.config/hypr-rice/waybar/config.json" -s "$HOME/.config/hypr-rice/waybar/style.css" &>/dev/null &
         disown
     fi
 fi

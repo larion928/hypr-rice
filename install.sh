@@ -10,6 +10,7 @@
 # RICE_SRC (where the repo is kept, default ~/.local/share/hypr-rice),
 # RICE_ASSUME=y|n answers every yes/no question without asking (unattended runs),
 # RICE_APPS=all|none|id,id,... skips the program picker (ids are in packages/apps.txt).
+# RICE_MODE=replace|coexist decides what happens to an existing rice without asking.
 set -euo pipefail
 
 REPO_URL="https://github.com/larion928/hypr-rice.git"

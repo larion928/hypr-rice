@@ -16,7 +16,7 @@
         "custom/exit"
     ],
     "custom/claude": {
-        "exec": "~/.config/waybar/scripts/claude-usage",
+        "exec": "~/.config/hypr-rice/waybar/scripts/claude-usage",
         "return-type": "json",
         "interval": 30,
         "tooltip": true,

@@ -94,7 +94,7 @@ window#waybar {
 #cpu, #memory, #temperature { color: @accent2; }
 #temperature.critical { color: @accent3; }
 
-/* Click animation frames, switched by ~/.config/waybar/scripts/battery --wave. */
+/* Click animation frames, switched by ~/.config/hypr-rice/waybar/scripts/battery --wave. */
 #custom-battery.f1 { background-image: url("file://__HOME__/.config/hypr/themes/sakura/assets/battery-1.svg"); }
 #custom-battery.f2 { background-image: url("file://__HOME__/.config/hypr/themes/sakura/assets/battery-2.svg"); }
 #custom-battery.f3 { background-image: url("file://__HOME__/.config/hypr/themes/sakura/assets/battery-3.svg"); }

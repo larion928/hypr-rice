@@ -19,12 +19,19 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE"
         .. " && systemctl --user restart xdg-desktop-portal-hyprland.service xdg-desktop-portal.service xdg-desktop-portal-gtk.service")
     hl.exec_cmd("systemctl --user start graphical-session.target")
-    hl.exec_cmd("waybar -c ~/.config/waybar/config.json")
+    hl.exec_cmd("waybar -c ~/.config/hypr-rice/waybar/config.json -s ~/.config/hypr-rice/waybar/style.css")
+    -- Session services that must not run under another desktop (its own notification daemon,
+    -- portals): started here, stopped at shutdown.
+    hl.exec_cmd("systemctl --user start histuid.service portal-restart.timer")
     -- Volume/brightness OSD, follows the current theme on its own.
     hl.exec_cmd("OSD_BACKLIGHT=$(ls -d /sys/class/backlight/* 2>/dev/null | head -n1) quickshell -d -p ~/.config/quickshell/osd")
     hl.exec_cmd("awww-daemon")
     -- The theme's wallpaper as written by changetheme (also covers a theme set offline).
     hl.exec_cmd("sleep 1; [ -f ~/.config/hypr/current-wallpaper ] && awww img \"$(cat ~/.config/hypr/current-wallpaper)\"")
+end)
+
+hl.on("hyprland.shutdown", function()
+    hl.exec_cmd("systemctl --user stop histuid.service portal-restart.timer")
 end)
 
 -----------------------------
@@ -38,6 +45,9 @@ if not (os.getenv("PATH") or ""):find(local_bin, 1, true) then
     hl.env("PATH", local_bin .. ":" .. (os.getenv("PATH") or "/usr/bin"))
 end
 
+-- The rice keeps its kitty and waybar configs in ~/.config/hypr-rice, so another desktop on the
+-- same account keeps its own ~/.config/kitty and ~/.config/waybar.
+hl.env("KITTY_CONFIG_DIRECTORY", os.getenv("HOME") .. "/.config/hypr-rice/kitty")
 hl.env("XCURSOR_THEME", "WhiteCat")
 hl.env("XCURSOR_SIZE", "24")
 hl.env("HYPRCURSOR_THEME", "WhiteCat")

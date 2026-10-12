@@ -139,5 +139,5 @@ window#waybar {
 #custom-battery.critical { color: @crit; }
 
 
-/* Click animation frames, switched by ~/.config/waybar/scripts/battery --wave. */
+/* Click animation frames, switched by ~/.config/hypr-rice/waybar/scripts/battery --wave. */
 #custom-battery.f1 { background-image: url("file://__HOME__/.config/hypr/themes/claude/assets/battery-1.svg"); }

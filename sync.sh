@@ -3,7 +3,7 @@
 # then commit and push.
 #   rice-sync            sync, commit, push
 #   rice-sync --dry-run  sync and show the diff, no commit
-# Machine-only files stay out: hypr/monitors.lua, hypr/devices.lua, waybar/config.local.json.
+# Machine-only files stay out: hypr/monitors.lua, hypr/devices.lua, hypr-rice/waybar/config.local.json.
 set -euo pipefail
 
 REPO=$(cd "$(dirname "$(readlink -f "$0")")" && pwd)
@@ -14,10 +14,10 @@ DRY=0
 # What makes up the rice, relative to $HOME. Directories are copied whole minus EXCLUDES.
 PATHS=(
     .config/hypr
-    .config/waybar/config.base.json
-    .config/waybar/scripts
+    .config/hypr-rice/waybar/config.base.json
+    .config/hypr-rice/waybar/scripts
     .config/quickshell
-    .config/kitty/kitty.conf
+    .config/hypr-rice/kitty/kitty.conf
     .config/fish
     .config/histui/histuid.toml
     .config/systemd/user/histuid.service

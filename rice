@@ -11,7 +11,8 @@
 #   rice report       write ~/rice-report.txt for whoever helps you debug
 #   rice uninstall    remove the rice and put the last backup back
 #
-# Environment: RICE_THEME, RICE_ASSUME=y|n, RICE_APPS=all|none|id,id (see install.sh).
+# Environment: RICE_THEME, RICE_ASSUME=y|n, RICE_APPS=all|none|id,id, RICE_MODE=replace|coexist
+# (see install.sh).
 set -euo pipefail
 
 SRC=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)
@@ -453,6 +454,10 @@ remove_apps() {  # removes PICKED (packages, flatpaks, AppImages)
 
 setup_sddm() {
     local cur
+    if [ "${MODE:-replace}" = coexist ] && [ "${USE_SDDM:-1}" = 0 ]; then
+        info "экран входа оставлен свой; Hyprland появится в его списке сеансов"
+        return 0
+    fi
     # Whatever display manager owns display-manager.service now, not just a known list.
     cur=$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null || true)
     if [ -n "$cur" ] && [ "$(basename "$cur")" != sddm.service ]; then
@@ -481,7 +486,12 @@ setup_sddm() {
             sudo sed -i -E 's/^(\s*Session\s*=\s*).*/\1hyprland.desktop/' "$f"
         fi
     done
-    # Preselect Hyprland on the login screen (SDDM remembers the last session per machine).
+    # Preselect Hyprland on the login screen (SDDM remembers the last session per machine);
+    # side by side with another desktop the last choice is left alone.
+    if [ "${MODE:-replace}" = coexist ]; then
+        ok "SDDM: тема sugar-candy, сеанс выбирается на экране входа"
+        return 0
+    fi
     local state=/var/lib/sddm/state.conf
     sudo mkdir -p /var/lib/sddm
     printf '%s\n' "[Last]" "Session=/usr/share/wayland-sessions/hyprland.desktop" "User=$USER" \
@@ -495,17 +505,31 @@ setup_sddm() {
 RICE_DIRS=(hypr waybar quickshell kitty rofi wofi dunst mako swaync eww ags hyprpanel wlogout
            fuzzel walker histui swaylock alacritty foot)
 
-copy_rice_files() {  # copies home/ to ~, backing up what is replaced; DO_BACKUP, found[] from install
-    local f
+# Files that are merged into the user's own instead of replacing them.
+MERGED_JSON=(".config/Code - OSS/User/settings.json")
+
+keep_theirs() {  # coexist mode: a path of ours that would overwrite the other desktop's config
+    [ "${MODE:-replace}" = coexist ] || return 1
+    case "$1" in
+        .config/fish/*) [ "${HAD_FISH:-0}" = 1 ] ;;
+        .config/Code\ -\ OSS/User/keybindings.json) [ -e "$HOME/$1" ] ;;
+        *) return 1 ;;
+    esac
+}
+
+copy_rice_files() {  # copies home/ to ~, backing up what is replaced; MODE, DO_BACKUP, found[] from install
+    local f j
     cd "$SRC/home"
     mapfile -d '' FILES < <(find . -type f -print0 -o -type l -print0)
+    HAD_FISH=0; [ -e "$HOME/.config/fish/config.fish" ] && HAD_FISH=1
     if [ "${DO_BACKUP:-0}" = 1 ]; then
         mkdir -p "$BACKUP"
-        # Foreign rice configs leave entirely; for our own paths only what we are about to replace.
+        # Replace mode: foreign rice configs leave entirely. Coexist mode: only a foreign Hyprland
+        # config does (two rices cannot share one Hyprland), everything else stays put.
         for p in "${found[@]}"; do
             case "$p" in
                 "$HOME/.config/hypr") ;;  # handled below, monitors/devices stay
-                *) mv "$p" "$BACKUP/" ;;
+                *) [ "${MODE:-replace}" = replace ] && mv "$p" "$BACKUP/" ;;
             esac
         done
         if [ -d "$HOME/.config/hypr" ]; then
@@ -516,17 +540,34 @@ copy_rice_files() {  # copies home/ to ~, backing up what is replaced; DO_BACKUP
         for f in "${FILES[@]}"; do
             f=${f#./}
             [ -e "$HOME/$f" ] || continue
+            keep_theirs "$f" && continue
             mkdir -p "$BACKUP/home/$(dirname "$f")"
-            mv "$HOME/$f" "$BACKUP/home/$f"
+            cp -a "$HOME/$f" "$BACKUP/home/$f"
+            printf '%s\n' "${MERGED_JSON[@]}" | grep -qxF "$f" || rm -f "$HOME/$f"
         done
         ok "старое → $BACKUP"
     fi
-    tar -cf - . | tar -C "$HOME" -xf -
+    # Merged files: ours on top of the user's own (Code-OSS keeps its other settings).
+    local merged=()
+    for j in "${MERGED_JSON[@]}"; do
+        if [ -f "$HOME/$j" ] && jq -e . "$HOME/$j" >/dev/null 2>&1; then
+            jq -s '.[0] * .[1]' "$HOME/$j" "./$j" > "$HOME/$j.rice-tmp" && merged+=("$j")
+        fi
+    done
+    local excl=()
+    for f in "${FILES[@]}"; do
+        f=${f#./}
+        keep_theirs "$f" && excl+=(--exclude="./$f")
+    done
+    for j in "${merged[@]}"; do excl+=(--exclude="./$j"); done
+    tar -cf - "${excl[@]}" . | tar -C "$HOME" -xf -
+    for j in "${merged[@]}"; do mv "$HOME/$j.rice-tmp" "$HOME/$j"; done
+    [ "${MODE:-replace}" = coexist ] && [ "$HAD_FISH" = 1 ] && info "fish: оставлен твой конфиг"
     for f in "${FILES[@]}"; do
         f="$HOME/${f#./}"
         [ -f "$f" ] && grep -Iq "__HOME__" "$f" 2>/dev/null && sed -i "s|__HOME__|$HOME|g" "$f"
     done
-    chmod +x "$HOME"/.local/bin/* "$HOME"/.config/waybar/scripts/* "$HOME"/.config/hypr/scripts/*.py \
+    chmod +x "$HOME"/.local/bin/* "$HOME"/.config/hypr-rice/waybar/scripts/* "$HOME"/.config/hypr/scripts/*.py \
              "$HOME"/.config/hypr/scripts/ru-date "$HOME"/.claude/statusline.sh 2>/dev/null || true
     cd "$HOME"
     # Files that belong to programs that are not installed (neoHtop, ...).
@@ -599,7 +640,10 @@ setup_system() {
         sudo systemctl enable "$s.service" >/dev/null 2>&1 || warn "не включился $s"
     done
     systemctl --user daemon-reload 2>/dev/null || true
-    for u in pipewire.socket pipewire-pulse.socket wireplumber.service histuid.service portal-restart.timer; do
+    # histuid and portal-restart are started by Hyprland itself (another desktop on the same
+    # account has its own notification daemon); older installs enabled them globally.
+    systemctl --user disable histuid.service portal-restart.timer >/dev/null 2>&1 || true
+    for u in pipewire.socket pipewire-pulse.socket wireplumber.service; do
         systemctl --user enable "$u" >/dev/null 2>&1 || warn "не включился $u (включи после входа: systemctl --user enable $u)"
     done
     ok "сервисы"
@@ -656,6 +700,36 @@ finish() {
     fi
 }
 
+choose_mode() {  # replace | coexist | cancel
+    local out
+    if [ -n "${RICE_ASSUME:-}" ]; then
+        [[ $RICE_ASSUME =~ ^[Yy] ]] && echo replace || echo cancel
+        return
+    fi
+    if have_tty && fetch_gum; then
+        out=$("$GUM" choose --height 6 --header "Что сделать со старым райсом?" --cursor "› " "${GUM_STYLE[@]}" \
+            --label-delimiter="=" \
+            "Заменить: старый уйдёт в бэкап=replace" \
+            "Поставить рядом: выбор окружения на экране входа=coexist" \
+            "Отмена=cancel" </dev/tty) || out=cancel
+        echo "${out:-cancel}"
+        return
+    fi
+    have_tty || { echo cancel; return; }
+    local a
+    read -r -p "    [з]аменить / [р]ядом / [о]тмена: " a </dev/tty || a=""
+    case "$a" in з*|З*|r*|R*) echo replace ;; р*|Р*|h*|H*) echo coexist ;; *) echo cancel ;; esac
+}
+
+coexist_dm_question() {
+    local cur
+    cur=$(basename "$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null)" .service 2>/dev/null || true)
+    if [ -n "$cur" ] && [ "$cur" != sddm ]; then
+        ask "Сейчас экран входа — $cur. Поставить вместо него SDDM hypr-rice (с темой райса)?" n \
+            || USE_SDDM=0
+    fi
+}
+
 # ---------- commands ----------
 
 cmd_install() {
@@ -671,18 +745,31 @@ cmd_install() {
         [ -e "$p" ] && [ -n "$(ls -A "$p" 2>/dev/null)" ] && found+=("$p")
     done
     DO_BACKUP=0
+    MODE=${RICE_MODE:-}
+    USE_SDDM=1
     if [ -f "$MARKER" ]; then
         info "hypr-rice уже установлен ($(cat "$MARKER")). Файлы обновятся, текущие уйдут в бэкап."
         ask "Продолжить?" y || die "отменено"
         DO_BACKUP=1
+        MODE=${MODE:-$(sed -n 's/^mode=//p' "$HOME/.config/hypr-rice/install.conf" 2>/dev/null)}
+        MODE=${MODE:-replace}
     elif [ ${#found[@]} -gt 0 ]; then
         info "Найден уже настроенный рабочий стол:"
         printf '      %s\n' "${found[@]}"
-        info "Он будет убран из системы (в бэкап $BACKUP), вместо него встанет hypr-rice."
-        ask "Удалить старый райс?" n || die "отменено, ничего не изменено"
+        [ -n "$MODE" ] || MODE=$(choose_mode)
+        case "$MODE" in
+            replace) info "Старый райс уйдёт в бэкап $BACKUP, вместо него встанет hypr-rice." ;;
+            coexist)
+                info "hypr-rice встанет рядом: настройки другого окружения не трогаются,"
+                info "выбор между ними — на экране входа."
+                [ -d "$HOME/.config/hypr" ] && info "Только чужой конфиг Hyprland уйдёт в бэкап: два райса в одном Hyprland не уживаются."
+                coexist_dm_question ;;
+            *) die "отменено, ничего не изменено" ;;
+        esac
         DO_BACKUP=1
     else
         ok "система чистая"
+        MODE=${MODE:-replace}
     fi
     pick_apps install
 
@@ -724,6 +811,8 @@ cmd_install() {
     step "Тема"
     apply_theme "$theme"
     echo "$(git -C "$SRC" log -1 --format='%h %cs' 2>/dev/null || echo local) $STAMP" > "$MARKER"
+    mkdir -p "$HOME/.config/hypr-rice"
+    echo "mode=$MODE" > "$HOME/.config/hypr-rice/install.conf"
 
     finish
     info "Перезагрузись и выбери сеанс Hyprland на экране входа."
