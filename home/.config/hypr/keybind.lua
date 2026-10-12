@@ -9,7 +9,8 @@
 local terminal    = "kitty"
 local fileManager = "thunar"
 local menu        = "~/.local/bin/launcher"
-local browser     = "chromium"
+-- The default browser (xdg-settings), so it follows whichever one is installed.
+local browser     = [[sh -c 'gtk-launch "$(xdg-settings get default-web-browser)"']]
 
 local mainMod = "ALT"
 

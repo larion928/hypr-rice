@@ -1,33 +1,66 @@
-# Programs offered in the installer's picker; nothing here is installed unless ticked.
+# Programs offered by the installer's checklist and by `rice apps`; nothing is installed unless ticked.
 # id | group | name shown | sources (space-separated)
 #   name           package from the official repos ([multilib] is enabled when needed)
-#   aur:name       package from the AUR
+#   aur:name       AUR package: hypr-rice-pkgs repo first, then yay, then the GitHub mirror of the AUR
+#   flatpak:id     Flathub app (installed per user)
 #   appimage:URL   AppImage saved to ~/Applications/<id>.AppImage with a launcher entry
-#   file:path      file of the rice (relative to ~) that only stays when the app is picked
+#   file:path      file of the rice (relative to ~) that only ships with this program
+#   hook:name      extra setup step, hook_<name> in the rice script
+#   browser        a web browser: the first one picked becomes the default (Alt+B)
+# No commas in names: the checklist uses them as separators.
+firefox     | Браузеры   | Firefox                          | firefox browser
+chromium    | Браузеры   | Chromium                         | chromium browser
+brave       | Браузеры   | Brave                            | aur:brave-bin browser
+zen         | Браузеры   | Zen Browser                      | aur:zen-browser-bin browser
+librewolf   | Браузеры   | LibreWolf                        | flatpak:io.gitlab.librewolf-community browser
+vivaldi     | Браузеры   | Vivaldi                          | vivaldi browser
+tor         | Браузеры   | Tor Browser                      | torbrowser-launcher
 ayugram     | Общение    | AyuGram                          | aur:ayugram-desktop-bin libsrtp libvpl zimg nss
 telegram    | Общение    | Telegram                         | telegram-desktop
 discord     | Общение    | Discord                          | discord
+vesktop     | Общение    | Vesktop (Discord с плагинами)    | aur:vesktop-bin
+element     | Общение    | Element (Matrix)                 | element-desktop
 steam       | Игры       | Steam                            | steam
-proton      | Игры       | Proton для .exe (umu + ProtonPlus) | umu-launcher aur:protonplus
+proton      | Игры       | Proton для .exe (umu + ProtonPlus) | umu-launcher aur:protonplus hook:proton-exe
+lutris      | Игры       | Lutris                           | lutris
+heroic      | Игры       | Heroic (Epic и GOG)              | aur:heroic-games-launcher-bin
+prismlauncher | Игры     | Prism Launcher (Minecraft)       | prismlauncher
+prism       | Игры       | Ely Prism Launcher (Minecraft)   | appimage:https://github.com/ElyPrismLauncher/Launcher/releases/latest/download/PineconeMC-Linux-x86_64.AppImage
+osu         | Игры       | osu!                             | appimage:https://github.com/ppy/osu/releases/latest/download/osu.AppImage
 gamemode    | Игры       | GameMode                         | gamemode lib32-gamemode
-osu         | Игры       | osu!                             | fuse2 appimage:https://github.com/ppy/osu/releases/latest/download/osu.AppImage
-prism       | Игры       | Ely Prism Launcher (Minecraft)   | fuse2 appimage:https://github.com/ElyPrismLauncher/Launcher/releases/latest/download/PineconeMC-Linux-x86_64.AppImage
+mangohud    | Игры       | MangoHud (FPS в играх)           | mangohud lib32-mangohud
 claude      | Разработка | Claude Code                      | aur:claude-code
 code        | Разработка | Code-OSS + темы и Git Graph      | code
+vscode      | Разработка | VS Code (официальный)            | aur:visual-studio-code-bin
+zed         | Разработка | Zed                              | zed
+neovim      | Разработка | Neovim                           | neovim
+docker      | Разработка | Docker                           | docker docker-compose
 lazygit     | Разработка | lazygit                          | lazygit
 lazydocker  | Разработка | lazydocker                       | lazydocker
 obs         | Медиа      | OBS Studio                       | obs-studio
+mpv         | Медиа      | mpv                              | mpv
+vlc         | Медиа      | VLC                              | vlc vlc-plugins-all
+spotify     | Медиа      | Spotify                          | spotify-launcher
+kdenlive    | Медиа      | Kdenlive (видеоредактор)         | kdenlive
 gimp        | Медиа      | GIMP                             | gimp
+krita       | Медиа      | Krita                            | krita
+audacity    | Медиа      | Audacity                         | audacity
 darktable   | Медиа      | darktable                        | darktable
 rawtherapee | Медиа      | RawTherapee                      | rawtherapee
 cava        | Медиа      | cava (визуализатор звука)        | cava
-chromium    | Интернет   | Chromium                         | chromium
+libreoffice | Офис       | LibreOffice                      | libreoffice-fresh libreoffice-fresh-ru
+onlyoffice  | Офис       | OnlyOffice                       | aur:onlyoffice-bin
+obsidian    | Офис       | Obsidian                         | obsidian
 happ        | Интернет   | Happ (VPN)                       | aur:happ-desktop-bin
 qbittorrent | Интернет   | qBittorrent                      | qbittorrent
-tor         | Интернет   | Tor Browser                      | torbrowser-launcher
+transmission | Интернет  | Transmission                     | transmission-gtk
 neohtop     | Утилиты    | neoHtop (диспетчер задач)        | webkit2gtk-4.1 file:.local/bin/neohtop
 drift       | Утилиты    | drift                            | aur:drift-bin
-obsidian    | Утилиты    | Obsidian                         | obsidian
-fastfetch   | Утилиты    | fastfetch                        | fastfetch
+keepassxc   | Утилиты    | KeePassXC (пароли)               | keepassxc
+bitwarden   | Утилиты    | Bitwarden (пароли)               | bitwarden
+archiver    | Утилиты    | Архиватор (File Roller)          | file-roller 7zip unrar
+gparted     | Утилиты    | GParted (разделы диска)          | gparted
+timeshift   | Утилиты    | Timeshift (снимки системы)       | timeshift
 pavucontrol | Утилиты    | pavucontrol (микшер)             | pavucontrol
 filelight   | Утилиты    | Filelight (что занимает диск)    | filelight
+fastfetch   | Утилиты    | fastfetch                        | fastfetch

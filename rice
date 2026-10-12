@@ -1,0 +1,880 @@
+#!/usr/bin/env bash
+# rice — install and manage hypr-rice.
+#
+#   rice              menu
+#   rice install      install or reinstall the rice (what install.sh runs)
+#   rice apps         pick programs to install
+#   rice remove       remove programs installed from the catalog
+#   rice update       fetch the latest rice from GitHub and apply it (keeps theme and machine files)
+#   rice upgrade      update the system, the hypr-rice repo and AUR programs
+#   rice repair       re-apply SDDM, GTK theme and services
+#   rice report       write ~/rice-report.txt for whoever helps you debug
+#   rice uninstall    remove the rice and put the last backup back
+#
+# Environment: RICE_THEME, RICE_ASSUME=y|n, RICE_APPS=all|none|id,id (see install.sh).
+set -euo pipefail
+
+SRC=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)
+BRANCH="${RICE_BRANCH:-main}"
+STAMP=$(date +%Y%m%d-%H%M%S)
+BACKUP="$HOME/.rice-backup-$STAMP"
+MARKER="$HOME/.config/hypr/.rice-installed"
+CACHE="$HOME/.cache/hypr-rice"
+PKG_REPO_URL="https://github.com/larion928/hypr-rice-pkgs/releases/download/repo"
+PKG_KEY_FPR=E9E510D6FB25450E897102A01CEA86E55DC9094D
+
+# ---------- output ----------
+
+if [ -t 1 ]; then
+    B=$'\e[1m'; RED=$'\e[31m'; GRN=$'\e[32m'; YEL=$'\e[33m'; CYN=$'\e[36m'; R=$'\e[0m'
+else
+    B=; RED=; GRN=; YEL=; CYN=; R=
+fi
+step() { printf '\n%s==>%s %s%s%s\n' "$CYN" "$R" "$B" "$*" "$R"; }
+info() { printf '    %s\n' "$*"; }
+ok()   { printf '    %s✓%s %s\n' "$GRN" "$R" "$*"; }
+warn() { printf '    %s!%s %s\n' "$YEL" "$R" "$*" >&2; WARNINGS+=("$*"); }
+die()  { printf '\n%sОшибка:%s %s\n' "$RED" "$R" "$*" >&2; exit 1; }
+WARNINGS=()
+
+# curl | bash: stdin is the script itself, so questions are read from the terminal.
+have_tty() { { : </dev/tty; } 2>/dev/null; }
+ask() {  # ask "question" default(y|n) -> returns 0 for yes
+    local q=$1 def=${2:-n} a hint
+    [ "$def" = y ] && hint="[Y/n]" || hint="[y/N]"
+    if [ -n "${RICE_ASSUME:-}" ]; then
+        info "$q $hint ${RICE_ASSUME} (RICE_ASSUME)"
+        [[ $RICE_ASSUME =~ ^[Yy] ]]
+        return
+    fi
+    if ! have_tty; then
+        [ "$def" = y ]
+        return
+    fi
+    read -r -p "    $q $hint " a </dev/tty || a=""
+    a=${a:-$def}
+    [[ $a =~ ^[YyДд] ]]
+}
+
+list() {  # entries of a list file, without comments
+    grep -v '^[[:space:]]*#' "$1" | sed 's/[[:space:]]*#.*//' | grep -v '^[[:space:]]*$'
+}
+trim() { local v=$1; v=${v#"${v%%[![:space:]]*}"}; printf '%s' "${v%"${v##*[![:space:]]}"}"; }
+
+need_sudo() {
+    [ "$(id -u)" -ne 0 ] || die "запускай от обычного пользователя, не от root (sudo спросят сам)"
+    if ! sudo -n true 2>/dev/null; then
+        info "Нужны права администратора, введи пароль sudo:"
+        if have_tty; then sudo -v </dev/tty; else sudo -v; fi || die "sudo не сработал"
+    fi
+    # Keep the sudo timestamp fresh for the whole (long) run.
+    if [ -z "${SUDO_KEEPER:-}" ]; then
+        ( while kill -0 $$ 2>/dev/null; do sudo -n true 2>/dev/null; sleep 50; done ) &
+        SUDO_KEEPER=$!
+        trap 'kill $SUDO_KEEPER 2>/dev/null || true' EXIT
+    fi
+}
+
+# ---------- gum (menus and the program checklist) ----------
+
+# Pinned and checksummed: gum 2.x toggles only with "x", 0.17 also with space.
+GUM_VERSION=0.17.0
+GUM_SHA256=69ee169bd6387331928864e94d47ed01ef649fbfe875baed1bbf27b5377a6fdb
+GUM=""
+fetch_gum() {
+    [ -n "$GUM" ] && return 0
+    local dir="$CACHE/gum-$GUM_VERSION" tgz
+    if [ ! -x "$dir/gum" ]; then
+        mkdir -p "$dir"
+        tgz="$dir/gum.tgz"
+        curl -fsSL -o "$tgz" \
+            "https://github.com/charmbracelet/gum/releases/download/v$GUM_VERSION/gum_${GUM_VERSION}_Linux_x86_64.tar.gz" \
+            && echo "$GUM_SHA256  $tgz" | sha256sum -c --quiet - >/dev/null 2>&1 \
+            && tar -xzf "$tgz" -C "$dir" --strip-components=1 \
+            || { rm -rf "$dir"; return 1; }
+    fi
+    GUM="$dir/gum"
+    [ -x "$GUM" ]
+}
+GUM_STYLE=(--header.foreground "#d97757" --cursor.foreground "#e8a383" --selected.foreground "#8fa876")
+
+# ---------- packages: official repos with mirror fallback ----------
+
+# Mirrors that answered well from Russia and Europe; used when the configured ones fail.
+FALLBACK_MIRRORS=(
+    "https://mirror.yandex.ru/archlinux/\$repo/os/\$arch"
+    "https://mirror.truenetwork.ru/archlinux/\$repo/os/\$arch"
+    "https://geo.mirror.pkgbuild.com/\$repo/os/\$arch"
+    "https://mirrors.dotsrc.org/archlinux/\$repo/os/\$arch"
+    "https://ftp.fau.de/archlinux/\$repo/os/\$arch"
+    "https://mirror.netcologne.de/archlinux/\$repo/os/\$arch"
+    "https://mirrors.kernel.org/archlinux/\$repo/os/\$arch"
+)
+MIRRORS_SWAPPED=0
+use_fallback_mirrors() {
+    [ "$MIRRORS_SWAPPED" = 1 ] && return 1
+    [ -f /etc/pacman.d/mirrorlist ] || return 1
+    # Only plain Arch: derivatives (CachyOS, EndeavourOS) ship their own mirror setup.
+    grep -q '^Include = /etc/pacman.d/mirrorlist' /etc/pacman.conf || return 1
+    sudo cp -n /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.rice-backup
+    { echo "# Fallback mirrors added by hypr-rice; the original is mirrorlist.rice-backup."
+      printf 'Server = %s\n' "${FALLBACK_MIRRORS[@]}"
+      cat /etc/pacman.d/mirrorlist.rice-backup; } | sudo tee /etc/pacman.d/mirrorlist >/dev/null
+    MIRRORS_SWAPPED=1
+    info "зеркала не отвечают, переключаюсь на запасные (старый список: mirrorlist.rice-backup)"
+}
+
+pac() {  # pacman with retries; the second failure switches to fallback mirrors
+    local try
+    for try in 1 2 3; do
+        sudo pacman --noconfirm "$@" && return 0
+        [ "$try" = 1 ] || use_fallback_mirrors || true
+        sleep 3
+    done
+    return 1
+}
+
+# ---------- packages: hypr-rice repo and AUR ----------
+
+pkg_repo_enabled() { grep -q '^\[hypr-rice\]' /etc/pacman.conf; }
+
+setup_pkg_repo() {
+    # The prebuilt AUR packages (works where aur.archlinux.org is blocked).
+    if ! curl -fsSIL --max-time 20 "$PKG_REPO_URL/hypr-rice.db" >/dev/null; then
+        warn "репозиторий hypr-rice-pkgs недоступен, AUR-пакеты будут собираться на месте"
+        return 0
+    fi
+    if ! sudo pacman-key --list-keys "$PKG_KEY_FPR" >/dev/null 2>&1; then
+        sudo pacman-key --init >/dev/null 2>&1 || true
+        sudo pacman-key --add "$SRC/system/hypr-rice-pkgs.asc" >/dev/null
+        sudo pacman-key --lsign-key "$PKG_KEY_FPR" >/dev/null
+    fi
+    if ! pkg_repo_enabled; then
+        printf '\n%s\n' "[hypr-rice]" "SigLevel = Required DatabaseOptional" "Server = $PKG_REPO_URL" \
+            | sudo tee -a /etc/pacman.conf >/dev/null
+        ok "подключён репозиторий hypr-rice (собранные AUR-пакеты)"
+    fi
+}
+
+aur_reachable() { curl -fsSI --max-time 10 https://aur.archlinux.org >/dev/null 2>&1; }
+
+build_from_github_mirror() {  # PKGBUILD from github.com/archlinux/aur, built here
+    local pkg=$1 dir
+    dir=$(mktemp -d)
+    git clone -q --depth 1 --single-branch --branch "$pkg" https://github.com/archlinux/aur.git "$dir/$pkg" \
+        || { rm -rf "$dir"; return 1; }
+    (cd "$dir/$pkg" && makepkg -si --noconfirm --needed) || { rm -rf "$dir"; return 1; }
+    rm -rf "$dir"
+}
+
+ensure_yay() {
+    command -v yay >/dev/null && return 0
+    # From the hypr-rice repo when it has it.
+    if pacman -Si yay-bin >/dev/null 2>&1; then pac -S --needed yay-bin >/dev/null 2>&1 && return 0; fi
+    aur_reachable || return 1
+    local dir
+    dir=$(mktemp -d)
+    git clone -q --depth 1 https://aur.archlinux.org/yay-bin.git "$dir/yay-bin" \
+        && (cd "$dir/yay-bin" && makepkg -si --noconfirm)
+    rm -rf "$dir"
+    command -v yay >/dev/null
+}
+
+aur_install() {  # AUR packages: hypr-rice repo first, then yay, then the GitHub mirror of the AUR
+    local pkg failed=() rest=()
+    [ $# -gt 0 ] || return 0
+    for pkg in "$@"; do
+        pacman -Qq "$pkg" >/dev/null 2>&1 && continue
+        if pkg_repo_enabled && pacman -Si "hypr-rice/$pkg" >/dev/null 2>&1; then
+            pac -S --needed "hypr-rice/$pkg" >/dev/null && continue
+        fi
+        rest+=("$pkg")
+    done
+    [ ${#rest[@]} -gt 0 ] || return 0
+    if aur_reachable && ensure_yay; then
+        yay -S --needed --noconfirm --answerdiff None --answerclean None --removemake "${rest[@]}" >/dev/null 2>&1 \
+            && return 0
+    fi
+    for pkg in "${rest[@]}"; do
+        pacman -Qq "$pkg" >/dev/null 2>&1 && continue
+        info "собираю $pkg (PKGBUILD с зеркала AUR на GitHub)"
+        build_from_github_mirror "$pkg" >/dev/null 2>&1 || failed+=("$pkg")
+    done
+    [ ${#failed[@]} -eq 0 ] || { warn "не удалось поставить из AUR: ${failed[*]}"; return 1; }
+}
+
+# ---------- program catalog (packages/apps.txt) ----------
+
+APP_IDS=()
+declare -A APP_GROUP APP_NAME APP_SRC
+load_apps() {
+    local id group name src
+    APP_IDS=()
+    while IFS='|' read -r id group name src; do
+        id=$(trim "$id")
+        APP_IDS+=("$id")
+        APP_GROUP[$id]=$(trim "$group")
+        APP_NAME[$id]=$(trim "$name")
+        APP_SRC[$id]=$(trim "$src")
+    done < <(list "$SRC/packages/apps.txt")
+}
+
+app_installed() {  # every package/file of the app is already present
+    local tok
+    for tok in ${APP_SRC[$1]}; do
+        case "$tok" in
+            appimage:*) [ -x "$HOME/Applications/$1.AppImage" ] || return 1 ;;
+            file:*) [ -e "$HOME/${tok#file:}" ] || return 1 ;;
+            flatpak:*) flatpak info "${tok#flatpak:}" >/dev/null 2>&1 || return 1 ;;
+            aur:*) pacman -Qq "${tok#aur:}" >/dev/null 2>&1 || return 1 ;;
+            hook:*|browser) ;;
+            *) pacman -Qq "$tok" >/dev/null 2>&1 || return 1 ;;
+        esac
+    done
+}
+
+PICKED=()
+picked() { local id; for id in "${PICKED[@]}"; do [ "$id" = "$1" ] && return 0; done; return 1; }
+
+# pick_apps MODE: "install" (what to add; installed ones start ticked on an update)
+#                 "remove"  (only installed programs are offered)
+pick_apps() {
+    local mode=${1:-install} id label opts=() pre=() out
+    PICKED=()
+    if [ "$mode" = install ] && [ -n "${RICE_APPS:-}" ]; then
+        case "$RICE_APPS" in
+            all) PICKED=("${APP_IDS[@]}") ;;
+            none) PICKED=() ;;
+            *) IFS=, read -r -a PICKED <<<"$RICE_APPS" ;;
+        esac
+        info "программы (RICE_APPS): ${PICKED[*]:-нет}"
+        return
+    fi
+    have_tty || { info "нет терминала, программы не выбираю"; return; }
+    for id in "${APP_IDS[@]}"; do
+        label="${APP_GROUP[$id]} · ${APP_NAME[$id]}"
+        if [ "$mode" = remove ]; then
+            app_installed "$id" || continue
+        elif [ -f "$MARKER" ] && app_installed "$id"; then
+            pre+=("$label")
+        fi
+        opts+=("$label=$id")
+    done
+    if [ ${#opts[@]} -eq 0 ]; then
+        info "из каталога ничего не установлено"
+        return
+    fi
+    local header="Какие программы поставить?  пробел — отметить · enter — готово"
+    [ "$mode" = remove ] && header="Какие программы удалить?  пробел — отметить · enter — готово"
+    if fetch_gum; then
+        out=$("$GUM" choose --no-limit --height 22 --label-delimiter="=" --header "$header" \
+            --selected "$(IFS=,; echo "${pre[*]}")" \
+            --cursor "› " --cursor-prefix "[ ] " --selected-prefix "[✓] " --unselected-prefix "[ ] " \
+            "${GUM_STYLE[@]}" "${opts[@]}" </dev/tty) || out=""
+        mapfile -t PICKED <<<"$out"
+    else
+        # No gum (GitHub unreachable, odd terminal): a plain numbered list.
+        local i=1 nums n
+        info "${header%% *} Номера через пробел, Enter — ничего:"
+        for label in "${opts[@]}"; do
+            printf '      %2d) %s\n' "$i" "${label%=*}"
+            i=$((i + 1))
+        done
+        read -r -p "    > " nums </dev/tty || nums=""
+        for n in $nums; do
+            if [[ $n =~ ^[0-9]+$ ]] && [ "$n" -ge 1 ] && [ "$n" -le ${#opts[@]} ]; then
+                PICKED+=("${opts[$((n - 1))]##*=}")
+            fi
+        done
+    fi
+    local clean=()
+    for id in "${PICKED[@]}"; do [ -n "$id" ] && [ -n "${APP_NAME[$id]:-}" ] && clean+=("$id"); done
+    PICKED=("${clean[@]}")
+    if [ ${#PICKED[@]} -gt 0 ]; then
+        ok "выбрано: $(for id in "${PICKED[@]}"; do printf '%s, ' "${APP_NAME[$id]}"; done | sed 's/, $//')"
+    else
+        ok "ничего не выбрано"
+    fi
+}
+
+# Vulkan for 32-bit games: Steam's lib32-vulkan-driver has several providers and
+# --noconfirm would just take the first one, which is wrong for most GPUs.
+gpu_vulkan() {
+    local v
+    for v in /sys/class/drm/card*/device/vendor; do
+        case "$(cat "$v" 2>/dev/null)" in
+            0x1002) echo "vulkan-radeon lib32-vulkan-radeon" ;;
+            0x8086) echo "vulkan-intel lib32-vulkan-intel" ;;
+            0x10de) echo "nvidia-utils lib32-nvidia-utils" ;;
+            0x1af4) echo "vulkan-virtio lib32-vulkan-virtio" ;;
+        esac
+    done | tr ' ' '\n' | sort -u
+}
+
+enable_multilib() {
+    grep -q '^\[multilib\]' /etc/pacman.conf && return 0
+    sudo sed -i '/^#\[multilib\]/{N;s/#\[multilib\]\n#Include/[multilib]\nInclude/}' /etc/pacman.conf
+    grep -q '^\[multilib\]' /etc/pacman.conf || printf '\n[multilib]\nInclude = /etc/pacman.d/mirrorlist\n' \
+        | sudo tee -a /etc/pacman.conf >/dev/null
+    pac -Sy >/dev/null
+    ok "включён репозиторий multilib"
+}
+
+# Post-install steps some programs need ("hook:<name>" in apps.txt).
+hook_proton_exe() {
+    # Double-clicking a .exe runs it through Proton (umu) instead of plain wine.
+    local d="$HOME/.local/share/applications" m
+    mkdir -p "$d"
+    printf '%s\n' "[Desktop Entry]" "Type=Application" "Name=Proton (umu)" \
+        "Comment=Запустить Windows-программу через Proton" "Exec=umu-run %f" "Icon=wine" "Terminal=false" \
+        "NoDisplay=true" \
+        "MimeType=application/x-ms-dos-executable;application/x-msdownload;application/vnd.microsoft.portable-executable;application/x-msi;application/x-ms-shortcut;application/x-bat;" \
+        > "$d/umu-run.desktop"
+    for m in application/x-ms-dos-executable application/x-msdownload application/vnd.microsoft.portable-executable \
+             application/x-msi application/x-ms-shortcut application/x-bat; do
+        xdg-mime default umu-run.desktop "$m" 2>/dev/null || true
+    done
+    update-desktop-database "$d" 2>/dev/null || true
+}
+
+app_desktop_file() {  # first .desktop file an installed app ships
+    local tok f
+    for tok in ${APP_SRC[$1]}; do
+        case "$tok" in
+            flatpak:*) f="${tok#flatpak:}.desktop"; [ -e "/var/lib/flatpak/exports/share/applications/$f" ] \
+                           || [ -e "$HOME/.local/share/flatpak/exports/share/applications/$f" ] && { echo "$f"; return; } ;;
+            hook:*|browser|file:*|appimage:*) ;;
+            *) f=$(pacman -Qlq "${tok#aur:}" 2>/dev/null | grep -m1 '/usr/share/applications/.*\.desktop$') \
+                   && { basename "$f"; return; } ;;
+        esac
+    done
+}
+
+install_apps() {  # installs PICKED
+    local id tok repo_pk=() aur_pk=() flat=() appimages=() hooks=() browsers=()
+    [ ${#PICKED[@]} -gt 0 ] || return 0
+    for id in "${PICKED[@]}"; do
+        for tok in ${APP_SRC[$id]}; do
+            case "$tok" in
+                aur:*) aur_pk+=("${tok#aur:}") ;;
+                appimage:*) appimages+=("$id ${tok#appimage:}") ;;
+                flatpak:*) flat+=("${tok#flatpak:}") ;;
+                hook:*) hooks+=("${tok#hook:}") ;;
+                browser) browsers+=("$id") ;;
+                file:*)  # a rice file that only ships with this program (put back if it was dropped)
+                    [ -e "$HOME/${tok#file:}" ] || install -Dm755 "$SRC/home/${tok#file:}" "$HOME/${tok#file:}" ;;
+                *) repo_pk+=("$tok") ;;
+            esac
+        done
+    done
+    if picked steam; then mapfile -t -O "${#repo_pk[@]}" repo_pk < <(gpu_vulkan); fi
+    [ ${#flat[@]} -eq 0 ] || repo_pk+=(flatpak)
+    [ ${#appimages[@]} -eq 0 ] || repo_pk+=(fuse2)
+    if printf '%s\n' "${repo_pk[@]}" | grep -qE '^(steam|umu-launcher|lib32-.*)$'; then enable_multilib; fi
+
+    [ ${#repo_pk[@]} -eq 0 ] || pac -S --needed "${repo_pk[@]}" || warn "часть программ из репозиториев не встала"
+    [ ${#aur_pk[@]} -eq 0 ] || aur_install "${aur_pk[@]}" || true
+    if [ ${#flat[@]} -gt 0 ]; then
+        flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo \
+            && flatpak install --user -y --noninteractive flathub "${flat[@]}" >/dev/null \
+            || warn "flatpak: не встало ${flat[*]}"
+    fi
+    local entry url dest
+    for entry in "${appimages[@]}"; do
+        id=${entry%% *}; url=${entry#* }
+        dest="$HOME/Applications/$id.AppImage"
+        mkdir -p "$HOME/Applications" "$HOME/.local/share/applications"
+        if curl -fL --progress-bar -o "$dest.part" "$url"; then
+            mv "$dest.part" "$dest"
+            chmod +x "$dest"
+            # So the launcher (Alt+R) lists it like any installed app.
+            printf '%s\n' "[Desktop Entry]" "Type=Application" "Name=${APP_NAME[$id]}" "Exec=$dest" \
+                "Icon=applications-games" "Categories=Game;" \
+                > "$HOME/.local/share/applications/hypr-rice-$id.desktop"
+            ok "${APP_NAME[$id]} → ~/Applications/$id.AppImage"
+        else
+            rm -f "$dest.part"
+            warn "${APP_NAME[$id]} не скачался"
+        fi
+    done
+    local h
+    for h in "${hooks[@]}"; do "hook_${h//-/_}" || warn "не отработал шаг $h"; done
+    # The first browser picked becomes the default when none is set (Alt+B opens it).
+    if [ ${#browsers[@]} -gt 0 ] && [ -z "$(xdg-settings get default-web-browser 2>/dev/null)" ]; then
+        local f
+        f=$(app_desktop_file "${browsers[0]}")
+        [ -n "$f" ] && xdg-settings set default-web-browser "$f" 2>/dev/null && ok "браузер по умолчанию: ${APP_NAME[${browsers[0]}]}"
+    fi
+    ok "программ: ${#PICKED[@]}"
+}
+
+remove_apps() {  # removes PICKED (packages, flatpaks, AppImages)
+    local id tok pk=() flat=()
+    for id in "${PICKED[@]}"; do
+        for tok in ${APP_SRC[$id]}; do
+            case "$tok" in
+                appimage:*) rm -f "$HOME/Applications/$id.AppImage" "$HOME/.local/share/applications/hypr-rice-$id.desktop" ;;
+                flatpak:*) flat+=("${tok#flatpak:}") ;;
+                file:*) rm -f "$HOME/${tok#file:}" ;;
+                hook:*|browser) ;;
+                *) pacman -Qq "${tok#aur:}" >/dev/null 2>&1 && pk+=("${tok#aur:}") ;;
+            esac
+        done
+    done
+    # Shared libraries (fuse2, nss, ...) stay unless nothing else needs them: -Rs takes care.
+    [ ${#pk[@]} -eq 0 ] || sudo pacman -Rs --noconfirm "${pk[@]}" || warn "часть пакетов не удалилась (их требуют другие)"
+    [ ${#flat[@]} -eq 0 ] || flatpak uninstall --user -y --noninteractive "${flat[@]}" >/dev/null || true
+    ok "удалено: ${#PICKED[@]}"
+}
+
+# ---------- SDDM: make sure it is the one that starts, with our theme and Hyprland ----------
+
+setup_sddm() {
+    local cur
+    # Whatever display manager owns display-manager.service now, not just a known list.
+    cur=$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null || true)
+    if [ -n "$cur" ] && [ "$(basename "$cur")" != sddm.service ]; then
+        sudo systemctl disable "$(basename "$cur")" >/dev/null 2>&1 || true
+        info "выключен экран входа $(basename "$cur" .service)"
+    fi
+    sudo systemctl enable --force sddm.service >/dev/null 2>&1 || warn "не включился sddm"
+
+    sudo rm -f /etc/sddm.conf.d/10-theme.conf
+    sudo install -Dm644 "$SRC/system/sddm-theme.conf" /etc/sddm.conf.d/99-hypr-rice.conf
+    # /etc/sddm.conf is read after sddm.conf.d and would override our theme.
+    if [ -f /etc/sddm.conf ] && grep -qE '^\s*Current\s*=' /etc/sddm.conf; then
+        sudo cp -n /etc/sddm.conf /etc/sddm.conf.rice-backup
+        sudo sed -i -E 's/^(\s*Current\s*=)/# hypr-rice: \1/' /etc/sddm.conf
+        info "тема из /etc/sddm.conf отключена (копия: sddm.conf.rice-backup)"
+    fi
+    # Autologin straight into another desktop would skip the login screen entirely.
+    local f s
+    for f in /etc/sddm.conf /etc/sddm.conf.d/*.conf; do
+        [ -f "$f" ] || continue
+        s=$(sed -n -E 's/^\s*Session\s*=\s*(.*)$/\1/p' "$f" | head -n1)
+        [ -n "$s" ] || continue
+        case "$s" in hyprland*) continue ;; esac
+        if ask "Настроен автовход в «${s%.desktop}» ($f). Переключить автовход на Hyprland?" y; then
+            sudo cp -n "$f" "$f.rice-backup"
+            sudo sed -i -E 's/^(\s*Session\s*=\s*).*/\1hyprland.desktop/' "$f"
+        fi
+    done
+    # Preselect Hyprland on the login screen (SDDM remembers the last session per machine).
+    local state=/var/lib/sddm/state.conf
+    sudo mkdir -p /var/lib/sddm
+    printf '%s\n' "[Last]" "Session=/usr/share/wayland-sessions/hyprland.desktop" "User=$USER" \
+        | sudo tee "$state" >/dev/null
+    sudo chown sddm:sddm "$state" 2>/dev/null || true
+    ok "SDDM: тема sugar-candy, по умолчанию Hyprland"
+}
+
+# ---------- rice files ----------
+
+RICE_DIRS=(hypr waybar quickshell kitty rofi wofi dunst mako swaync eww ags hyprpanel wlogout
+           fuzzel walker histui swaylock alacritty foot)
+
+copy_rice_files() {  # copies home/ to ~, backing up what is replaced; DO_BACKUP, found[] from install
+    local f
+    cd "$SRC/home"
+    mapfile -d '' FILES < <(find . -type f -print0 -o -type l -print0)
+    if [ "${DO_BACKUP:-0}" = 1 ]; then
+        mkdir -p "$BACKUP"
+        # Foreign rice configs leave entirely; for our own paths only what we are about to replace.
+        for p in "${found[@]}"; do
+            case "$p" in
+                "$HOME/.config/hypr") ;;  # handled below, monitors/devices stay
+                *) mv "$p" "$BACKUP/" ;;
+            esac
+        done
+        if [ -d "$HOME/.config/hypr" ]; then
+            mkdir -p "$BACKUP/hypr"
+            find "$HOME/.config/hypr" -mindepth 1 -maxdepth 1 \
+                ! -name monitors.lua ! -name devices.lua -exec mv -t "$BACKUP/hypr/" {} +
+        fi
+        for f in "${FILES[@]}"; do
+            f=${f#./}
+            [ -e "$HOME/$f" ] || continue
+            mkdir -p "$BACKUP/home/$(dirname "$f")"
+            mv "$HOME/$f" "$BACKUP/home/$f"
+        done
+        ok "старое → $BACKUP"
+    fi
+    tar -cf - . | tar -C "$HOME" -xf -
+    for f in "${FILES[@]}"; do
+        f="$HOME/${f#./}"
+        [ -f "$f" ] && grep -Iq "__HOME__" "$f" 2>/dev/null && sed -i "s|__HOME__|$HOME|g" "$f"
+    done
+    chmod +x "$HOME"/.local/bin/* "$HOME"/.config/waybar/scripts/* "$HOME"/.config/hypr/scripts/*.py \
+             "$HOME"/.config/hypr/scripts/ru-date "$HOME"/.claude/statusline.sh 2>/dev/null || true
+    cd "$HOME"
+    # Files that belong to programs that are not installed (neoHtop, ...).
+    load_apps
+    local id tok
+    for id in "${APP_IDS[@]}"; do
+        for tok in ${APP_SRC[$id]}; do
+            [[ $tok == file:* ]] || continue
+            picked "$id" || app_installed_pkgs_only "$id" || rm -f "$HOME/${tok#file:}"
+        done
+    done
+    # The manager itself, and a launcher entry for it.
+    ln -sfn "$SRC/rice" "$HOME/.local/bin/rice"
+    mkdir -p "$HOME/.local/share/applications"
+    printf '%s\n' "[Desktop Entry]" "Type=Application" "Name=Менеджер райса" \
+        "Comment=Программы, обновление и починка hypr-rice" "Exec=kitty -e rice" "Icon=preferences-desktop" \
+        "Terminal=false" "Categories=Settings;" > "$HOME/.local/share/applications/hypr-rice-manager.desktop"
+    ok "${#FILES[@]} файлов"
+
+    # Machine-specific files are never overwritten.
+    if [ ! -f "$HOME/.config/hypr/monitors.lua" ]; then
+        printf '%s\n' "-- Monitors of this machine (not part of hypr-rice). Every output at its preferred mode;" \
+            "-- name outputs here for fixed layouts, see \`hyprctl monitors\`." \
+            'hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })' \
+            > "$HOME/.config/hypr/monitors.lua"
+    fi
+    if [ ! -f "$HOME/.config/hypr/devices.lua" ]; then
+        printf '%s\n' "-- Per-device input settings. mouse-sens rewrites the sensitivity lines below," \
+            "-- keep each hl.device() call on a single line." > "$HOME/.config/hypr/devices.lua"
+    fi
+    xdg-user-dirs-update 2>/dev/null || true
+    mkdir -p "$HOME/Pictures/screenshots"
+}
+
+app_installed_pkgs_only() {  # like app_installed but ignores file: entries (they were just copied)
+    local tok
+    for tok in ${APP_SRC[$1]}; do
+        case "$tok" in
+            file:*|hook:*|browser) ;;
+            appimage:*) [ -x "$HOME/Applications/$1.AppImage" ] || return 1 ;;
+            flatpak:*) flatpak info "${tok#flatpak:}" >/dev/null 2>&1 || return 1 ;;
+            *) pacman -Qq "${tok#aur:}" >/dev/null 2>&1 || return 1 ;;
+        esac
+    done
+}
+
+setup_system() {
+    sed "s|__HOME__|$HOME|g" "$SRC/system/hypr-theme-root" | sudo tee /usr/local/bin/hypr-theme-root >/dev/null
+    sudo chmod 755 /usr/local/bin/hypr-theme-root
+    local tmp
+    tmp=$(mktemp)
+    echo "$USER ALL=(root) NOPASSWD: /usr/local/bin/hypr-theme-root" > "$tmp"
+    if sudo visudo -cqf "$tmp"; then
+        sudo install -m 440 -o root -g root "$tmp" /etc/sudoers.d/hypr-theme
+        ok "hypr-theme-root (цвет папок, экран входа, тема браузеров)"
+    else
+        warn "правило sudoers не прошло проверку, смена цвета папок и SDDM работать не будет"
+    fi
+    rm -f "$tmp"
+
+    setup_sddm
+
+    if ls /sys/bus/platform/drivers/ideapad_acpi/*/fn_lock >/dev/null 2>&1; then
+        sudo install -Dm644 "$SRC/system/fn-lock.conf" /etc/tmpfiles.d/fn-lock.conf
+        sudo systemd-tmpfiles --create /etc/tmpfiles.d/fn-lock.conf 2>/dev/null || true
+        ok "Lenovo IdeaPad: Fn Lock включён"
+    fi
+    local s u
+    for s in NetworkManager bluetooth; do
+        sudo systemctl enable "$s.service" >/dev/null 2>&1 || warn "не включился $s"
+    done
+    systemctl --user daemon-reload 2>/dev/null || true
+    for u in pipewire.socket pipewire-pulse.socket wireplumber.service histuid.service portal-restart.timer; do
+        systemctl --user enable "$u" >/dev/null 2>&1 || warn "не включился $u (включи после входа: systemctl --user enable $u)"
+    done
+    ok "сервисы"
+
+    # GTK, icons, cursor. settings.ini covers GTK apps; gsettings covers portals and libadwaita.
+    local gtk=Graphite-Dark
+    [ -d /usr/share/themes/Graphite-Dark ] || gtk=Adwaita-dark
+    gs() { dbus-run-session gsettings set org.gnome.desktop.interface "$@" 2>/dev/null \
+               || gsettings set org.gnome.desktop.interface "$@" 2>/dev/null || true; }
+    gs gtk-theme "$gtk"
+    gs icon-theme Papirus-Dark
+    gs cursor-theme WhiteCat
+    gs cursor-size 24
+    gs color-scheme prefer-dark
+    sed -i "s/^gtk-theme-name=.*/gtk-theme-name=$gtk/" "$HOME/.config/gtk-3.0/settings.ini" "$HOME/.config/gtk-4.0/settings.ini" 2>/dev/null || true
+    ok "GTK: $gtk, Papirus-Dark, курсор WhiteCat"
+}
+
+setup_apps_config() {
+    if command -v code-oss >/dev/null; then
+        local ext
+        for ext in mhutchie.git-graph MS-CEINTL.vscode-language-pack-ru; do
+            code-oss --install-extension "$ext" --force >/dev/null 2>&1 || warn "Code-OSS: не встало $ext"
+        done
+        ok "Code-OSS: Git Graph, русский язык"
+    fi
+    mkdir -p "$HOME/.claude"
+    local cfg="$HOME/.claude/settings.json"
+    if [ -f "$cfg" ]; then
+        jq '.statusLine = {type: "command", command: "~/.claude/statusline.sh"}' "$cfg" > "$cfg.tmp" && mv "$cfg.tmp" "$cfg"
+    else
+        echo '{ "statusLine": { "type": "command", "command": "~/.claude/statusline.sh" } }' | jq . > "$cfg"
+    fi
+    python3 "$HOME/.config/hypr/scripts/themegen.py" build >/dev/null 2>&1 \
+        || warn "themegen build завершился с ошибкой (python3 ~/.config/hypr/scripts/themegen.py build)"
+    ok "темы приложений"
+}
+
+apply_theme() {
+    local theme=$1
+    dbus-run-session "$HOME/.local/bin/changetheme" --offline "$theme" >/dev/null 2>&1 \
+        || "$HOME/.local/bin/changetheme" --offline "$theme" >/dev/null 2>&1 \
+        || warn "changetheme --offline $theme не отработал, после входа выполни: changetheme $theme"
+    ok "тема $theme (менять: Alt+Shift+T или changetheme <тема>)"
+}
+
+finish() {
+    step "Готово"
+    [ "${DO_BACKUP:-0}" = 1 ] && info "Старые файлы: $BACKUP"
+    if [ ${#WARNINGS[@]} -gt 0 ]; then
+        printf '    %sПредупреждения:%s\n' "$YEL" "$R"
+        printf '      - %s\n' "${WARNINGS[@]}"
+        info "Если что-то не так: rice report — и пришли файл ~/rice-report.txt"
+    fi
+}
+
+# ---------- commands ----------
+
+cmd_install() {
+    local theme="${RICE_THEME:-$(cat "$HOME/.config/hypr/current-theme" 2>/dev/null || echo claude)}"
+    need_sudo
+    load_apps
+
+    step "Вопросы (дальше всё пойдёт само)"
+    found=()
+    local d p
+    for d in "${RICE_DIRS[@]}"; do
+        p="$HOME/.config/$d"
+        [ -e "$p" ] && [ -n "$(ls -A "$p" 2>/dev/null)" ] && found+=("$p")
+    done
+    DO_BACKUP=0
+    if [ -f "$MARKER" ]; then
+        info "hypr-rice уже установлен ($(cat "$MARKER")). Файлы обновятся, текущие уйдут в бэкап."
+        ask "Продолжить?" y || die "отменено"
+        DO_BACKUP=1
+    elif [ ${#found[@]} -gt 0 ]; then
+        info "Найден уже настроенный рабочий стол:"
+        printf '      %s\n' "${found[@]}"
+        info "Он будет убран из системы (в бэкап $BACKUP), вместо него встанет hypr-rice."
+        ask "Удалить старый райс?" n || die "отменено, ничего не изменено"
+        DO_BACKUP=1
+    else
+        ok "система чистая"
+    fi
+    pick_apps install
+
+    step "Пакеты из официальных репозиториев"
+    local base=()
+    mapfile -t base < <(list "$SRC/packages/base.txt")
+    # pipewire-pulse replaces PulseAudio; --noconfirm would answer "no" to removing it and abort.
+    if pacman -Qq pulseaudio >/dev/null 2>&1; then
+        local pa=()
+        mapfile -t pa < <(pacman -Qq | grep -E '^pulseaudio(-|$)')
+        sudo pacman -Rdd --noconfirm "${pa[@]}" >/dev/null
+        info "PulseAudio заменён на PipeWire"
+    fi
+    pac -Syu --needed "${base[@]}" || die "не удалось поставить основные пакеты (интернет или зеркала)"
+    ok "${#base[@]} пакетов"
+
+    step "Пакеты AUR"
+    setup_pkg_repo
+    pac -Sy >/dev/null || true
+    local aur=()
+    mapfile -t aur < <(list "$SRC/packages/aur.txt")
+    aur_install "${aur[@]}" || true
+    ok "готово"
+
+    if [ ${#PICKED[@]} -gt 0 ]; then
+        step "Выбранные программы"
+        install_apps
+    fi
+
+    step "Файлы райса"
+    copy_rice_files
+
+    step "Системные настройки"
+    setup_system
+
+    step "Приложения"
+    setup_apps_config
+
+    step "Тема"
+    apply_theme "$theme"
+    echo "$(git -C "$SRC" log -1 --format='%h %cs' 2>/dev/null || echo local) $STAMP" > "$MARKER"
+
+    finish
+    info "Перезагрузись и выбери сеанс Hyprland на экране входа."
+    info "Alt+F1 — справка по хоткеям, Alt+R — лаунчер, Alt+Enter — терминал, rice — менеджер райса."
+    # Never reboot on RICE_ASSUME alone: an unattended run should leave that to the caller.
+    if [ -z "${RICE_ASSUME:-}" ] && ask "Перезагрузить сейчас?" n; then
+        sudo systemctl reboot
+    fi
+}
+
+cmd_apps() {
+    need_sudo
+    load_apps
+    step "Программы"
+    pick_apps install
+    # Ticked but already present = nothing to do; only what is missing gets installed.
+    local id todo=()
+    for id in "${PICKED[@]}"; do app_installed "$id" || todo+=("$id"); done
+    PICKED=("${todo[@]}")
+    [ ${#PICKED[@]} -gt 0 ] || { ok "всё отмеченное уже установлено"; return; }
+    pkg_repo_enabled || setup_pkg_repo
+    install_apps
+    # Themes for apps that just appeared (Code-OSS, AyuGram, ...).
+    python3 "$HOME/.config/hypr/scripts/themegen.py" build >/dev/null 2>&1 || true
+    finish
+}
+
+cmd_remove() {
+    need_sudo
+    load_apps
+    step "Удаление программ"
+    pick_apps remove
+    [ ${#PICKED[@]} -gt 0 ] || return 0
+    ask "Удалить: $(for id in "${PICKED[@]}"; do printf '%s, ' "${APP_NAME[$id]}"; done | sed 's/, $//')?" n || return 0
+    remove_apps
+    finish
+}
+
+cmd_update() {
+    step "Обновляю hypr-rice"
+    git -C "$SRC" fetch -q --depth 1 origin "$BRANCH" || die "не удалось скачать обновление с GitHub"
+    local before after
+    before=$(git -C "$SRC" rev-parse --short HEAD)
+    git -C "$SRC" reset -q --hard "origin/$BRANCH"
+    after=$(git -C "$SRC" rev-parse --short HEAD)
+    if [ "$before" = "$after" ] && [ -z "${RICE_FORCE:-}" ]; then
+        ok "уже последняя версия ($after)"
+        return
+    fi
+    ok "$before → $after: $(git -C "$SRC" log -1 --format=%s)"
+    # The new rice script may differ from the running one; let it do the install.
+    RICE_ASSUME=${RICE_ASSUME:-y} RICE_APPS=${RICE_APPS:-none} exec "$SRC/rice" install
+}
+
+cmd_upgrade() {
+    need_sudo
+    step "Обновление системы"
+    pkg_repo_enabled || setup_pkg_repo
+    pac -Syu || die "pacman -Syu не прошёл"
+    ok "официальные репозитории и hypr-rice"
+    # AUR packages that are not in the hypr-rice repo.
+    local foreign=() p
+    mapfile -t foreign < <(pacman -Qqm)
+    local rest=()
+    for p in "${foreign[@]}"; do
+        pkg_repo_enabled && pacman -Si "hypr-rice/$p" >/dev/null 2>&1 && continue
+        rest+=("$p")
+    done
+    if [ ${#rest[@]} -gt 0 ] && aur_reachable && command -v yay >/dev/null; then
+        yay -Sua --noconfirm --answerdiff None --answerclean None || warn "часть AUR-пакетов не обновилась"
+    elif [ ${#rest[@]} -gt 0 ]; then
+        info "AUR недоступен; пакеты не из репозитория hypr-rice не обновлены: ${rest[*]}"
+    fi
+    command -v flatpak >/dev/null && flatpak update --user -y --noninteractive >/dev/null 2>&1 || true
+    finish
+}
+
+cmd_repair() {
+    need_sudo
+    step "Починка"
+    local base=() aur=()
+    mapfile -t base < <(list "$SRC/packages/base.txt")
+    mapfile -t aur < <(list "$SRC/packages/aur.txt")
+    pac -S --needed "${base[@]}" >/dev/null || warn "не все основные пакеты встали"
+    pkg_repo_enabled || setup_pkg_repo
+    aur_install "${aur[@]}" || true
+    setup_system
+    apply_theme "$(cat "$HOME/.config/hypr/current-theme" 2>/dev/null || echo claude)"
+    finish
+}
+
+cmd_report() {
+    local out="$HOME/rice-report.txt"
+    {
+        echo "hypr-rice report $(date '+%F %T')"
+        echo "rice: $(cat "$MARKER" 2>/dev/null || echo 'не установлен')  src: $(git -C "$SRC" log -1 --format='%h %s' 2>/dev/null)"
+        echo "os: $(. /etc/os-release; echo "$PRETTY_NAME")  kernel: $(uname -r)"
+        echo "gpu: $(for v in /sys/class/drm/card*/device/vendor; do cat "$v"; done 2>/dev/null | sort -u | tr '\n' ' ')"
+        echo
+        echo "== display manager"
+        readlink -f /etc/systemd/system/display-manager.service 2>&1
+        systemctl is-enabled sddm 2>&1; systemctl is-active sddm 2>&1
+        cat /etc/sddm.conf.d/*.conf 2>/dev/null
+        echo
+        echo "== sddm log"
+        journalctl -b -u sddm --no-pager 2>/dev/null | tail -n 40
+        echo
+        echo "== sessions"
+        ls /usr/share/wayland-sessions /usr/share/xsessions 2>/dev/null
+        echo
+        echo "== missing rice packages"
+        local p
+        for p in $(list "$SRC/packages/base.txt") $(list "$SRC/packages/aur.txt"); do
+            pacman -Qq "$p" >/dev/null 2>&1 || echo "  $p"
+        done
+        echo
+        echo "== network"
+        for u in https://github.com https://aur.archlinux.org "$PKG_REPO_URL/hypr-rice.db" https://geo.mirror.pkgbuild.com; do
+            printf '  %-70s %s\n' "$u" "$(curl -fsSIL -o /dev/null -w '%{http_code}' --max-time 10 "$u" 2>&1 || echo FAIL)"
+        done
+        echo
+        echo "== hyprland"
+        hyprctl version 2>/dev/null | head -n 2 || echo "  не запущен"
+        hyprctl configerrors 2>/dev/null
+        echo
+        echo "== user services"
+        systemctl --user --no-pager --failed 2>/dev/null | head -n 20
+        echo
+        echo "== pacman.conf repos"
+        grep -E '^\[' /etc/pacman.conf
+    } > "$out" 2>&1
+    ok "отчёт: $out (пришли его тому, кто помогает)"
+}
+
+cmd_uninstall() {
+    local last
+    last=$(ls -d "$HOME"/.rice-backup-* 2>/dev/null | sort | tail -n1)
+    step "Удаление hypr-rice"
+    [ -n "$last" ] && info "будет возвращён бэкап: $last" || info "бэкапов нет: файлы райса просто удалятся"
+    ask "Удалить hypr-rice из домашней папки?" n || return 0
+    local f
+    cd "$SRC/home"
+    while IFS= read -r -d '' f; do rm -f "$HOME/${f#./}"; done < <(find . -type f -print0 -o -type l -print0)
+    cd "$HOME"
+    rm -f "$MARKER" "$HOME/.local/bin/rice" "$HOME/.local/share/applications/hypr-rice-manager.desktop"
+    if [ -n "$last" ]; then
+        # Foreign configs were moved as whole directories, ours file by file under home/.
+        for f in "$last"/*; do
+            case "$(basename "$f")" in
+                home) (cd "$last/home" && tar -cf - .) | tar -C "$HOME" -xf - ;;
+                hypr) mkdir -p "$HOME/.config/hypr" && cp -a "$f/." "$HOME/.config/hypr/" ;;
+                *) [ -e "$HOME/.config/$(basename "$f")" ] || mv "$f" "$HOME/.config/" ;;
+            esac
+        done
+        ok "возвращено из $last"
+    fi
+    info "Системные пакеты и SDDM остались; удалить их: sudo pacman -Rs <пакеты>"
+}
+
+menu() {
+    fetch_gum || die "меню не открылось (нет gum); команды: rice install|apps|remove|update|upgrade|repair|report|uninstall"
+    local choice
+    choice=$("$GUM" choose --height 12 --header "hypr-rice — что сделать?" --cursor "› " "${GUM_STYLE[@]}" \
+        "Установить программы=apps" "Удалить программы=remove" "Обновить райс=update" \
+        "Обновить систему и программы=upgrade" "Починить (SDDM, тема, сервисы)=repair" \
+        "Отчёт для помощи=report" "Переустановить райс=install" "Удалить райс=uninstall" \
+        --label-delimiter="=" </dev/tty) || exit 0
+    [ -n "$choice" ] && "cmd_$choice"
+}
+
+case "${1:-}" in
+    install|apps|remove|update|upgrade|repair|report|uninstall) "cmd_$1" ;;
+    ""|menu) menu ;;
+    -h|--help|help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' ;;
+    *) die "неизвестная команда: $1 (rice help)" ;;
+esac

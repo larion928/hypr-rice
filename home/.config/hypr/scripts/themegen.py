@@ -216,6 +216,14 @@ progressbar progress, scale highlight, levelbar block.filled {{ background-color
 switch:checked {{ background-color: {accent}; }}
 check:checked, radio:checked {{ background-color: {accent}; color: {bg}; }}
 statusbar, .statusbar {{ background-color: {bg2}; color: {muted}; }}
+/* Thunar's toolbar and location bar draw their own backgrounds; without these they keep the
+   base theme's (white with a light or missing base theme). */
+toolbar, .toolbar, .primary-toolbar, .inline-toolbar, .location-button, .path-bar,
+.path-bar button, .linked > button, .pathbar, .pathbar button {{
+    background-image: none; background-color: {bg2}; color: {fg}; border-color: {border};
+}}
+.path-bar button:checked, .pathbar button:checked {{ background-color: {sel}; }}
+toolbar entry, .location-bar entry, .location-entry {{ background-color: {bg}; color: {fg}; }}
 """
 
 
@@ -266,7 +274,10 @@ def reload_gtk():
         cur = subprocess.run(["gsettings", "get", "org.gnome.desktop.interface", "gtk-theme"],
                              capture_output=True, text=True, timeout=5).stdout.strip().strip("'")
         if cur:
-            subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "gtk-theme", "Adwaita"], timeout=5)
+            # A dark stand-in: bouncing through light Adwaita left white toolbars in open windows.
+            bounce = "Adwaita-dark" if cur != "Adwaita-dark" else "Adwaita"
+            subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "gtk-theme", bounce], timeout=5)
+            time.sleep(0.3)
             subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "gtk-theme", cur], timeout=5)
         # File chooser dialogs (Code - OSS, browsers, ...) come from this portal; it does not
         # follow the bounce above, so restart it. It is D-Bus activated, nothing is lost.

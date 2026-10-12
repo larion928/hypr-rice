@@ -1,6 +1,6 @@
 {
   "files.autoSave": "afterDelay",
-  "workbench.colorTheme": "Hypr Coffee",
+  "workbench.colorTheme": "Hypr Frieren",
   "explorer.confirmDelete": false,
   "explorer.confirmDragAndDrop": false,
   "editor.unicodeHighlight.invisibleCharacters": false,
@@ -18,12 +18,22 @@
   "git-graph.showStatusBarItem": true,
   "git-graph.repository.commits.fetchAvatars": false,
   "git-graph.graph.colours": [
-    "#d8a657",
-    "#e9c48f",
-    "#a9b665",
-    "#fabd2f",
-    "#a9643c",
-    "#ea6962",
-    "#928374"
-  ]
+    "#8fb0d9",
+    "#b3c6e6",
+    "#8fbfa3",
+    "#d9c58f",
+    "#5f7699",
+    "#cf8a8a",
+    "#7d879b"
+  ],
+  "[markdown]": {
+    "editor.wordWrap": "on"
+  },
+  "workbench.editor.wrapTabs": true,
+  "workbench.editorAssociations": {
+    "*.copilotmd": "vscode.markdown.preview.editor",
+    "*.md": "ipreview.live",
+    "*.markdown": "ipreview.live"
+  },
+  "workbench.editor.enablePreview": false
 }
