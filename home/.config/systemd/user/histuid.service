@@ -8,7 +8,7 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/histuid --theme frieren
+ExecStart=/usr/bin/histuid --theme cyberpunk
 # auto-restart every 30 minutes
 RuntimeMaxSec=1800
 Restart=always
