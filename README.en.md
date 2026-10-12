@@ -32,6 +32,17 @@ The installer asks everything up front and then runs unattended:
 
 Reboot afterwards: the login screen comes up with Hyprland selected.
 
+### Next to another desktop
+
+When another rice or desktop is found (niri, KDE, GNOME, another Hyprland rice, …) the installer asks:
+
+- **Replace.** The old configs move to `~/.rice-backup-<date>/`; Hyprland becomes the default.
+- **Side by side.** Nothing of the other desktop is touched; you pick one on the login screen.
+  The rice keeps its waybar and kitty configs in `~/.config/hypr-rice/`, its notification daemon
+  and portal restarts run only inside Hyprland, and the other desktop keeps its `~/.config/waybar`,
+  `kitty`, `mako`, `fish`. Only a foreign Hyprland config is replaced. The GTK theme (Thunar, file
+  dialogs) stays shared. You may keep your own login screen; Hyprland shows up in its session list.
+
 ### When something is blocked
 
 - **AUR unreachable** (`TLS connect error … unexpected eof`): nothing to do. AUR packages come
@@ -79,6 +90,7 @@ Environment variables before `bash`, e.g. `curl … | RICE_THEME=ocean bash`:
 | `RICE_THEME=ocean` | theme after the install |
 | `RICE_APPS=steam,obs,firefox` | programs without the checklist (`all` / `none`) |
 | `RICE_ASSUME=y` | answer yes to every question (unattended installs) |
+| `RICE_MODE=coexist` | install side by side without asking (`replace` to replace) |
 | `RICE_BRANCH=dev` | install from another branch |
 
 ## Layout
