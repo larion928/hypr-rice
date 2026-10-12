@@ -108,7 +108,6 @@ FALLBACK_MIRRORS=(
     "https://mirrors.dotsrc.org/archlinux/\$repo/os/\$arch"
     "https://ftp.fau.de/archlinux/\$repo/os/\$arch"
     "https://mirror.netcologne.de/archlinux/\$repo/os/\$arch"
-    "https://mirrors.kernel.org/archlinux/\$repo/os/\$arch"
 )
 MIRRORS_SWAPPED=0
 use_fallback_mirrors() {
@@ -124,11 +123,16 @@ use_fallback_mirrors() {
     info "зеркала не отвечают, переключаюсь на запасные (старый список: mirrorlist.rice-backup)"
 }
 
-pac() {  # pacman with retries; the second failure switches to fallback mirrors
-    local try
-    for try in 1 2 3; do
-        sudo pacman --noconfirm "$@" && return 0
-        [ "$try" = 1 ] || use_fallback_mirrors || true
+pac() {  # pacman that survives flaky networks
+    # Stalled downloads ("Operation too slow") are common behind throttling; whatever was already
+    # fetched stays in the cache, so every retry gets further. From the 3rd try the fallback
+    # mirrors go first, from the 4th pacman stops giving up on slow transfers.
+    local try extra=()
+    for try in 1 2 3 4 5 6; do
+        sudo pacman --noconfirm "${extra[@]}" "$@" && return 0
+        [ "$try" -ge 2 ] && { use_fallback_mirrors || true; }
+        [ "$try" -ge 3 ] && extra=(--disable-download-timeout)
+        info "загрузка прервалась, повтор $((try + 1))/6"
         sleep 3
     done
     return 1
