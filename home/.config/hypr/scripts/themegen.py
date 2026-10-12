@@ -346,6 +346,145 @@ def gen_vscode_active(t):
         p.write_text(text)
 
 
+OBSIDIAN_CSS = """/* Hypr {label}. {generated} */
+.theme-dark, .theme-light {{
+    --background-primary: {bg};
+    --background-primary-alt: {bg2};
+    --background-secondary: {side};
+    --background-secondary-alt: {bg2};
+    --background-modifier-border: {border};
+    --background-modifier-hover: {hover};
+    --background-modifier-active-hover: {hover};
+    --background-modifier-form-field: {bg2};
+    --titlebar-background: {side};
+    --titlebar-background-focused: {side};
+    --tab-container-background: {side};
+    --ribbon-background: {side};
+    --text-normal: {fg};
+    --text-muted: {muted};
+    --text-faint: {faint};
+    --text-accent: {accent};
+    --text-accent-hover: {accent2};
+    --text-on-accent: {bg};
+    --text-selection: {sel};
+    --interactive-accent: {accent};
+    --interactive-accent-hover: {accent2};
+    --color-accent: {accent};
+    --color-accent-1: {accent};
+    --color-accent-2: {accent2};
+    --link-color: {accent};
+    --link-color-hover: {accent2};
+    --link-external-color: {accent2};
+    --h1-color: {accent};
+    --h2-color: {accent2};
+    --h3-color: {accent3};
+    --code-background: {bg2};
+    --code-normal: {fg};
+    --blockquote-border-color: {accent};
+    --checkbox-color: {accent};
+    --tag-color: {accent2};
+    --tag-background: {tagbg};
+}}
+"""
+
+
+def obsidian_vaults():
+    cfg = HOME / ".config/obsidian/obsidian.json"
+    try:
+        return [Path(v["path"]) for v in json.loads(cfg.read_text()).get("vaults", {}).values()]
+    except (OSError, ValueError, KeyError, TypeError):
+        return []
+
+
+def gen_obsidian(t):
+    """A CSS snippet in every vault, switched on once; Obsidian reloads changed snippets live."""
+    c = t["c"]
+    css = OBSIDIAN_CSS.format(
+        label=t["label"], generated=GENERATED, bg=c["bg"], bg2=c["bg2"], side=mix(c["bg"], c["bg2"], 0.5),
+        border=mix(c["bg2"], c["muted"], 0.3), hover=css_rgba(c["accent"], 0.12), fg=c["fg"], muted=c["muted"],
+        faint=mix(c["muted"], c["bg"], 0.35), accent=c["accent"], accent2=c["accent2"], accent3=c["accent3"],
+        sel=css_rgba(c["accent"], 0.3), tagbg=css_rgba(c["accent2"], 0.15))
+    for vault in obsidian_vaults():
+        conf = vault / ".obsidian"
+        if not conf.is_dir():
+            continue
+        write(conf / "snippets/hypr-rice.css", css)
+        app = conf / "appearance.json"
+        try:
+            data = json.loads(app.read_text()) if app.exists() else {}
+        except ValueError:
+            continue
+        snippets = data.setdefault("enabledCssSnippets", [])
+        if "hypr-rice" not in snippets:
+            snippets.append("hypr-rice")
+            data.setdefault("theme", "obsidian")  # the dark base theme
+            app.write_text(json.dumps(data, indent=2) + "\n")
+
+
+FIREFOX_CSS = """/* Hypr {label}. {generated} */
+:root {{
+    --toolbox-bgcolor: {side} !important;
+    --toolbox-bgcolor-inactive: {side} !important;
+    --toolbox-textcolor: {fg} !important;
+    --toolbar-bgcolor: {bg2} !important;
+    --toolbar-color: {fg} !important;
+    --toolbar-field-background-color: {bg} !important;
+    --toolbar-field-focus-background-color: {bg} !important;
+    --toolbar-field-color: {fg} !important;
+    --toolbar-field-focus-border-color: {accent} !important;
+    --tab-selected-bgcolor: {bg2} !important;
+    --tab-selected-textcolor: {fg} !important;
+    --tab-loading-fill: {accent} !important;
+    --tabpanel-background-color: {bg} !important;
+    --arrowpanel-background: {bg2} !important;
+    --arrowpanel-color: {fg} !important;
+    --sidebar-background-color: {side} !important;
+    --sidebar-text-color: {fg} !important;
+    --urlbarView-highlight-background: {accent} !important;
+    --urlbarView-highlight-color: {bg} !important;
+    --focus-outline-color: {accent} !important;
+    --color-accent-primary: {accent} !important;
+    --button-primary-bgcolor: {accent} !important;
+    --button-primary-color: {bg} !important;
+    /* Zen */
+    --zen-primary-color: {accent} !important;
+    --zen-colors-primary: {bg2} !important;
+    --zen-colors-secondary: {side} !important;
+    --zen-colors-tertiary: {bg} !important;
+    --zen-colors-border: {border} !important;
+    --zen-main-browser-background: {side} !important;
+}}
+#navigator-toolbox, #TabsToolbar, #nav-bar {{ background-color: {side} !important; color: {fg} !important; }}
+.tab-background:is([selected], [multiselected]) {{ background: {bg2} !important; }}
+"""
+
+FIREFOX_PROFILE_ROOTS = (".mozilla/firefox", ".zen", ".librewolf",
+                         ".var/app/io.gitlab.librewolf-community/.librewolf")
+FIREFOX_PREF = 'user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);'
+
+
+def gen_firefox(t):
+    """userChrome for Firefox, Zen and LibreWolf profiles; picked up on the next browser start."""
+    c = t["c"]
+    css = FIREFOX_CSS.format(label=t["label"], generated=GENERATED, bg=c["bg"], bg2=c["bg2"],
+                             side=mix(c["bg"], c["bg2"], 0.5), fg=c["fg"], accent=c["accent"],
+                             border=mix(c["bg2"], c["muted"], 0.3))
+    for root in FIREFOX_PROFILE_ROOTS:
+        for prof in (HOME / root).glob("*"):
+            if not (prof / "prefs.js").exists():
+                continue
+            write(prof / "chrome/hypr-rice.css", css)
+            # Our sheet is imported, so a userChrome.css of the user's own keeps working.
+            uc = prof / "chrome/userChrome.css"
+            text = uc.read_text() if uc.exists() else ""
+            if '@import "hypr-rice.css"' not in text:
+                uc.write_text('@import "hypr-rice.css";\n' + text)
+            uj = prof / "user.js"
+            prefs = uj.read_text() if uj.exists() else ""
+            if FIREFOX_PREF not in prefs:
+                uj.write_text(prefs + ("\n" if prefs and not prefs.endswith("\n") else "") + FIREFOX_PREF + "\n")
+
+
 ROOT_HELPER = "/usr/local/bin/hypr-theme-root"
 
 
@@ -365,6 +504,9 @@ def gen_system(t, wallpaper):
         c = t["c"]
         args = " ".join(shlex.quote(a) for a in (wallpaper, c["accent"], c["bg"], c["fg"], t["display"]))
         cmds.append(f"sudo -n {ROOT_HELPER} sddm {args}")
+    # Chromium, Brave, Chrome: theme colour policy, only when one of them is installed.
+    if any(shutil.which(b) for b in ("chromium", "brave", "google-chrome-stable")):
+        cmds.append(f"sudo -n {ROOT_HELPER} browser {shlex.quote(t['c']['accent'])}")
     if cmds:
         # Detached, so changetheme does not wait for the icon theme to be rewritten.
         subprocess.Popen(["sh", "-c", "; ".join(cmds)], start_new_session=True,
@@ -397,6 +539,8 @@ def apply(name, wallpaper=None):
     gen_drift_active(t)
     gen_vscode_active(t)
     gen_system(t, wallpaper)
+    gen_obsidian(t)
+    gen_firefox(t)
     offer_telegram_theme(t)
     reload_gtk()
 
