@@ -524,7 +524,8 @@ FIREFOX_CONTENT_CSS = """/* Hypr {label}: wallpaper on the new tab page. {genera
 """
 
 
-FIREFOX_PROFILE_ROOTS = (".mozilla/firefox", ".zen", ".librewolf",
+# Newer Firefox keeps profiles under XDG (~/.config/mozilla), older ones in ~/.mozilla.
+FIREFOX_PROFILE_ROOTS = (".config/mozilla/firefox", ".mozilla/firefox", ".zen", ".config/zen", ".librewolf",
                          ".var/app/io.gitlab.librewolf-community/.librewolf")
 FIREFOX_PREF = 'user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);'
 
