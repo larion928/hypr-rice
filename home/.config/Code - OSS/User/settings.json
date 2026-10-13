@@ -1,6 +1,6 @@
 {
   "files.autoSave": "afterDelay",
-  "workbench.colorTheme": "Hypr Coffee",
+  "workbench.colorTheme": "Hypr Ocean",
   "explorer.confirmDelete": false,
   "explorer.confirmDragAndDrop": false,
   "editor.unicodeHighlight.invisibleCharacters": false,
@@ -18,13 +18,13 @@
   "git-graph.showStatusBarItem": true,
   "git-graph.repository.commits.fetchAvatars": false,
   "git-graph.graph.colours": [
-    "#d8a657",
-    "#e9c48f",
-    "#a9b665",
-    "#fabd2f",
-    "#a9643c",
-    "#ea6962",
-    "#928374"
+    "#5ee6e0",
+    "#c77dff",
+    "#5ee6a8",
+    "#ffc58f",
+    "#3a4da7",
+    "#ff6b8b",
+    "#6a77a0"
   ],
   "[markdown]": {
     "editor.wordWrap": "on"
