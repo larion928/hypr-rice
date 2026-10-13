@@ -982,11 +982,23 @@ menu() {
         "Обновить систему и программы=upgrade" "Починить (SDDM, тема, сервисы)=repair" \
         "Отчёт для помощи=report" "Переустановить райс=install" "Удалить райс=uninstall" \
         --label-delimiter="=" </dev/tty) || exit 0
-    [ -n "$choice" ] && "cmd_$choice"
+    [ -n "$choice" ] && run "$choice"
+}
+
+# The author's working copy (marked by an untracked .author): there the live configs are the
+# source and home/ is synced from them, so install/update/uninstall would clobber unsynced work.
+run() {
+    case "$1" in
+        install|update|uninstall)
+            if [ -e "$SRC/.author" ] && [ -z "${RICE_AUTHOR_OK:-}" ]; then
+                die "это рабочая копия автора ($SRC): rice $1 перезапишет живые конфиги и сбросит репозиторий. Если точно надо: RICE_AUTHOR_OK=1 rice $1"
+            fi ;;
+    esac
+    "cmd_$1"
 }
 
 case "${1:-}" in
-    install|apps|remove|update|upgrade|repair|report|uninstall) "cmd_$1" ;;
+    install|apps|remove|update|upgrade|repair|report|uninstall) run "$1" ;;
     ""|menu) menu ;;
     -h|--help|help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' ;;
     *) die "неизвестная команда: $1 (rice help)" ;;
