@@ -169,6 +169,17 @@ hl.window_rule({
     opacity = "0.875 0.875",
 })
 
+-- Telegram's media viewer, which is also where a theme link shows its "Apply" preview: tiled it
+-- ends up as half a screen next to the chat and goes unnoticed.
+hl.window_rule({
+    name  = "telegram-viewer",
+    match = { class = "^(com\\.ayugram\\.desktop|org\\.telegram\\.desktop)$", title = "^(Просмотр медиа|Media viewer)$" },
+
+    float  = true,
+    center = true,
+    size   = "80% 85%",
+})
+
 -- The screenshot overlay shows a frozen frame; any fade-in would look like a flicker.
 hl.layer_rule({
     name  = "shot-no-anim",
