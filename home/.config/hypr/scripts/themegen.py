@@ -5,6 +5,7 @@
   themegen.py build                              regenerate artifacts that bundle every theme
                                                  (drift themes, Code - OSS extension, neoHtop)
 """
+import base64
 import io
 import json
 import math
@@ -458,14 +459,79 @@ FIREFOX_CSS = """/* Hypr {label}. {generated} */
 .tab-background:is([selected], [multiselected]) {{ background: {bg2} !important; }}
 """
 
+CHROMIUM_ROOTS = (".config/chromium", ".config/BraveSoftware/Brave-Browser", ".config/google-chrome")
+CHROMIUM_PROCS = {".config/chromium": "chromium", ".config/BraveSoftware/Brave-Browser": "brave",
+                  ".config/google-chrome": "chrome"}
+
+
+def wallpaper_jpeg(wallpaper, width, quality):
+    im = Image.open(wallpaper).convert("RGB")
+    im.thumbnail((width, width))
+    buf = io.BytesIO()
+    im.save(buf, "JPEG", quality=quality)
+    return buf.getvalue()
+
+
+def gen_chromium_wallpaper(wallpaper):
+    """New tab page background in Chromium/Brave/Chrome: the theme's wallpaper.
+
+    The browser shows <profile>/background.jpg when ntp.custom_background_local_to_device is set
+    (what "upload from device" does). The image can be swapped any time; the pref is only written
+    while the browser is closed, since a running one rewrites Preferences on exit.
+    """
+    if not wallpaper:
+        return
+    data = None
+    for root in CHROMIUM_ROOTS:
+        base = HOME / root
+        if not base.is_dir():
+            continue
+        running = subprocess.run(["pgrep", "-x", CHROMIUM_PROCS[root]], capture_output=True).returncode == 0
+        for prof in [base / "Default", *base.glob("Profile *")]:
+            prefs = prof / "Preferences"
+            if not prefs.exists():
+                continue
+            data = data or wallpaper_jpeg(wallpaper, 1920, 85)
+            (prof / "background.jpg").write_bytes(data)
+            if running:
+                continue
+            try:
+                pref = json.loads(prefs.read_text())
+            except ValueError:
+                continue
+            ntp = pref.setdefault("ntp", {})
+            theme = pref.setdefault("browser", {}).setdefault("theme", {})
+            ext_theme = pref.setdefault("extensions", {}).setdefault("theme", {})
+            if (ntp.get("custom_background_local_to_device") is not True or theme.get("color_scheme2") != 2
+                    or ext_theme.get("system_theme") != 0):
+                ntp["custom_background_local_to_device"] = True
+                ntp.pop("custom_background_local_to_device_id", None)
+                ntp.pop("custom_background_dict2", None)
+                theme["color_scheme2"] = 2  # dark, the themes are all dark
+                # Chromium's own Material look instead of GTK's, so the policy colour applies.
+                ext_theme["system_theme"] = 0
+                prefs.write_text(json.dumps(pref, separators=(",", ":")))
+
+
+FIREFOX_CONTENT_CSS = """/* Hypr {label}: wallpaper on the new tab page. {generated} */
+@-moz-document url("about:newtab"), url("about:home") {{
+    body {{
+        background: {bg} url("data:image/jpeg;base64,{image}") center / cover no-repeat fixed !important;
+    }}
+}}
+"""
+
+
 FIREFOX_PROFILE_ROOTS = (".mozilla/firefox", ".zen", ".librewolf",
                          ".var/app/io.gitlab.librewolf-community/.librewolf")
 FIREFOX_PREF = 'user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);'
 
 
-def gen_firefox(t):
-    """userChrome for Firefox, Zen and LibreWolf profiles; picked up on the next browser start."""
+def gen_firefox(t, wallpaper=None):
+    """userChrome (and the new tab wallpaper) for Firefox, Zen and LibreWolf profiles; picked up
+    on the next browser start."""
     c = t["c"]
+    image = None
     css = FIREFOX_CSS.format(label=t["label"], generated=GENERATED, bg=c["bg"], bg2=c["bg2"],
                              side=mix(c["bg"], c["bg2"], 0.5), fg=c["fg"], accent=c["accent"],
                              border=mix(c["bg2"], c["muted"], 0.3))
@@ -479,6 +545,16 @@ def gen_firefox(t):
             text = uc.read_text() if uc.exists() else ""
             if '@import "hypr-rice.css"' not in text:
                 uc.write_text('@import "hypr-rice.css";\n' + text)
+            if wallpaper:
+                # Inlined: about:newtab does not load file:// images.
+                if image is None:
+                    image = base64.b64encode(wallpaper_jpeg(wallpaper, 1600, 72)).decode()
+                write(prof / "chrome/hypr-rice-content.css",
+                      FIREFOX_CONTENT_CSS.format(label=t["label"], generated=GENERATED, bg=c["bg"], image=image))
+                ucc = prof / "chrome/userContent.css"
+                text = ucc.read_text() if ucc.exists() else ""
+                if '@import "hypr-rice-content.css"' not in text:
+                    ucc.write_text('@import "hypr-rice-content.css";\n' + text)
             uj = prof / "user.js"
             prefs = uj.read_text() if uj.exists() else ""
             if FIREFOX_PREF not in prefs:
@@ -513,15 +589,23 @@ def gen_system(t, wallpaper):
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def telegram_slug(t):
+    """Cloud theme link (t.me/addtheme/<slug>) made from ~/.local/share/hypr-themes/telegram/<name>.tdesktop-theme."""
+    ui = THEMES / t["name"] / "ui.json"
+    try:
+        return json.loads(ui.read_text()).get("telegramSlug") or f"hyprrice_{t['name']}"
+    except (OSError, ValueError):
+        return f"hyprrice_{t['name']}"
+
+
 def offer_telegram_theme(t):
-    # AyuGram/Telegram cannot be themed from outside: opening the file shows its preview with
-    # an "Apply" button. Only offered when the client is running, so nothing pops up otherwise.
-    theme = TELEGRAM_DIR / f"{t['name']}.tdesktop-theme"
-    if not theme.exists():
-        return
+    # Telegram cannot be themed from outside. A cloud theme link opens its preview with an "Apply"
+    # button (a theme file passed on the command line only offers to forward it). Only offered
+    # while a client runs, so nothing pops up otherwise.
+    link = f"tg://addtheme?slug={telegram_slug(t)}"
     for binary in ("AyuGram", "Telegram"):
         if subprocess.run(["pgrep", "-x", binary], capture_output=True).returncode == 0:
-            subprocess.Popen([binary, "--", str(theme)], start_new_session=True,
+            subprocess.Popen([binary, "--", link], start_new_session=True,
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return
 
@@ -540,7 +624,8 @@ def apply(name, wallpaper=None):
     gen_vscode_active(t)
     gen_system(t, wallpaper)
     gen_obsidian(t)
-    gen_firefox(t)
+    gen_firefox(t, wallpaper)
+    gen_chromium_wallpaper(wallpaper)
     offer_telegram_theme(t)
     reload_gtk()
 
