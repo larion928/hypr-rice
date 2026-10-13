@@ -1,6 +1,6 @@
 {
   "files.autoSave": "afterDelay",
-  "workbench.colorTheme": "Hypr Cyberpunk",
+  "workbench.colorTheme": "Hypr Coffee",
   "explorer.confirmDelete": false,
   "explorer.confirmDragAndDrop": false,
   "editor.unicodeHighlight.invisibleCharacters": false,
@@ -18,13 +18,13 @@
   "git-graph.showStatusBarItem": true,
   "git-graph.repository.commits.fetchAvatars": false,
   "git-graph.graph.colours": [
-    "#ff2e88",
-    "#21e6ff",
-    "#29e68a",
-    "#ffcc00",
-    "#b81e63",
-    "#ff2b4e",
-    "#7a6b8f"
+    "#d8a657",
+    "#e9c48f",
+    "#a9b665",
+    "#fabd2f",
+    "#a9643c",
+    "#ea6962",
+    "#928374"
   ],
   "[markdown]": {
     "editor.wordWrap": "on"
