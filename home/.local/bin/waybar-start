@@ -7,7 +7,14 @@ CONF="$HOME/.config/hypr-rice/waybar"
 start() {
     pkill -x waybar 2>/dev/null
     for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -x waybar >/dev/null || break; sleep 0.2; done
-    setsid -f waybar -c "$CONF/config.json" -s "$CONF/style.css" --log-level error >/dev/null 2>&1
+    # user.css (not part of the rice) goes on top of the theme. The combined file stays next to
+    # style.css so its relative @import keeps working.
+    local style="$CONF/style.css"
+    if [ -f "$CONF/user.css" ]; then
+        cat "$CONF/style.css" "$CONF/user.css" > "$CONF/style.run.css"
+        style="$CONF/style.run.css"
+    fi
+    setsid -f waybar -c "$CONF/config.json" -s "$style" --log-level error >/dev/null 2>&1
 }
 
 mapped() { hyprctl layers -j 2>/dev/null | grep -q '"namespace": *"waybar"'; }

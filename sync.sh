@@ -3,8 +3,8 @@
 # then commit and push.
 #   rice-sync            sync, commit, push
 #   rice-sync --dry-run  sync and show the diff, no commit
-# Machine-only files stay out: hypr/monitors.lua, hypr/devices.lua, hypr/binds-user.lua,
-# hypr-rice/waybar/config.local.json.
+# Machine and user files stay out: hypr/monitors.lua, devices.lua, binds-user.lua, user.lua,
+# fish/user.fish, hypr-rice/waybar/config.local.json, hypr-rice/kitty/user.conf, waybar/user.css.
 set -euo pipefail
 
 REPO=$(cd "$(dirname "$(readlink -f "$0")")" && pwd)
@@ -56,6 +56,8 @@ EXCLUDES=(
     --exclude=.config/hypr/monitors.lua
     --exclude=.config/hypr/devices.lua
     --exclude=.config/hypr/binds-user.lua
+    --exclude=.config/hypr/user.lua
+    --exclude=.config/fish/user.fish
     --exclude='*.rice-backup'
     --exclude=.config/hypr/palette.lua
     --exclude=.config/hypr/palette.json

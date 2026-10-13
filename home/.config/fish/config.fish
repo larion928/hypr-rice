@@ -16,3 +16,6 @@ alias neohtop='~/neohtop/src-tauri/target/release/NeoHtop'
 
 # neohtop-dev определён как функция ниже (в нём несколько команд + env),
 # потому что синтаксис && из zsh в fish не работает — см. ~/.config/fish/functions/
+
+# Your own aliases, PATH and variables. Not part of the rice: rice update leaves it alone.
+test -f ~/.config/fish/user.fish; and source ~/.config/fish/user.fish

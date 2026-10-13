@@ -82,6 +82,24 @@ curl -fsSL https://raw.githubusercontent.com/larion928/hypr-rice/main/install.sh
   Занятые сочетания подсвечиваются. Твои изменения лежат в `~/.config/hypr/binds-user.lua`.
 - **Тема.** Все темы с превью обоев.
 
+## Свои настройки
+
+`rice update` заменяет файлы райса новыми версиями (старые уходят в `~/.rice-backup-<дата>/`).
+Свои правки держи в этих файлах, обновление их не трогает:
+
+| Файл | Что там |
+|---|---|
+| `~/.config/hypr/user.lua` | Hyprland: правила окон, автозапуск, переменные, любой Lua. Грузится последним, поэтому может переопределить что угодно. Применить: `hyprctl reload` |
+| `~/.config/hypr/binds-user.lua` | горячие клавиши (пишет окно Alt+F2) |
+| `~/.config/hypr/monitors.lua` | мониторы (пишет окно Alt+F2) |
+| `~/.config/hypr/devices.lua` | мышь и тачпад (`mouse-sens`) |
+| `~/.config/fish/user.fish` | fish: алиасы, `PATH`, переменные |
+| `~/.config/hypr-rice/kitty/user.conf` | kitty: шрифт, прозрачность, свои клавиши |
+| `~/.config/hypr-rice/waybar/user.css` | стили панели поверх темы. Применить: `waybar-start` |
+| `~/.config/hypr-rice/waybar/config.local.json` | модули панели поверх `config.base.json` |
+
+Этот же список есть в справке Alt+F1.
+
 ## Горячие клавиши
 
 | Клавиши | |

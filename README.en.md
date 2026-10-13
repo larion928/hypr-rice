@@ -77,6 +77,24 @@ Alt+F2, the gear in the bar or the launcher ("Настройки", "Монито
   Your changes live in `~/.config/hypr/binds-user.lua`.
 - **Theme.** All themes with wallpaper previews.
 
+## Your own settings
+
+`rice update` replaces the rice's files with new versions (the old ones go to `~/.rice-backup-<date>/`).
+Keep your changes in these files, updates leave them alone:
+
+| File | |
+|---|---|
+| `~/.config/hypr/user.lua` | Hyprland: window rules, autostart, env, any Lua. Loaded last, so it can override anything. Apply: `hyprctl reload` |
+| `~/.config/hypr/binds-user.lua` | hotkeys (written by the Alt+F2 window) |
+| `~/.config/hypr/monitors.lua` | monitors (written by the Alt+F2 window) |
+| `~/.config/hypr/devices.lua` | mouse and touchpad (`mouse-sens`) |
+| `~/.config/fish/user.fish` | fish: aliases, `PATH`, variables |
+| `~/.config/hypr-rice/kitty/user.conf` | kitty: font, opacity, your own keys |
+| `~/.config/hypr-rice/waybar/user.css` | bar styles on top of the theme. Apply: `waybar-start` |
+| `~/.config/hypr-rice/waybar/config.local.json` | bar modules on top of `config.base.json` |
+
+The same list is in the Alt+F1 cheat sheet.
+
 ## Keys
 
 | Keys | |

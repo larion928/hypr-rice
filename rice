@@ -529,14 +529,14 @@ copy_rice_files() {  # copies home/ to ~, backing up what is replaced; MODE, DO_
         # config does (two rices cannot share one Hyprland), everything else stays put.
         for p in "${found[@]}"; do
             case "$p" in
-                "$HOME/.config/hypr") ;;  # handled below, monitors/devices stay
+                "$HOME/.config/hypr") ;;  # handled below, the machine and user files stay
                 *) [ "${MODE:-replace}" = replace ] && mv "$p" "$BACKUP/" ;;
             esac
         done
         if [ -d "$HOME/.config/hypr" ]; then
             mkdir -p "$BACKUP/hypr"
             find "$HOME/.config/hypr" -mindepth 1 -maxdepth 1 \
-                ! -name monitors.lua ! -name devices.lua -exec mv -t "$BACKUP/hypr/" {} +
+                ! -name monitors.lua ! -name devices.lua ! -name binds-user.lua ! -name user.lua -exec mv -t "$BACKUP/hypr/" {} +
         fi
         for f in "${FILES[@]}"; do
             f=${f#./}

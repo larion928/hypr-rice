@@ -97,6 +97,17 @@ ShellRoot {
             { keys: "Ctrl+Alt+C", text: "Коммит" },
             { keys: "Ctrl+Alt+P", text: "Забрать изменения (pull)" },
         ]});
+        out.push({ title: "Свои настройки", rows: [
+            { keys: "~/.config/…", text: "Файлы ниже rice update не трогает, остальные заменит (старые — в ~/.rice-backup-*)" },
+            { keys: "hypr/user.lua", text: "Hyprland, любой Lua, грузится последним (hyprctl reload)" },
+            { keys: "hypr/binds-user.lua", text: "Горячие клавиши (окно Alt+F2)" },
+            { keys: "hypr/monitors.lua", text: "Мониторы (окно Alt+F2)" },
+            { keys: "hypr/devices.lua", text: "Мышь и тачпад (mouse-sens)" },
+            { keys: "fish/user.fish", text: "fish: алиасы, PATH, переменные" },
+            { keys: "hypr-rice/kitty/user.conf", text: "kitty: шрифт, прозрачность, клавиши" },
+            { keys: "hypr-rice/waybar/user.css", text: "Стили панели (waybar-start)" },
+            { keys: "…/waybar/config.local.json", text: "Модули панели поверх config.base.json" },
+        ]});
         return out;
     }
 
