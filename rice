@@ -174,7 +174,7 @@ build_from_github_mirror() {  # PKGBUILD from github.com/archlinux/aur, built he
         >"$log" 2>&1 || { rm -rf "$dir"; return 1; }
     # makepkg's own dependency install has no retries, so flaky mirrors break it: do it here.
     deps=$(cd "$dir/$pkg" && makepkg --printsrcinfo 2>/dev/null \
-        | sed -nE 's/^\s*(depends|makedepends) = ([^<>=]+).*/\2/p' | sort -u)
+        | sed -nE 's/^\s*(depends|makedepends) = ([^<>=]+).*/\2/p' | sort -u || true)
     local d need=()
     # Only what is missing and resolvable from the repos: one AUR name would fail the whole call.
     # shellcheck disable=SC2086
@@ -426,7 +426,7 @@ install_apps() {  # installs PICKED
     # The first browser picked becomes the default when none is set (Alt+B opens it).
     if [ ${#browsers[@]} -gt 0 ] && [ -z "$(xdg-settings get default-web-browser 2>/dev/null)" ]; then
         local f
-        f=$(app_desktop_file "${browsers[0]}")
+        f=$(app_desktop_file "${browsers[0]}" || true)
         [ -n "$f" ] && xdg-settings set default-web-browser "$f" 2>/dev/null && ok "браузер по умолчанию: ${APP_NAME[${browsers[0]}]}"
     fi
     ok "программ: ${#PICKED[@]}"
@@ -752,7 +752,8 @@ cmd_install() {
         info "hypr-rice уже установлен ($(cat "$MARKER")). Файлы обновятся, текущие уйдут в бэкап."
         ask "Продолжить?" y || die "отменено"
         DO_BACKUP=1
-        MODE=${MODE:-$(sed -n 's/^mode=//p' "$HOME/.config/hypr-rice/install.conf" 2>/dev/null)}
+        # Installs older than coexist mode have no install.conf.
+        MODE=${MODE:-$(sed -n 's/^mode=//p' "$HOME/.config/hypr-rice/install.conf" 2>/dev/null || true)}
         MODE=${MODE:-replace}
     elif [ ${#found[@]} -gt 0 ]; then
         info "Найден уже настроенный рабочий стол:"
@@ -950,7 +951,7 @@ cmd_report() {
 
 cmd_uninstall() {
     local last
-    last=$(ls -d "$HOME"/.rice-backup-* 2>/dev/null | sort | tail -n1)
+    last=$(ls -d "$HOME"/.rice-backup-* 2>/dev/null | sort | tail -n1 || true)
     step "Удаление hypr-rice"
     [ -n "$last" ] && info "будет возвращён бэкап: $last" || info "бэкапов нет: файлы райса просто удалятся"
     ask "Удалить hypr-rice из домашней папки?" n || return 0
