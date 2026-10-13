@@ -120,4 +120,7 @@ A theme lives in `home/.config/hypr/themes/<name>/`: `palette.json`, `ui.json`, 
 `style.css` (waybar), `histui.css`, `hyprlock.conf`, `screenshot.qml`, `shutter.wav`, wallpapers.
 Shared app configs are generated from the palette by `~/.config/hypr/scripts/themegen.py`.
 
-Wallpapers belong to their authors (most come from wallhaven.cc).
+## License
+
+Scripts and configs: [GNU GPL v3 or later](LICENSE). The wallpapers, the WhiteCat cursor and the
+neoHtop build belong to their authors and are not covered by the GPL; see [THIRD-PARTY.md](THIRD-PARTY.md).

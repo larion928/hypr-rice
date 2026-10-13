@@ -125,4 +125,7 @@ system/           root-помощник (цвет папок, SDDM), конфи�
 `style.css` (waybar), `histui.css`, `hyprlock.conf`, `screenshot.qml`, `shutter.wav` и обои.
 Общие конфиги программ генерируются из палитры скриптом `~/.config/hypr/scripts/themegen.py`.
 
-Обои принадлежат их авторам (в основном с wallhaven.cc).
+## Лицензия
+
+Скрипты и конфиги — [GNU GPL v3 или новее](LICENSE). Обои, курсор WhiteCat и собранный neoHtop
+принадлежат своим авторам и под GPL не попадают, список с источниками — в [THIRD-PARTY.md](THIRD-PARTY.md).
