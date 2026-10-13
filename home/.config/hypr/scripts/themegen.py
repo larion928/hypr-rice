@@ -4,6 +4,8 @@
   themegen.py apply <theme> [--wallpaper PATH]   write configs for the active theme
   themegen.py build                              regenerate artifacts that bundle every theme
                                                  (drift themes, Code - OSS extension, neoHtop)
+  themegen.py refresh                            re-theme apps that appeared since the last change
+                                                 (Firefox profiles, Obsidian vaults); run at login
 """
 import base64
 import io
@@ -1080,6 +1082,22 @@ def build_battery_icons(themes):
             (d / f"battery-{i}.svg").write_text(frame)
 
 
+def refresh():
+    """Theme what appeared since the last theme change (a new Firefox profile, an Obsidian vault);
+    run at every Hyprland start."""
+    cur = HYPR / "current-theme"
+    if not cur.exists():
+        return
+    t = load(cur.read_text().strip())
+    wp = HYPR / "current-wallpaper"
+    wallpaper = wp.read_text().strip() if wp.exists() else None
+    if wallpaper and not Path(wallpaper).exists():
+        wallpaper = None
+    gen_obsidian(t)
+    gen_firefox(t, wallpaper)
+    gen_chromium_wallpaper(wallpaper)
+
+
 def build():
     themes = [load(n) for n in all_themes()]
     build_drift(themes)
@@ -1100,6 +1118,8 @@ def main(argv):
         apply(argv[1], wp)
     elif argv[:1] == ["build"]:
         build()
+    elif argv[:1] == ["refresh"]:
+        refresh()
     else:
         print(__doc__.strip(), file=sys.stderr)
         return 2

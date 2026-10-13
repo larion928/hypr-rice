@@ -20,6 +20,8 @@ hl.on("hyprland.start", function()
         .. " && systemctl --user restart xdg-desktop-portal-hyprland.service xdg-desktop-portal.service xdg-desktop-portal-gtk.service")
     hl.exec_cmd("systemctl --user start graphical-session.target")
     hl.exec_cmd("~/.local/bin/waybar-start")
+    -- Apps installed or first started since the last theme change get the theme too.
+    hl.exec_cmd("python3 ~/.config/hypr/scripts/themegen.py refresh")
     -- Session services that must not run under another desktop (its own notification daemon,
     -- portals): started here, stopped at shutdown.
     -- Another desktop's notification daemon gets D-Bus-activated by the first notification and
