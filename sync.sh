@@ -3,7 +3,8 @@
 # then commit and push.
 #   rice-sync            sync, commit, push
 #   rice-sync --dry-run  sync and show the diff, no commit
-# Machine-only files stay out: hypr/monitors.lua, hypr/devices.lua, hypr-rice/waybar/config.local.json.
+# Machine-only files stay out: hypr/monitors.lua, hypr/devices.lua, hypr/binds-user.lua,
+# hypr-rice/waybar/config.local.json.
 set -euo pipefail
 
 REPO=$(cd "$(dirname "$(readlink -f "$0")")" && pwd)
@@ -43,6 +44,7 @@ PATHS=(
     .local/bin/mouse-sens
     .local/bin/portal-restart
     .local/bin/waybar-start
+    .local/bin/settings-panel
     .local/bin/neohtop
     .claude/statusline.sh
 )
@@ -53,6 +55,8 @@ EXCLUDES=(
     --exclude=.config/hypr/hyprlang-backup
     --exclude=.config/hypr/monitors.lua
     --exclude=.config/hypr/devices.lua
+    --exclude=.config/hypr/binds-user.lua
+    --exclude='*.rice-backup'
     --exclude=.config/hypr/palette.lua
     --exclude=.config/hypr/palette.json
     --exclude=.config/hypr/current-theme

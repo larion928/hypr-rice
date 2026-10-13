@@ -86,7 +86,7 @@ window#waybar {
 }
 
 /* Theme switcher button (custom/theme). */
-#custom-theme, #custom-help, #custom-shots {
+#custom-theme, #custom-help, #custom-settings, #custom-shots {
     font-size: 16px;
     padding: 0 10px;
     margin: 0 4px;

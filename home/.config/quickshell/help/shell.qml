@@ -20,6 +20,12 @@ ShellRoot {
     readonly property string bodyFont: !ui.bodyFont || ui.bodyFont === "font" ? (pal.font || "monospace")
                                        : ui.bodyFont === "display" ? (pal.display || "serif") : ui.bodyFont
     readonly property int r: Math.min(ui.radius ?? 14, 22)
+    // keybind.lua writes the main modifier (changeable in the settings panel) here.
+    property string mainModLabel: "Alt"
+    FileView {
+        path: Quickshell.env("XDG_RUNTIME_DIR") + "/hypr-binds-registry.json"
+        onLoaded: { try { const m = JSON.parse(text()).mainMod; root.mainModLabel = m === "SUPER" ? "Super" : m === "CTRL" ? "Ctrl" : "Alt"; } catch (e) {} }
+    }
 
     FileView { id: palFile; path: root.themeDir + "/palette.json"; blockLoading: true }
     FileView { id: uiFile; path: root.themeDir + "/ui.json"; blockLoading: true }
@@ -69,6 +75,7 @@ ShellRoot {
         out.push({ title: "Панель сверху", rows: [
             { keys: "\u{f03d8}", text: "Выбор темы" },
             { keys: "", text: "Эта справка" },
+            { keys: "\u{f0493}", text: "Настройки: мониторы, клавиши, тема" },
             { keys: "", text: "Уведомления (ПКМ — старый TUI)" },
             { keys: "", text: "Блокировка, сон, выход, выключение" },
             { keys: "us / ru", text: "Раскладка — Super+Space" },
@@ -166,7 +173,7 @@ ShellRoot {
                 }
                 Text {
                     anchors { right: parent.right; rightMargin: 32; verticalCenter: header.verticalCenter }
-                    text: "Alt — главная клавиша · Esc — закрыть"
+                    text: root.mainModLabel + " — главная клавиша · Esc — закрыть"
                     font.family: root.bodyFont; font.pixelSize: 14
                     color: root.c.muted || "grey"
                 }

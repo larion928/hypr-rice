@@ -1,0 +1,30 @@
+#!/bin/bash
+# settings-panel [monitors|keys|theme] — toggle the settings window (~/.config/quickshell/settings):
+# monitors, hotkeys and theme. Alt+F2, the waybar gear, or "Настройки" in the launcher.
+CONF="$HOME/.config/quickshell/settings"
+# Already open: ask it to close. No lock file: anything it starts would inherit the lock fd.
+if quickshell list -p "$CONF" 2>/dev/null | grep -q "Process ID"; then
+    quickshell ipc -p "$CONF" call settings close >/dev/null 2>&1 || quickshell kill -p "$CONF" >/dev/null 2>&1
+    exit 0
+fi
+THEME=$(cat "$HOME/.config/hypr/current-theme" 2>/dev/null || echo claude)
+export SETTINGS_PAGE="${1:-monitors}"
+export SETTINGS_THEME_DIR="$HOME/.config/hypr/themes/$THEME"
+export SETTINGS_THEMES=$(for d in "$HOME"/.config/hypr/themes/*/palette.json; do
+    jq -c '{name, label, colors: {bg: .colors.bg, accent: .colors.accent, accent2: .colors.accent2, fg: .colors.fg}}' "$d"
+done | jq -sc .)
+# Wallpaper thumbnails for the theme tab (the theme picker caches the same ones).
+python3 - <<'PY'
+from pathlib import Path
+from PIL import Image
+themes, cache = Path.home() / ".config/hypr/themes", Path.home() / ".cache/theme-thumbs"
+cache.mkdir(parents=True, exist_ok=True)
+for d in themes.iterdir():
+    walls = sorted(p for p in d.glob("*") if p.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp"))
+    t = cache / f"{d.name}.jpg"
+    if walls and (not t.exists() or t.stat().st_mtime < walls[0].stat().st_mtime):
+        im = Image.open(walls[0]).convert("RGB")
+        im.thumbnail((640, 360))
+        im.save(t, quality=88)
+PY
+exec quickshell -n -p "$CONF"

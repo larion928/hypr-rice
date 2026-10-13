@@ -59,10 +59,20 @@ ShellRoot {
                     keys: "screenshot скрин снимок", run: sh("sleep 0.4; ~/.local/bin/shot") });
         list.push({ id: "shotfull", name: "Скриншот экрана", desc: "Shift+Print", glyph: "",
                     keys: "screenshot скрин снимок весь", run: sh("sleep 0.4; ~/.local/bin/shot full") });
-        // Telegram cannot switch themes by itself: opening the file shows its "apply theme" prompt.
-        list.push({ id: "telegram", name: "Тема AyuGram", desc: "применить тему текущего оформления",
+        // Telegram cannot switch themes by itself: the theme's cloud link opens its "apply" preview.
+        list.push({ id: "telegram", name: "Тема Telegram", desc: "применить тему текущего оформления",
                     glyph: "\uf2c6", keys: "telegram телеграм ayugram аюграм тема",
-                    run: sh('AyuGram -- "$HOME/.local/share/hypr-themes/telegram/$(cat "$HOME/.config/hypr/current-theme").tdesktop-theme"') });
+                    run: sh('t=$(cat "$HOME/.config/hypr/current-theme"); '
+                            + 's=$(jq -r ".telegramSlug // empty" "$HOME/.config/hypr/themes/$t/ui.json" 2>/dev/null); '
+                            + 'c=$(command -v AyuGram || command -v Telegram); '
+                            + '[ -n "$c" ] && exec "$c" -- "tg://addtheme?slug=${s:-hyprrice_$t}"') });
+        const settings = Quickshell.env("HOME") + "/.local/bin/settings-panel";
+        list.push({ id: "settings", name: "Настройки", desc: "мониторы, клавиши, тема · Alt+F2", glyph: "\u{f0493}",
+                    keys: "settings настройки параметры", run: [settings] });
+        list.push({ id: "monitors", name: "Мониторы", desc: "разрешение, частота, масштаб, расположение", glyph: "\u{f0379}",
+                    keys: "monitor display screen монитор экран разрешение частота герцовка масштаб", run: [settings, "monitors"] });
+        list.push({ id: "hotkeys", name: "Горячие клавиши", desc: "изменить, добавить свои", glyph: "\u{f030c}",
+                    keys: "keys hotkeys binds клавиши горячие сочетания хоткеи", run: [settings, "keys"] });
         list.push({ id: "notif", name: "Уведомления", desc: "история", glyph: "",
                     keys: "notifications уведомления история", run: [Quickshell.env("HOME") + "/.local/bin/notif-panel"] });
         list.push({ id: "lock", name: "Блокировка экрана", desc: "Alt+I", glyph: "",

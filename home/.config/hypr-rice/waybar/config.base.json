@@ -19,6 +19,7 @@
         "clock",
         "custom/histui",
         "custom/shots",
+        "custom/settings",
         "custom/help",
         "custom/theme",
         "custom/exit"
@@ -160,5 +161,11 @@
         "signal": 8,
         "tooltip": true,
         "on-click": "~/.config/hypr-rice/waybar/scripts/battery --wave"
+    },
+    "custom/settings": {
+        "format": "󰒓",
+        "tooltip": true,
+        "tooltip-format": "Настройки: мониторы, клавиши, тема (Alt+F2)",
+        "on-click": "~/.local/bin/settings-panel"
     }
 }

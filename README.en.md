@@ -66,11 +66,23 @@ When another rice or desktop is found (niri, KDE, GNOME, another Hyprland rice, 
 | `rice report` | write `~/rice-report.txt` for whoever helps you debug |
 | `rice uninstall` | remove the rice and restore the last backup |
 
+## Settings (Alt+F2)
+
+Alt+F2, the gear in the bar or the launcher ("Настройки", "Мониторы", "Горячие клавиши") opens:
+
+- **Monitors.** Arrange screens by dragging, resolution, refresh rate, scale, on/off. Applied at
+  once and reverted after 15 seconds unless you keep it; saved to `~/.config/hypr/monitors.lua`.
+- **Hotkeys.** Change any hotkey (press "Изменить", then the new combo), turn it off, reset it,
+  add your own "combo → command", switch the main key Alt ↔ Super. Taken combos are flagged.
+  Your changes live in `~/.config/hypr/binds-user.lua`.
+- **Theme.** All themes with wallpaper previews.
+
 ## Keys
 
 | Keys | |
 |---|---|
 | Alt + F1 | help with every hotkey |
+| Alt + F2 | settings: monitors, hotkeys, theme |
 | Alt + Shift + T | theme picker (or `changetheme <name>`) |
 | Alt + R | launcher (apps and system commands) |
 | Alt + Enter | kitty |
