@@ -424,6 +424,160 @@ def gen_obsidian(t):
             app.write_text(json.dumps(data, indent=2) + "\n")
 
 
+VESKTOP_CSS = """/**
+ * @name Hypr {label}
+ * @description Colours of the hypr-rice theme {label}. {generated}
+ * @author hypr-rice
+ * @version 1.0.0
+ */
+/* Discord's visual-refresh tokens; !important because Discord sets them on deeper selectors. */
+:root, .theme-dark, .theme-darker, .theme-midnight, .visual-refresh, .visual-refresh.theme-dark {{
+    --font-primary: "{body}", "gg sans", sans-serif !important;
+    --font-display: "{display}", "{body}", sans-serif !important;
+    --font-code: "{mono}", monospace !important;
+
+    --background-base-lowest: {lowest} !important;
+    --background-base-lower: {bg} !important;
+    --background-base-low: {low} !important;
+    --background-surface-high: {bg2} !important;
+    --background-surface-higher: {higher} !important;
+    --background-surface-highest: {highest} !important;
+    --background-gradient-chat: {bg} !important;
+    --chat-background-default: {bg} !important;
+    --modal-background: {bg2} !important;
+    --card-background-default: {bg2} !important;
+    --input-background-default: {input} !important;
+    --channeltextarea-background: {input} !important;
+    --app-frame-border: {border} !important;
+
+    --background-mod-subtle: {hover} !important;
+    --background-mod-muted: {hover} !important;
+    --background-mod-normal: {hover2} !important;
+    --background-mod-strong: {hover3} !important;
+    --interactive-background-hover: {hover} !important;
+    --interactive-background-active: {hover2} !important;
+    --interactive-background-selected: {selected} !important;
+    --message-background-hover: {msghover} !important;
+
+    --border-subtle: {border} !important;
+    --border-muted: {border} !important;
+    --border-normal: {border2} !important;
+    --border-strong: {border3} !important;
+    --border-focus: {accent} !important;
+
+    --text-default: {fg} !important;
+    --text-strong: {strong} !important;
+    --text-muted: {muted} !important;
+    --text-subtle: {muted} !important;
+    --text-link: {accent} !important;
+    --text-brand: {accent} !important;
+    --text-code: {accent2} !important;
+    --text-feedback-critical: {crit} !important;
+    --text-feedback-positive: {good} !important;
+    --text-feedback-warning: {warn} !important;
+    --interactive-text-default: {muted} !important;
+    --interactive-text-hover: {fg} !important;
+    --interactive-text-active: {strong} !important;
+    --input-placeholder-text-default: {faint} !important;
+    --channel-text-area-placeholder: {faint} !important;
+    --channel-icon: {muted} !important;
+    --icon-default: {fg} !important;
+    --icon-strong: {strong} !important;
+    --icon-muted: {muted} !important;
+    --icon-subtle: {muted} !important;
+
+    --brand-360: {accent_light} !important;
+    --brand-400: {accent_light} !important;
+    --brand-500: {accent} !important;
+    --brand-530: {accent_dark} !important;
+    --brand-560: {accent_dark} !important;
+    --brand-600: {accent_darker} !important;
+    --brand-500-hsl: {accent_hsl} !important;
+    --background-brand: {accent} !important;
+    --control-brand-foreground: {accent} !important;
+    --control-primary-background-default: {accent} !important;
+    --control-primary-background-hover: {accent_dark} !important;
+    --control-primary-background-active: {accent_darker} !important;
+    --control-primary-text-default: {bg} !important;
+    --mention-background: {mention} !important;
+    --mention-foreground: {accent} !important;
+
+    --status-positive: {good} !important;
+    --status-danger: {crit} !important;
+    --status-warning: {warn} !important;
+    --background-feedback-critical: {critbg} !important;
+    --background-feedback-positive: {goodbg} !important;
+    --background-feedback-warning: {warnbg} !important;
+
+    --scrollbar-thin-thumb: {thumb} !important;
+    --scrollbar-auto-thumb: {thumb} !important;
+    --scrollbar-thin-track: transparent !important;
+    --scrollbar-auto-track: transparent !important;
+}}
+::selection {{ background: {sel}; }}
+"""
+
+VESKTOP_ROOTS = (".config/vesktop", ".var/app/dev.vencord.Vesktop/config/vesktop")
+VESKTOP_THEME = "hypr-rice.theme.css"
+
+
+def hsl(c):
+    r, g, b = (v / 255 for v in rgb(c))
+    hi, lo = max(r, g, b), min(r, g, b)
+    light = (hi + lo) / 2
+    if hi == lo:
+        return f"0 0% {light * 100:.1f}%"
+    d = hi - lo
+    sat = d / (2 - hi - lo) if light > 0.5 else d / (hi + lo)
+    hue = ((g - b) / d % 6) if hi == r else ((b - r) / d + 2) if hi == g else ((r - g) / d + 4)
+    return f"{hue * 60:.1f} calc(var(--saturation-factor, 1)*{sat * 100:.1f}%) {light * 100:.1f}%"
+
+
+def gen_vesktop(t):
+    """A Vencord theme in Vesktop's themes folder; Vencord reloads it live. It is switched on in
+    settings.json only while Vesktop is closed, since a running Vesktop writes its own copy back."""
+    roots = [HOME / r for r in VESKTOP_ROOTS if (HOME / r).is_dir()]
+    if not roots:
+        return
+    c = t["c"]
+    try:
+        ui = json.loads((THEMES / t["name"] / "ui.json").read_text())
+    except (OSError, ValueError):
+        ui = {}
+    mono = t.get("font") or "monospace"
+    body = ui.get("bodyFont") if ui.get("bodyFont") not in (None, "font", "display") else mono
+    if ui.get("bodyFont") == "display":
+        body = t.get("display") or mono
+    css = VESKTOP_CSS.format(
+        label=t["label"], generated=GENERATED, body=body, display=t.get("display") or body, mono=mono,
+        lowest=mix(c["bg"], "#000000", 0.25), bg=c["bg"], low=mix(c["bg"], c["bg2"], 0.5), bg2=c["bg2"],
+        higher=mix(c["bg2"], c["fg"], 0.04), highest=mix(c["bg2"], c["fg"], 0.08), input=mix(c["bg2"], c["fg"], 0.03),
+        border=css_rgba(c["muted"], 0.18), border2=css_rgba(c["muted"], 0.3), border3=css_rgba(c["muted"], 0.45),
+        hover=css_rgba(c["fg"], 0.06), hover2=css_rgba(c["fg"], 0.1), hover3=css_rgba(c["fg"], 0.16),
+        selected=css_rgba(c["accent"], 0.18), msghover=css_rgba(c["fg"], 0.03),
+        fg=c["fg"], strong=mix(c["fg"], "#ffffff", 0.4), muted=c["muted"], faint=mix(c["muted"], c["bg"], 0.3),
+        accent=c["accent"], accent2=c["accent2"], accent_light=mix(c["accent"], "#ffffff", 0.2),
+        accent_dark=mix(c["accent"], "#000000", 0.15), accent_darker=mix(c["accent"], "#000000", 0.3),
+        accent_hsl=hsl(c["accent"]), mention=css_rgba(c["accent"], 0.15),
+        crit=c["crit"], good=c["good"], warn=c["warn"], critbg=css_rgba(c["crit"], 0.15),
+        goodbg=css_rgba(c["good"], 0.15), warnbg=css_rgba(c["warn"], 0.15),
+        thumb=css_rgba(c["muted"], 0.4), sel=css_rgba(c["accent"], 0.3))
+    running = subprocess.run(["pgrep", "-x", "vesktop"], capture_output=True).returncode == 0
+    for root in roots:
+        write(root / "themes" / VESKTOP_THEME, css)
+        cfg = root / "settings/settings.json"
+        if running or not cfg.exists():
+            continue
+        try:
+            data = json.loads(cfg.read_text())
+        except ValueError:
+            continue
+        themes = data.setdefault("enabledThemes", [])
+        if VESKTOP_THEME not in themes:
+            themes.append(VESKTOP_THEME)
+            cfg.write_text(json.dumps(data, indent=4) + "\n")
+
+
 FIREFOX_CSS = """/* Hypr {label}. {generated} */
 :root {{
     --toolbox-bgcolor: {side} !important;
@@ -627,6 +781,7 @@ def apply(name, wallpaper=None):
     gen_vscode_active(t)
     gen_system(t, wallpaper)
     gen_obsidian(t)
+    gen_vesktop(t)
     gen_firefox(t, wallpaper)
     gen_chromium_wallpaper(wallpaper)
     offer_telegram_theme(t)
@@ -1095,6 +1250,7 @@ def refresh():
     if wallpaper and not Path(wallpaper).exists():
         wallpaper = None
     gen_obsidian(t)
+    gen_vesktop(t)
     gen_firefox(t, wallpaper)
     gen_chromium_wallpaper(wallpaper)
 
