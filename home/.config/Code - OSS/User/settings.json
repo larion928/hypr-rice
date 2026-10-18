@@ -35,5 +35,6 @@
     "*.md": "ipreview.live",
     "*.markdown": "ipreview.live"
   },
-  "workbench.editor.enablePreview": false
+  "workbench.editor.enablePreview": false,
+  "redhat.telemetry.enabled": true
 }
