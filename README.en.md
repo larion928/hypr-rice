@@ -5,7 +5,10 @@
 Hyprland (0.56, Lua config) + Quickshell + Waybar. Eight themes, each with its own palette, fonts,
 window animations, lock screen, screenshot animation and shutter sound, waybar battery icon,
 volume/brightness OSD and SDDM login screen. Code-OSS, AyuGram, kitty, GTK/Thunar, drift and
-neoHtop follow the theme too.
+neoHtop follow the theme too, and so do the browsers: Firefox, Zen and LibreWolf (colours, font,
+rounding, the wallpaper behind the tabs, the theme's emblem as the menu button, a new tab page with
+the wallpaper and the theme's name) and Chromium, Brave, Chrome (a theme with the colours, the
+wallpaper on the new tab page and the emblem). Browsers pick the theme up on their next start.
 
 ![themes](docs/themes.jpg)
 

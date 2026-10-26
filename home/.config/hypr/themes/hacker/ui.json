@@ -9,5 +9,6 @@
   "osdStyle": "ascii",
   "folders": "grey",
   "powerStyle": "terminal",
-  "telegramSlug": "ov1MRklbw0ceWSqI"
+  "telegramSlug": "ov1MRklbw0ceWSqI",
+  "glow": true
 }

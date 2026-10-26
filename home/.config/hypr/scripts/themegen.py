@@ -80,6 +80,11 @@ def write(path, text):
     path.write_text(text)
 
 
+def write_bytes(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+
+
 # ---------- per-theme outputs ----------
 
 def gen_hypr(t):
@@ -578,46 +583,256 @@ def gen_vesktop(t):
             cfg.write_text(json.dumps(data, indent=4) + "\n")
 
 
-FIREFOX_CSS = """/* Hypr {label}. {generated} */
+# ---------- browsers ----------
+
+def theme_emblem(t):
+    """The theme's full battery icon (Clawd, the coffee cup, the jellyfish...): the browsers show it
+    as their menu button and on the new tab page."""
+    icons = (THEMES / t["name"] / "assets").glob("battery-*.svg")
+    icons = sorted(icons, key=lambda p: int(p.stem.split("-")[1]))
+    return icons[-1] if icons else None
+
+
+def browser_look(t):
+    """Colours, shape and fonts shared by the Firefox and Chromium themes."""
+    c = t["c"]
+    ui_path = THEMES / t["name"] / "ui.json"
+    ui = json.loads(ui_path.read_text()) if ui_path.exists() else {}
+    body_font = ui.get("bodyFont") or "font"
+    side = mix(c["bg"], c["bg2"], 0.5)
+    return {
+        "label": t["label"], "bg": c["bg"], "bg2": c["bg2"], "fg": c["fg"], "muted": c["muted"],
+        "accent": c["accent"], "accent2": c["accent2"], "side": side,
+        "field": mix(c["bg"], "#000000", 0.25),
+        "selected": mix(side, c["accent"], 0.16),
+        "hover": css_rgba(c["fg"], 0.08),
+        "border": mix(c["bg2"], c["muted"], 0.3),
+        "dim": css_rgba(c["bg"], 0.72),
+        "sidebar_glass": css_rgba(side, 0.82),
+        "accent_soft": css_rgba(c["accent"], 0.45),
+        # Tabs and fields stay usable at the rounder themes' 18-22px.
+        "radius": min(ui.get("radius", 12), 14),
+        "line": ui.get("border") or 1,
+        # The selection bar beside a vertical tab reads better a bit thicker than borders.
+        "line_zen": (ui.get("border") or 1) + 2,
+        "font": {"font": t["font"], "display": t["display"]}.get(body_font, body_font),
+        "display": t["display"],
+        "title_style": "italic" if ui.get("italicTitle") else "normal",
+        "title_case": "uppercase" if ui.get("upperTitle") else "none",
+        # Neon themes: selected tab and focused fields glow in the accent.
+        "glow": f", 0 0 12px {css_rgba(c['accent'], 0.55)}" if ui.get("glow") else "",
+    }
+
+
+FIREFOX_CHROME_CSS = """/* Hypr {label}. {generated} */
 :root {{
-    --toolbox-bgcolor: {side} !important;
-    --toolbox-bgcolor-inactive: {side} !important;
-    --toolbox-textcolor: {fg} !important;
-    --toolbar-bgcolor: {bg2} !important;
-    --toolbar-color: {fg} !important;
-    --toolbar-field-background-color: {bg} !important;
-    --toolbar-field-focus-background-color: {bg} !important;
-    --toolbar-field-color: {fg} !important;
-    --toolbar-field-focus-border-color: {accent} !important;
-    --tab-selected-bgcolor: {bg2} !important;
-    --tab-selected-textcolor: {fg} !important;
-    --tab-loading-fill: {accent} !important;
+    --hypr-radius: {radius}px;
+    --toolbox-background-color: {side} !important;
+    --toolbox-background-color-inactive: {side} !important;
+    --toolbox-text-color: {fg} !important;
+    --toolbox-text-color-inactive: {muted} !important;
+    --toolbar-background-color: {side} !important;
+    --toolbar-text-color: {fg} !important;
+    --toolbar-field-background-color: {field} !important;
+    --toolbar-field-background-color-focus: {field} !important;
+    --toolbar-field-text-color: {fg} !important;
+    --toolbar-field-text-color-focus: {fg} !important;
+    --toolbar-field-border-color: transparent !important;
+    --toolbar-field-border-color-focus: {accent} !important;
+    --toolbarbutton-icon-fill: {fg} !important;
+    --toolbarbutton-background-color-hover: {hover} !important;
+    --toolbarbutton-background-color-active: {selected} !important;
+    --toolbarbutton-border-radius: var(--hypr-radius) !important;
+    --tab-background-color-selected: {selected} !important;
+    --tab-text-color-selected: {fg} !important;
+    --tab-icon-fill-loading: {accent} !important;
+    --tab-border-radius: var(--hypr-radius) !important;
+    --lwt-tab-line-color: {accent} !important;
+    --tabs-navbar-separator-color: transparent !important;
+    --chrome-content-separator-color: transparent !important;
     --tabpanel-background-color: {bg} !important;
-    --arrowpanel-background: {bg2} !important;
-    --arrowpanel-color: {fg} !important;
     --sidebar-background-color: {side} !important;
     --sidebar-text-color: {fg} !important;
-    --urlbarView-highlight-background: {accent} !important;
-    --urlbarView-highlight-color: {bg} !important;
+    --sidebar-border-color: transparent !important;
+    --panel-background-color: {bg2} !important;
+    --panel-text-color: {fg} !important;
+    --panel-border-color: {border} !important;
+    --panel-border-radius: var(--hypr-radius) !important;
+    --urlbarview-background-color-selected: {accent} !important;
+    --urlbarview-text-color-selected: {bg} !important;
+    --urlbarview-background-color-hover: {hover} !important;
+    --border-color: {border} !important;
     --focus-outline-color: {accent} !important;
     --color-accent-primary: {accent} !important;
-    --button-primary-bgcolor: {accent} !important;
-    --button-primary-color: {bg} !important;
-    /* Zen */
+    --color-accent-primary-hover: {accent2} !important;
+    --color-accent-primary-active: {accent2} !important;
+    --button-background-color-primary: {accent} !important;
+    --button-background-color-primary-hover: {accent2} !important;
+    --button-text-color-primary: {bg} !important;
+    /* Zen mixes most of its colours from these two. */
     --zen-primary-color: {accent} !important;
-    --zen-colors-primary: {bg2} !important;
-    --zen-colors-secondary: {side} !important;
-    --zen-colors-tertiary: {bg} !important;
+    --zen-branding-bg: {bg} !important;
     --zen-colors-border: {border} !important;
-    --zen-main-browser-background: {side} !important;
 }}
-#navigator-toolbox, #TabsToolbar, #nav-bar {{ background-color: {side} !important; color: {fg} !important; }}
-.tab-background:is([selected], [multiselected]) {{ background: {bg2} !important; }}
+
+#navigator-toolbox, #sidebar-box, menupopup, panel {{
+    font-family: "{font}", sans-serif !important;
+}}
+
+.tabbrowser-tab:not([selected], [visuallyselected]):hover > .tab-stack > .tab-background {{
+    background: {hover} !important;
+}}
+.tabbrowser-tab:is([selected], [visuallyselected], [multiselected]) > .tab-stack > .tab-background {{
+    background: {selected} !important;
+}}
+
+:is(#urlbar-background, #urlbar .urlbar-background) {{
+    background-color: {field} !important;
+    border-radius: var(--hypr-radius) !important;
+}}
+#urlbar:is([focused], [open]) :is(#urlbar-background, .urlbar-background) {{
+    outline: {line}px solid {accent} !important;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45){glow} !important;
+}}
+
+menupopup, panel {{
+    --panel-border-radius: var(--hypr-radius) !important;
+}}
+menuitem:hover, menu:hover, menuitem[_moz-menuactive], menu[_moz-menuactive] {{
+    background-color: {selected} !important;
+}}
 """
 
-CHROMIUM_ROOTS = (".config/chromium", ".config/BraveSoftware/Brave-Browser", ".config/google-chrome")
-CHROMIUM_PROCS = {".config/chromium": "chromium", ".config/BraveSoftware/Brave-Browser": "brave",
-                  ".config/google-chrome": "chrome"}
+FIREFOX_EMBLEM_CSS = """
+#PanelUI-menu-button .toolbarbutton-icon {
+    list-style-image: url("hypr-rice-emblem.svg") !important;
+}
+"""
+
+# Firefox: horizontal tabs, the selected one underlined in the accent.
+FIREFOX_TABS_CSS = """
+.tabbrowser-tab:is([selected], [multiselected]) > .tab-stack > .tab-background {{
+    box-shadow: inset 0 -{line}px 0 {accent}{glow} !important;
+}}
+"""
+
+# Firefox: the wallpaper, heavily dimmed, behind the tab strip and the toolbar.
+# The URL is absolute: Firefox resolves a relative one against the sheet that uses the variable.
+FIREFOX_WALLPAPER_CSS = """
+#navigator-toolbox {{
+    background: linear-gradient({dim}, {dim}), url("{wallpaper_url}") center 35% / cover !important;
+}}
+#TabsToolbar, #nav-bar, #PersonalToolbar {{
+    background: transparent !important;
+}}
+"""
+
+# Zen: vertical tabs in the sidebar, the selected one marked on its left edge (not the essentials
+# grid on top). Zen redefines the selected colour on the tab itself, hence the tab selectors.
+ZEN_TABS_CSS = """
+:root {{
+    --zen-toolbar-element-bg: {hover} !important;
+    --zen-toolbar-element-bg-hover: {selected} !important;
+}}
+.tabbrowser-tab:not([zen-essential]):is([visuallyselected], [multiselected]) > .tab-stack > .tab-background {{
+    box-shadow: inset {line_zen}px 0 0 {accent}{glow} !important;
+}}
+.tabbrowser-tab:is([visuallyselected], [multiselected]) {{
+    --tab-background-color-selected: {selected} !important;
+}}
+/* The sidebar gets its own dimmed glass over the wallpaper, so the tab list stays readable. */
+#navigator-toolbox {{
+    background: {sidebar_glass} !important;
+    backdrop-filter: blur(18px) !important;
+}}
+#urlbar[zen-floating-urlbar="true"] .urlbar-background {{
+    background-color: {field} !important;
+    outline: {line}px solid {accent_soft} !important;
+}}
+"""
+
+# Zen: its window background (behind the sidebar and on empty tabs) is the wallpaper. Zen sets
+# these variables inline from its own gradient picker; a user !important still wins.
+ZEN_WALLPAPER_CSS = """
+#zen-browser-background, #zen-toolbar-background {{
+    --zen-main-browser-background: linear-gradient({dim}, {dim}), url("{wallpaper_url}") center / cover !important;
+    --zen-main-browser-background-toolbar: linear-gradient({dim}, {dim}), url("{wallpaper_url}") center / cover !important;
+}}
+"""
+
+FIREFOX_NEWTAB_CSS = """/* Hypr {label}: the new tab page. {generated} */
+@-moz-document url("about:newtab"), url("about:home") {{
+    :root {{
+        --newtab-background-color: {bg} !important;
+        --newtab-background-color-secondary: {bg2} !important;
+        --newtab-text-primary-color: {fg} !important;
+        --newtab-text-secondary-color: {muted} !important;
+        --newtab-primary-action-background: {accent} !important;
+        --newtab-element-hover-color: {hover} !important;
+        --color-accent-primary: {accent} !important;
+        --color-accent-primary-hover: {accent2} !important;
+        --color-accent-primary-active: {accent2} !important;
+        --button-background-color-primary: {accent} !important;
+        --button-background-color-primary-hover: {accent2} !important;
+        --button-text-color-primary: {bg} !important;
+    }}
+    body {{
+        background: linear-gradient(rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.45)),
+                    {bg} url("data:image/jpeg;base64,{wallpaper}") center / cover no-repeat fixed !important;
+    }}
+    .logo-and-wordmark .logo {{
+        background-image: url("data:image/svg+xml;base64,{emblem}") !important;
+        background-size: contain !important;
+        filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.6));
+    }}
+    .logo-and-wordmark .wordmark {{
+        display: none !important;
+    }}
+    .logo-and-wordmark::after {{
+        content: "{label}";
+        margin-inline-start: 18px;
+        font: {title_style} 600 46px "{display}", serif;
+        text-transform: {title_case};
+        color: {fg};
+        text-shadow: 0 2px 14px rgba(0, 0, 0, 0.7);
+    }}
+    /* The search box is a custom element; its shadow DOM only takes these variables. */
+    .search-wrapper content-search-handoff-ui {{
+        --content-search-handoff-ui-background-color: {dim} !important;
+        --content-search-handoff-ui-color: {fg} !important;
+        --content-search-handoff-ui-fill: {muted} !important;
+        --content-search-handoff-ui-border-radius: {radius}px !important;
+        --content-search-handoff-ui-border-width: {line}px !important;
+        --content-search-handoff-ui-unfocused-border-color: {accent_soft} !important;
+        --content-search-handoff-ui-fakefocus-border-color: {accent} !important;
+        --content-search-handoff-ui-fakefocus-box-shadow-inner: {accent_soft} !important;
+        backdrop-filter: blur(14px);
+        border-radius: {radius}px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4){glow};
+    }}
+    .top-site-outer .tile {{
+        background-color: {dim} !important;
+        border-radius: {radius}px !important;
+        backdrop-filter: blur(10px);
+    }}
+    .top-site-outer:hover .tile {{
+        outline: {line}px solid {accent} !important;
+    }}
+    .top-site-outer .title {{
+        color: {fg} !important;
+        text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+    }}
+}}
+"""
+
+# Profile roots: (path, browser). Newer Firefox keeps profiles under XDG (~/.config/mozilla).
+FIREFOX_PROFILE_ROOTS = ((".config/mozilla/firefox", "firefox"), (".mozilla/firefox", "firefox"),
+                         (".librewolf", "firefox"), (".var/app/io.gitlab.librewolf-community/.librewolf", "firefox"),
+                         (".zen", "zen"), (".config/zen", "zen"))
+USER_JS_BEGIN = "// hypr-rice begin: rewritten on every theme change"
+USER_JS_END = "// hypr-rice end"
+# Older rice versions wrote this line on its own, outside the block.
+USER_JS_LEGACY = 'user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);'
 
 
 def wallpaper_jpeg(wallpaper, width, quality):
@@ -628,97 +843,184 @@ def wallpaper_jpeg(wallpaper, width, quality):
     return buf.getvalue()
 
 
-def gen_chromium_wallpaper(wallpaper):
-    """New tab page background in Chromium/Brave/Chrome: the theme's wallpaper.
-
-    The browser shows <profile>/background.jpg when ntp.custom_background_local_to_device is set
-    (what "upload from device" does). The image can be swapped any time; the pref is only written
-    while the browser is closed, since a running one rewrites Preferences on exit.
-    """
-    if not wallpaper:
-        return
-    data = None
-    for root in CHROMIUM_ROOTS:
-        base = HOME / root
-        if not base.is_dir():
-            continue
-        running = subprocess.run(["pgrep", "-x", CHROMIUM_PROCS[root]], capture_output=True).returncode == 0
-        for prof in [base / "Default", *base.glob("Profile *")]:
-            prefs = prof / "Preferences"
-            if not prefs.exists():
-                continue
-            data = data or wallpaper_jpeg(wallpaper, 1920, 85)
-            (prof / "background.jpg").write_bytes(data)
-            if running:
-                continue
-            try:
-                pref = json.loads(prefs.read_text())
-            except ValueError:
-                continue
-            ntp = pref.setdefault("ntp", {})
-            theme = pref.setdefault("browser", {}).setdefault("theme", {})
-            ext_theme = pref.setdefault("extensions", {}).setdefault("theme", {})
-            if (ntp.get("custom_background_local_to_device") is not True or theme.get("color_scheme2") != 2
-                    or ext_theme.get("system_theme") != 0):
-                ntp["custom_background_local_to_device"] = True
-                ntp.pop("custom_background_local_to_device_id", None)
-                ntp.pop("custom_background_dict2", None)
-                theme["color_scheme2"] = 2  # dark, the themes are all dark
-                # Chromium's own Material look instead of GTK's, so the policy colour applies.
-                ext_theme["system_theme"] = 0
-                prefs.write_text(json.dumps(pref, separators=(",", ":")))
-
-
-FIREFOX_CONTENT_CSS = """/* Hypr {label}: wallpaper on the new tab page. {generated} */
-@-moz-document url("about:newtab"), url("about:home") {{
-    body {{
-        background: {bg} url("data:image/jpeg;base64,{image}") center / cover no-repeat fixed !important;
-    }}
-}}
-"""
-
-
-# Newer Firefox keeps profiles under XDG (~/.config/mozilla), older ones in ~/.mozilla.
-FIREFOX_PROFILE_ROOTS = (".config/mozilla/firefox", ".mozilla/firefox", ".zen", ".config/zen", ".librewolf",
-                         ".var/app/io.gitlab.librewolf-community/.librewolf")
-FIREFOX_PREF = 'user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);'
+def firefox_profiles():
+    for root, browser in FIREFOX_PROFILE_ROOTS:
+        for prof in (HOME / root).glob("*"):
+            if (prof / "prefs.js").exists():
+                yield prof, browser
 
 
 def gen_firefox(t, wallpaper=None):
-    """userChrome (and the new tab wallpaper) for Firefox, Zen and LibreWolf profiles; picked up
-    on the next browser start."""
-    c = t["c"]
-    image = None
-    css = FIREFOX_CSS.format(label=t["label"], generated=GENERATED, bg=c["bg"], bg2=c["bg2"],
-                             side=mix(c["bg"], c["bg2"], 0.5), fg=c["fg"], accent=c["accent"],
-                             border=mix(c["bg2"], c["muted"], 0.3))
-    for root in FIREFOX_PROFILE_ROOTS:
-        for prof in (HOME / root).glob("*"):
-            if not (prof / "prefs.js").exists():
-                continue
-            write(prof / "chrome/hypr-rice.css", css)
-            # Our sheet is imported, so a userChrome.css of the user's own keeps working.
-            uc = prof / "chrome/userChrome.css"
-            text = uc.read_text() if uc.exists() else ""
-            if '@import "hypr-rice.css"' not in text:
-                uc.write_text('@import "hypr-rice.css";\n' + text)
-            if wallpaper:
-                # Inlined: about:newtab does not load file:// images.
-                if image is None:
-                    image = base64.b64encode(wallpaper_jpeg(wallpaper, 1600, 72)).decode()
-                write(prof / "chrome/hypr-rice-content.css",
-                      FIREFOX_CONTENT_CSS.format(label=t["label"], generated=GENERATED, bg=c["bg"], image=image))
-                ucc = prof / "chrome/userContent.css"
-                text = ucc.read_text() if ucc.exists() else ""
-                if '@import "hypr-rice-content.css"' not in text:
-                    ucc.write_text('@import "hypr-rice-content.css";\n' + text)
-            uj = prof / "user.js"
-            prefs = uj.read_text() if uj.exists() else ""
-            if FIREFOX_PREF not in prefs:
-                uj.write_text(prefs + ("\n" if prefs and not prefs.endswith("\n") else "") + FIREFOX_PREF + "\n")
+    """Firefox, Zen and LibreWolf: userChrome, the new tab page and a few prefs; picked up on the
+    next browser start."""
+    look = browser_look(t)
+    emblem = theme_emblem(t)
+    chrome_css = FIREFOX_CHROME_CSS.format(generated=GENERATED, **look)
+    if emblem:
+        chrome_css += FIREFOX_EMBLEM_CSS
+    newtab_css = None
+    if wallpaper and emblem:
+        newtab_css = FIREFOX_NEWTAB_CSS.format(
+            generated=GENERATED,
+            wallpaper=base64.b64encode(wallpaper_jpeg(wallpaper, 1600, 72)).decode(),
+            emblem=base64.b64encode(emblem.read_bytes()).decode(), **look)
+    window_wallpaper = wallpaper and wallpaper_jpeg(wallpaper, 2560, 82)
+
+    for prof, browser in firefox_profiles():
+        chrome = prof / "chrome"
+        tabs_css, wallpaper_css = (ZEN_TABS_CSS, ZEN_WALLPAPER_CSS) if browser == "zen" \
+            else (FIREFOX_TABS_CSS, FIREFOX_WALLPAPER_CSS)
+        css = chrome_css + tabs_css.format(**look)
+        if wallpaper:
+            wallpaper_file = chrome / "hypr-rice-wallpaper.jpg"
+            write_bytes(wallpaper_file, window_wallpaper)
+            css += wallpaper_css.format(wallpaper_url=wallpaper_file.as_uri(), **look)
+        write(chrome / "hypr-rice.css", css)
+        if emblem:
+            shutil.copyfile(emblem, chrome / "hypr-rice-emblem.svg")
+        # Our sheets are imported, so userChrome/userContent of the user's own keep working.
+        import_sheet(chrome / "userChrome.css", "hypr-rice.css")
+        if newtab_css:
+            # Inlined: about:newtab does not load file:// images.
+            write(chrome / "hypr-rice-content.css", newtab_css)
+            import_sheet(chrome / "userContent.css", "hypr-rice-content.css")
+        write_user_js(prof / "user.js", firefox_prefs(browser, look))
+
+
+def import_sheet(sheet, name):
+    text = sheet.read_text() if sheet.exists() else ""
+    if f'@import "{name}"' not in text:
+        sheet.write_text(f'@import "{name}";\n' + text)
+
+
+def firefox_prefs(browser, look):
+    prefs = {
+        "toolkit.legacyUserProfileCustomizations.stylesheets": True,
+        # Dark browser UI and dark-scheme pages: every theme is dark.
+        "browser.theme.toolbar-theme": 0,
+        "browser.theme.content-theme": 0,
+    }
+    if browser == "zen":
+        prefs.update({
+            "zen.theme.accent-color": look["accent"],
+            "zen.theme.border-radius": look["radius"],
+            "zen.view.window.scheme": 0,
+        })
+    return prefs
+
+
+def write_user_js(path, prefs):
+    """user.js is applied on every start; our prefs live in one marked block, the rest is the user's."""
+    text = path.read_text() if path.exists() else ""
+    text = re.sub(rf"{re.escape(USER_JS_BEGIN)}.*?{re.escape(USER_JS_END)}\n?", "", text, flags=re.S)
+    text = text.replace(USER_JS_LEGACY + "\n", "")
+    block = [USER_JS_BEGIN, *(f"user_pref({json.dumps(k)}, {json.dumps(v)});" for k, v in prefs.items()), USER_JS_END]
+    if text and not text.endswith("\n"):
+        text += "\n"
+    path.write_text(text + "\n".join(block) + "\n")
+
+
+# command: (flags file its launcher reads, profile root, process name). The flags files are read
+# by Arch's chromium, brave-bin and google-chrome (AUR) launchers.
+CHROMIUM_BROWSERS = {
+    "chromium": (".config/chromium-flags.conf", ".config/chromium", "chromium"),
+    "brave": (".config/brave-flags.conf", ".config/BraveSoftware/Brave-Browser", "brave"),
+    "google-chrome-stable": (".config/chrome-flags.conf", ".config/google-chrome", "chrome"),
+}
+CHROMIUM_THEME = HOME / ".local/share/hypr-themes/chromium"
+FLAGS_BEGIN = "# hypr-rice begin: the theme extension, rewritten on every theme change"
+FLAGS_END = "# hypr-rice end"
+
+
+def gen_chromium(t, wallpaper):
+    """Chromium, Brave, Chrome: an unpacked theme extension (colours, the wallpaper on the new tab
+    page, the theme's emblem in its corner) that the browsers load from their flags file on start."""
+    installed = [cmd for cmd in CHROMIUM_BROWSERS if shutil.which(cmd)]
+    if not installed:
+        return
+    write_chromium_theme(t, wallpaper)
+    for cmd in installed:
+        flags_file, profile_root, process = CHROMIUM_BROWSERS[cmd]
+        write_chromium_flags(HOME / flags_file)
+        set_chromium_dark(HOME / profile_root, process)
+
+
+def write_chromium_theme(t, wallpaper):
+    look = browser_look(t)
+    toolbar = mix(look["bg2"], look["accent"], 0.06)
+    colors = {
+        "frame": look["side"], "frame_inactive": look["bg"],
+        "frame_incognito": look["bg"], "frame_incognito_inactive": look["bg"],
+        "toolbar": toolbar, "toolbar_text": look["fg"], "toolbar_button_icon": look["fg"],
+        "tab_text": look["fg"], "tab_background_text": look["muted"],
+        "tab_background_text_inactive": look["muted"], "bookmark_text": look["fg"],
+        "omnibox_background": look["field"], "omnibox_text": look["fg"],
+        "ntp_background": look["bg"], "ntp_text": look["fg"], "ntp_link": look["accent"],
+    }
+    images, properties = {}, {}
+    images_dir = CHROMIUM_THEME / "images"
+    shutil.rmtree(images_dir, ignore_errors=True)
+    images_dir.mkdir(parents=True)
+    if wallpaper:
+        (images_dir / "ntp.jpg").write_bytes(wallpaper_jpeg(wallpaper, 1920, 85))
+        images["theme_ntp_background"] = "images/ntp.jpg"
+        properties.update(ntp_background_alignment="center", ntp_background_repeat="no-repeat",
+                          ntp_logo_alternate=1)
+    emblem = theme_emblem(t)
+    if emblem and shutil.which("rsvg-convert"):
+        subprocess.run(["rsvg-convert", "-w", "88", "-h", "88", str(emblem), "-o", str(images_dir / "emblem.png")],
+                       check=False)
+        images["theme_ntp_attribution"] = "images/emblem.png"
+    # A new version makes the browser rebuild its cached theme pack.
+    minutes = int(time.time()) // 60
+    manifest = {
+        "manifest_version": 3,
+        "name": f"Hypr {look['label']}",
+        "version": f"1.{minutes // 65536}.{minutes % 65536}",
+        "theme": {"colors": {k: list(rgb(v)) for k, v in colors.items()}, "images": images,
+                  "properties": properties},
+    }
+    write(CHROMIUM_THEME / "manifest.json", json.dumps(manifest, indent=2) + "\n")
+
+
+def write_chromium_flags(path):
+    text = path.read_text() if path.exists() else ""
+    text = re.sub(rf"{re.escape(FLAGS_BEGIN)}.*?{re.escape(FLAGS_END)}\n?", "", text, flags=re.S)
+    # Chromium 137+ ignores --load-extension unless this feature is switched off.
+    block = [FLAGS_BEGIN, "--disable-features=DisableLoadExtensionCommandLineSwitch",
+             f"--load-extension={CHROMIUM_THEME}", FLAGS_END]
+    if text and not text.endswith("\n"):
+        text += "\n"
+    write(path, text + "\n".join(block) + "\n")
+
+
+def set_chromium_dark(base, process):
+    """Dark mode in every profile. Also drops the new tab background older rice versions set
+    (<profile>/background.jpg): it would cover the theme's wallpaper. A running browser rewrites
+    Preferences on exit, so it is left alone until the next theme change."""
+    if subprocess.run(["pgrep", "-x", process], capture_output=True).returncode == 0:
+        return
+    for prof in [base / "Default", *base.glob("Profile *")]:
+        prefs_path = prof / "Preferences"
+        if not prefs_path.exists():
+            continue
+        try:
+            prefs = json.loads(prefs_path.read_text())
+        except ValueError:
+            continue
+        theme = prefs.setdefault("browser", {}).setdefault("theme", {})
+        ntp = prefs.setdefault("ntp", {})
+        if theme.get("color_scheme2") == 2 and "custom_background_local_to_device" not in ntp:
+            continue
+        theme["color_scheme2"] = 2
+        ntp.pop("custom_background_local_to_device", None)
+        (prof / "background.jpg").unlink(missing_ok=True)
+        prefs_path.write_text(json.dumps(prefs, separators=(",", ":")))
 
 
 ROOT_HELPER = "/usr/local/bin/hypr-theme-root"
+CHROMIUM_POLICY_DIRS = ("/etc/chromium/policies/managed", "/etc/brave/policies/managed",
+                        "/etc/opt/chrome/policies/managed")
 
 
 def gen_system(t, wallpaper):
@@ -737,9 +1039,9 @@ def gen_system(t, wallpaper):
         c = t["c"]
         args = " ".join(shlex.quote(a) for a in (wallpaper, c["accent"], c["bg"], c["fg"], t["display"]))
         cmds.append(f"sudo -n {ROOT_HELPER} sddm {args}")
-    # Chromium, Brave, Chrome: theme colour policy, only when one of them is installed.
-    if any(shutil.which(b) for b in ("chromium", "brave", "google-chrome-stable")):
-        cmds.append(f"sudo -n {ROOT_HELPER} browser {shlex.quote(t['c']['accent'])}")
+    # Older rice versions themed Chromium through a colour policy, which locks out theme extensions.
+    if any(Path(d, "hypr-rice.json").exists() for d in CHROMIUM_POLICY_DIRS):
+        cmds.append(f"sudo -n {ROOT_HELPER} browser-policy-off")
     if cmds:
         # Detached, so changetheme does not wait for the icon theme to be rewritten.
         subprocess.Popen(["sh", "-c", "; ".join(cmds)], start_new_session=True,
@@ -783,7 +1085,7 @@ def apply(name, wallpaper=None):
     gen_obsidian(t)
     gen_vesktop(t)
     gen_firefox(t, wallpaper)
-    gen_chromium_wallpaper(wallpaper)
+    gen_chromium(t, wallpaper)
     offer_telegram_theme(t)
     reload_gtk()
 
@@ -1252,7 +1554,7 @@ def refresh():
     gen_obsidian(t)
     gen_vesktop(t)
     gen_firefox(t, wallpaper)
-    gen_chromium_wallpaper(wallpaper)
+    gen_chromium(t, wallpaper)
 
 
 def build():
