@@ -29,8 +29,9 @@ jobs:
             python -m py_compile "$f"
           done
       - name: JSON is valid
+        # Code - OSS files are JSONC (comments allowed) by design.
         run: |
-          find home -name '*.json' -not -path '*/node_modules/*' -print0 | xargs -0 -n1 jq -e . >/dev/null
+          find home -name '*.json' -not -path '*/Code - OSS/*' -print0 | xargs -0 -n1 jq -e . >/dev/null
       - name: Commit is signed by the key in system/allowed_signers
         run: |
           git config --global --add safe.directory "$PWD"
