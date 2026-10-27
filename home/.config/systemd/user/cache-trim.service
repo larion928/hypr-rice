@@ -1,0 +1,7 @@
+[Unit]
+Description=Keep the AUR helper caches under 200 MB
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/rice-cache-trim %h/.cache/yay 200
+ExecStart=/usr/local/bin/rice-cache-trim %h/.cache/paru/clone 200

@@ -1,0 +1,88 @@
+#!/bin/bash
+# power-mode — power profile and battery care, for the waybar module, the launcher and scripts.
+#   power-mode                                waybar JSON: profile icon, tooltip with both states
+#   power-mode next                           saver → balanced → performance → saver
+#   power-mode saver|balanced|performance
+#   power-mode battery-care [on|off|toggle]   IdeaPad: stop charging at ~60% (no argument: print state)
+# The settings themselves are root-only; hypr-theme-root applies them (sudoers allows it without a password).
+HELPER=/usr/local/bin/hypr-theme-root
+CARE=$(ls /sys/bus/platform/drivers/ideapad_acpi/*/conservation_mode 2>/dev/null | head -n1)
+POWER_SIGNAL=9    # "signal" of custom/power in config.base.json
+BATTERY_SIGNAL=8  # "signal" of custom/battery
+
+current_profile() {
+    if [ "$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null)" = performance ]; then
+        echo performance
+    elif [ "$(cat /sys/devices/system/cpu/cpufreq/boost 2>/dev/null)" = 0 ]; then
+        echo saver
+    else
+        echo balanced
+    fi
+}
+
+care_state() {
+    [ -n "$CARE" ] || { echo none; return; }
+    [ "$(cat "$CARE")" = 1 ] && echo on || echo off
+}
+
+refresh_bar() {
+    pkill -RTMIN+$POWER_SIGNAL -x waybar
+    pkill -RTMIN+$BATTERY_SIGNAL -x waybar
+}
+
+set_profile() {
+    sudo -n "$HELPER" power "$1" || { notify-send -u critical "Питание" "Не удалось сменить профиль"; exit 1; }
+    case "$1" in
+        saver) notify-send -a power-mode "Питание: экономия" "Без турбобуста, видеокарта на минимуме" ;;
+        balanced) notify-send -a power-mode "Питание: баланс" "Частоты по нагрузке, турбобуст включён" ;;
+        performance) notify-send -a power-mode "Питание: производительность" "Процессор на максимальных частотах" ;;
+    esac
+    refresh_bar
+}
+
+set_care() {
+    [ -n "$CARE" ] || { notify-send "Батарея" "Режим сбережения есть только на Lenovo IdeaPad"; exit 1; }
+    sudo -n "$HELPER" battery-care "$1" || { notify-send -u critical "Батарея" "Не удалось переключить режим"; exit 1; }
+    if [ "$1" = on ]; then
+        notify-send -a power-mode "Сбережение батареи включено" "Зарядка остановится примерно на 60%"
+    else
+        notify-send -a power-mode "Сбережение батареи выключено" "Батарея заряжается до 100%"
+    fi
+    refresh_bar
+}
+
+waybar_json() {
+    local profile icon name care
+    profile=$(current_profile)
+    case "$profile" in
+        saver) icon=$'\U000f032a' name="экономия" ;;
+        balanced) icon=$'\U000f05d1' name="баланс" ;;
+        performance) icon=$'\U000f04c5' name="производительность" ;;
+    esac
+    case "$(care_state)" in
+        on) care="\\nСбережение батареи: вкл (до ~60%)" ;;
+        off) care="\\nСбережение батареи: выкл" ;;
+        none) care="" ;;
+    esac
+    printf '{"text": "%s", "class": "%s", "tooltip": "Питание: %s%s\\nКлик — следующий профиль"}\n' \
+        "$icon" "$profile" "$name" "$care"
+}
+
+case "${1:-}" in
+    "") waybar_json ;;
+    next)
+        case "$(current_profile)" in
+            saver) set_profile balanced ;;
+            balanced) set_profile performance ;;
+            performance) set_profile saver ;;
+        esac ;;
+    saver|balanced|performance) set_profile "$1" ;;
+    battery-care)
+        case "${2:-}" in
+            "") care_state ;;
+            on|off) set_care "$2" ;;
+            toggle) [ "$(care_state)" = on ] && set_care off || set_care on ;;
+            *) echo "usage: power-mode battery-care [on|off|toggle]" >&2; exit 2 ;;
+        esac ;;
+    *) sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
+esac

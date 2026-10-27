@@ -73,6 +73,15 @@ ShellRoot {
                     keys: "monitor display screen монитор экран разрешение частота герцовка масштаб", run: [settings, "monitors"] });
         list.push({ id: "hotkeys", name: "Горячие клавиши", desc: "изменить, добавить свои", glyph: "\u{f030c}",
                     keys: "keys hotkeys binds клавиши горячие сочетания хоткеи", run: [settings, "keys"] });
+        const power = Quickshell.env("HOME") + "/.local/bin/power-mode";
+        list.push({ id: "power-saver", name: "Питание: экономия", desc: "без турбобуста, тише и дольше от батареи", glyph: "\u{f032a}",
+                    keys: "power battery saver питание экономия энергосбережение", run: [power, "saver"] });
+        list.push({ id: "power-balanced", name: "Питание: баланс", desc: "частоты по нагрузке", glyph: "\u{f05d1}",
+                    keys: "power balanced питание баланс", run: [power, "balanced"] });
+        list.push({ id: "power-performance", name: "Питание: производительность", desc: "максимальные частоты, для игр", glyph: "\u{f04c5}",
+                    keys: "power performance питание производительность игры", run: [power, "performance"] });
+        list.push({ id: "battery-care", name: "Сбережение батареи", desc: "вкл/выкл: зарядка до ~60% (Lenovo IdeaPad)", glyph: "\u{f12a3}",
+                    keys: "battery conservation батарея сбережение заряд 60", run: [power, "battery-care", "toggle"] });
         list.push({ id: "notif", name: "Уведомления", desc: "история", glyph: "",
                     keys: "notifications уведомления история", run: [Quickshell.env("HOME") + "/.local/bin/notif-panel"] });
         list.push({ id: "lock", name: "Блокировка экрана", desc: "Alt+I", glyph: "",

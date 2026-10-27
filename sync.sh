@@ -24,6 +24,8 @@ PATHS=(
     .config/systemd/user/histuid.service
     .config/systemd/user/portal-restart.service
     .config/systemd/user/portal-restart.timer
+    .config/systemd/user/cache-trim.service
+    .config/systemd/user/cache-trim.timer
     .config/systemd/user/xdg-desktop-portal-hyprland.service.d
     .config/systemd/user/xdg-desktop-portal.service.d
     ".config/Code - OSS/User/settings.json"
@@ -46,6 +48,7 @@ PATHS=(
     .local/bin/waybar-start
     .local/bin/settings-panel
     .local/bin/neohtop
+    .local/bin/power-mode
     .claude/statusline.sh
 )
 
@@ -87,6 +90,16 @@ tar -cf - "${EXCLUDES[@]}" "${present[@]}" | tar -C "$DST" -xf -
 
 # Absolute paths (waybar CSS needs file:// URLs) become a placeholder the installer fills in.
 grep -rIl --null "$HOME" "$DST" | xargs -0 -r sed -i "s|$HOME|__HOME__|g"
+
+# Theme-dependent values: changetheme writes them for whatever theme gets installed, so the repo
+# keeps neutral ones instead of the theme that happened to be active at sync time.
+code_settings="$DST/.config/Code - OSS/User/settings.json"
+if [ -f "$code_settings" ]; then
+    jq 'del(."workbench.colorTheme", ."git-graph.graph.colours")' "$code_settings" > "$code_settings.tmp"
+    mv "$code_settings.tmp" "$code_settings"
+fi
+sed -i 's|^ExecStart=/usr/bin/histuid --theme .*|ExecStart=/usr/bin/histuid --theme claude|' \
+    "$DST/.config/systemd/user/histuid.service"
 
 # Refuse to publish anything that looks like a secret.
 SECRET_RE='sk-ant-[A-Za-z0-9_-]{10,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|BEGIN [A-Z ]*PRIVATE KEY|"(accessToken|refreshToken)"[[:space:]]*:[[:space:]]*"|AKIA[0-9A-Z]{16}'

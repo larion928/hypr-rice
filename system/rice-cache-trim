@@ -1,0 +1,16 @@
+#!/bin/bash
+# rice-cache-trim DIR LIMIT_MB — delete the oldest entries of DIR until it takes at most LIMIT_MB.
+# An entry is a top-level file or directory: a package file in pacman's cache, one package's
+# clone in yay's. Run by a pacman hook (pacman's cache) and a user timer (yay/paru caches).
+set -eu
+dir=$1
+limit=$(($2 * 1024 * 1024))
+[ -d "$dir" ] || exit 0
+total=$(du -sb "$dir" | cut -f1)
+[ "$total" -gt "$limit" ] || exit 0
+while IFS= read -r -d '' entry; do
+    [ "$total" -gt "$limit" ] || break
+    size=$(du -sb "$entry" | cut -f1)
+    rm -rf -- "$entry"
+    total=$((total - size))
+done < <(find "$dir" -mindepth 1 -maxdepth 1 -printf '%T@ %p\0' | sort -zn | cut -zd' ' -f2-)

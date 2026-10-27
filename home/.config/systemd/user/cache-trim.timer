@@ -1,0 +1,9 @@
+[Unit]
+Description=Keep the AUR helper caches under 200 MB, hourly
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1h
+
+[Install]
+WantedBy=timers.target

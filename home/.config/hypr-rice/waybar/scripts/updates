@@ -1,0 +1,30 @@
+#!/bin/bash
+# Waybar module: number of pending updates (repos + AUR); hidden when there are none.
+#   updates           print the module JSON (checkupdates uses its own copy of the sync db, no root)
+#   updates --install open a terminal with `rice upgrade`, then recount
+SIGNAL=10  # "signal" of custom/updates in config.base.json
+
+if [ "${1:-}" = --install ]; then
+    kitty --title "rice upgrade" -e sh -c 'rice upgrade; echo; read -rp "Enter — закрыть " _'
+    pkill -RTMIN+$SIGNAL -x waybar
+    exit 0
+fi
+
+repo=$(checkupdates 2>/dev/null)
+aur=""
+command -v yay >/dev/null && aur=$(yay -Qua 2>/dev/null)
+repo_count=$(printf '%s' "$repo" | grep -c .)
+aur_count=$(printf '%s' "$aur" | grep -c .)
+total=$((repo_count + aur_count))
+
+if [ "$total" -eq 0 ]; then
+    echo '{"text": "", "tooltip": ""}'
+    exit 0
+fi
+# The first lines of each list in the tooltip; the full list is in the terminal on click.
+list=$(printf '%s\n%s\n' "$repo" "$aur" | grep . | head -n 15 | awk '{print $1 " " $NF}')
+[ "$total" -gt 15 ] && list="$list
+…и ещё $((total - 15))"
+jq -cn --arg text $'\U000f06b0'" $total" --arg list "$list" --argjson repo "$repo_count" --argjson aur "$aur_count" \
+    '{text: $text, class: "pending",
+      tooltip: ("Обновления: \($repo) из репозиториев, \($aur) из AUR\n\n" + $list + "\n\nКлик — обновить (rice upgrade)")}'

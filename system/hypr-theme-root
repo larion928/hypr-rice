@@ -6,6 +6,9 @@
 #   hypr-theme-root sddm <wallpaper path> <accent #rrggbb> <bg #rrggbb> <fg #rrggbb> <font>
 #   hypr-theme-root browser-policy-off   remove the colour policy older versions set for
 #                                        Chromium-based browsers (it locks out theme extensions)
+#   hypr-theme-root power saver|balanced|performance   CPU boost and governor, GPU power level
+#   hypr-theme-root battery-care on|off  Lenovo IdeaPad conservation mode: charge stops at ~60%
+# power and battery-care also write a tmpfiles.d entry so the choice survives a reboot.
 set -eu
 THEMES=__HOME__/.config/hypr/themes
 SDDM_THEME=/usr/share/sddm/themes/sugar-candy
@@ -51,6 +54,33 @@ browser-policy-off)
     [ $# -eq 1 ] || die "usage: browser-policy-off"
     rm -f /etc/chromium/policies/managed/hypr-rice.json /etc/brave/policies/managed/hypr-rice.json \
           /etc/opt/chrome/policies/managed/hypr-rice.json
+    ;;
+power)
+    [ $# -eq 2 ] || die "usage: power saver|balanced|performance"
+    # This laptop's firmware has no CPPC, so amd-pstate and platform profiles are out; acpi-cpufreq
+    # still offers turbo boost and the governor, amdgpu its DPM level.
+    case "$2" in
+        saver)       boost=0 governor=schedutil   gpu=low ;;
+        balanced)    boost=1 governor=schedutil   gpu=auto ;;
+        performance) boost=1 governor=performance gpu=auto ;;
+        *) die "bad profile" ;;
+    esac
+    conf=/etc/tmpfiles.d/hypr-rice-power.conf
+    {
+        echo "# Power profile \"$2\", written by hypr-theme-root (power-mode)."
+        [ -e /sys/devices/system/cpu/cpufreq/boost ] && echo "w /sys/devices/system/cpu/cpufreq/boost - - - - $boost"
+        echo "w /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor - - - - $governor"
+        echo "w /sys/class/drm/card*/device/power_dpm_force_performance_level - - - - $gpu"
+    } > "$conf"
+    systemd-tmpfiles --create "$conf" 2>/dev/null || true
+    ;;
+battery-care)
+    [ $# -eq 2 ] || die "usage: battery-care on|off"
+    case "$2" in on) value=1 ;; off) value=0 ;; *) die "bad value" ;; esac
+    ls /sys/bus/platform/drivers/ideapad_acpi/*/conservation_mode >/dev/null 2>&1 || die "no IdeaPad conservation mode here"
+    conf=/etc/tmpfiles.d/hypr-rice-battery.conf
+    printf '# Battery conservation mode, written by hypr-theme-root (power-mode).\nw /sys/bus/platform/drivers/ideapad_acpi/*/conservation_mode - - - - %s\n' "$value" > "$conf"
+    systemd-tmpfiles --create "$conf"
     ;;
 *)
     die "unknown command"

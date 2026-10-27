@@ -88,7 +88,7 @@ window#waybar {
 }
 
 /* Theme switcher button (custom/theme). */
-#custom-theme, #custom-help, #custom-settings, #custom-shots {
+#custom-theme, #custom-help, #custom-settings, #custom-shots, #custom-power, #custom-updates {
     font-size: 16px;
     padding: 0 10px;
     margin: 0 4px;
@@ -114,3 +114,7 @@ window#waybar {
 /* Click animation frames, switched by ~/.config/hypr-rice/waybar/scripts/battery --wave. */
 #custom-battery.f1 { background-image: url("file://__HOME__/.config/hypr/themes/frieren/assets/battery-1.svg"); }
 #custom-battery.f2 { background-image: url("file://__HOME__/.config/hypr/themes/frieren/assets/battery-2.svg"); }
+
+/* Power profile (custom/power): green when saving, warning colour at full performance. */
+#custom-power.saver { color: @good; }
+#custom-power.performance { color: @warn; }

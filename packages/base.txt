@@ -36,9 +36,11 @@ brightnessctl
 playerctl
 # --- tools used by the scripts
 git
+openssh
 base-devel
 rsync
 jq
+pacman-contrib
 python
 python-pillow
 grim

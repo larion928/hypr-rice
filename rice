@@ -22,6 +22,9 @@ STAMP=$(date +%Y%m%d-%H%M%S)
 BACKUP="$HOME/.rice-backup-$STAMP"
 MARKER="$HOME/.config/hypr/.rice-installed"
 CACHE="$HOME/.cache/hypr-rice"
+# The author's commit signing key, remembered at the first install. It lives outside the repo, so a
+# pushed change of system/allowed_signers cannot move the trust along with a malicious update.
+TRUST="$HOME/.config/hypr-rice/allowed_signers"
 PKG_REPO_URL="https://github.com/larion928/hypr-rice-pkgs/releases/download/repo"
 PKG_KEY_FPR=E9E510D6FB25450E897102A01CEA86E55DC9094D
 
@@ -663,6 +666,14 @@ setup_system() {
     ok "GTK: $gtk, Papirus-Dark, курсор WhiteCat"
 }
 
+setup_maintenance() {  # package caches kept under 200 MB, weekly TRIM for SSDs
+    sudo install -m755 "$SRC/system/rice-cache-trim" /usr/local/bin/rice-cache-trim
+    sudo install -Dm644 "$SRC/system/rice-cache-trim.hook" /etc/pacman.d/hooks/rice-cache-trim.hook
+    systemctl --user enable cache-trim.timer >/dev/null 2>&1 || warn "не включился cache-trim.timer"
+    sudo systemctl enable fstrim.timer >/dev/null 2>&1 || warn "не включился fstrim.timer"
+    ok "кэш пакетов не больше 200 МБ, TRIM для SSD раз в неделю"
+}
+
 setup_apps_config() {
     if command -v code-oss >/dev/null; then
         local ext
@@ -806,6 +817,7 @@ cmd_install() {
 
     step "Системные настройки"
     setup_system
+    setup_maintenance
 
     step "Приложения"
     setup_apps_config
@@ -815,6 +827,7 @@ cmd_install() {
     echo "$(git -C "$SRC" log -1 --format='%h %cs' 2>/dev/null || echo local) $STAMP" > "$MARKER"
     mkdir -p "$HOME/.config/hypr-rice"
     echo "mode=$MODE" > "$HOME/.config/hypr-rice/install.conf"
+    [ -f "$TRUST" ] || install -m644 "$SRC/system/allowed_signers" "$TRUST"
 
     finish
     info "Перезагрузись и выбери сеанс Hyprland на экране входа."
@@ -853,9 +866,17 @@ cmd_remove() {
     finish
 }
 
+# Installs from before signed updates have no TRUST yet; it is written at the end of their next install.
+signed_by_author() {  # signed_by_author REV
+    [ -f "$TRUST" ] || return 0
+    git -C "$SRC" -c gpg.format=ssh -c gpg.ssh.allowedSignersFile="$TRUST" verify-commit "$1" >/dev/null 2>&1
+}
+
 cmd_update() {
     step "Обновляю hypr-rice"
     git -C "$SRC" fetch -q --depth 1 origin "$BRANCH" || die "не удалось скачать обновление с GitHub"
+    signed_by_author "origin/$BRANCH" || die "новая версия на GitHub не подписана ключом автора, обновление не применено.
+    Если автор сменил ключ и сам об этом сказал: rm $TRUST и снова rice update."
     local before after
     before=$(git -C "$SRC" rev-parse --short HEAD)
     git -C "$SRC" reset -q --hard "origin/$BRANCH"
@@ -902,6 +923,7 @@ cmd_repair() {
     pkg_repo_enabled || setup_pkg_repo
     aur_install "${aur[@]}" || true
     setup_system
+    setup_maintenance
     apply_theme "$(cat "$HOME/.config/hypr/current-theme" 2>/dev/null || echo claude)"
     finish
 }

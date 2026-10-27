@@ -80,6 +80,19 @@ Alt+F2, the gear in the bar or the launcher ("Настройки", "Монито
   Your changes live in `~/.config/hypr/binds-user.lua`.
 - **Theme.** All themes with wallpaper previews.
 
+## System
+
+- **Power.** An icon in the bar (scales, leaf or speedometer): a click cycles power saving (no turbo
+  boost, GPU at its lowest), balanced and performance. The launcher has the same entries (`power-mode`).
+- **Battery care** (Lenovo IdeaPad): right-click the battery in the bar. Charging stops at about 60%,
+  good for a laptop that is always plugged in.
+- **Updates.** When there are any, an icon with their number (repos and AUR) shows up in the bar; a
+  click runs `rice upgrade`.
+- **Package caches** of pacman and yay stay under 200 MB; SSDs get a weekly TRIM.
+- **Signed updates.** Every commit of the rice is signed with the author's key. The first install
+  remembers that key in `~/.config/hypr-rice/allowed_signers`, and `rice update` (like running the
+  installer again) refuses a version from GitHub that is not signed with it.
+
 ## Your own settings
 
 `rice update` replaces the rice's files with new versions (the old ones go to `~/.rice-backup-<date>/`).

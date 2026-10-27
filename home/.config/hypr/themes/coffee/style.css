@@ -69,7 +69,7 @@ window#waybar {
 }
 
 /* Theme switcher, help and screenshots buttons. */
-#custom-theme, #custom-help, #custom-settings, #custom-shots {
+#custom-theme, #custom-help, #custom-settings, #custom-shots, #custom-power, #custom-updates {
     font-size: 16px;
     padding: 0 10px;
     margin: 0 4px;
@@ -102,3 +102,7 @@ window#waybar {
 #custom-battery.f3 { background-image: url("file://__HOME__/.config/hypr/themes/coffee/assets/battery-3.svg"); }
 #custom-battery.f4 { background-image: url("file://__HOME__/.config/hypr/themes/coffee/assets/battery-4.svg"); }
 #custom-battery.f5 { background-image: url("file://__HOME__/.config/hypr/themes/coffee/assets/battery-5.svg"); }
+
+/* Power profile (custom/power): green when saving, warning colour at full performance. */
+#custom-power.saver { color: @good; }
+#custom-power.performance { color: @warn; }

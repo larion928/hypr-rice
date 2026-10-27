@@ -1,6 +1,5 @@
 {
   "files.autoSave": "afterDelay",
-  "workbench.colorTheme": "Hypr Coffee",
   "explorer.confirmDelete": false,
   "explorer.confirmDragAndDrop": false,
   "editor.unicodeHighlight.invisibleCharacters": false,
@@ -17,15 +16,6 @@
   "diffEditor.ignoreTrimWhitespace": false,
   "git-graph.showStatusBarItem": true,
   "git-graph.repository.commits.fetchAvatars": false,
-  "git-graph.graph.colours": [
-    "#d8a657",
-    "#e9c48f",
-    "#a9b665",
-    "#fabd2f",
-    "#a9643c",
-    "#ea6962",
-    "#928374"
-  ],
   "[markdown]": {
     "editor.wordWrap": "on"
   },

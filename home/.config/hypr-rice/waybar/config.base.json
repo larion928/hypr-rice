@@ -14,8 +14,10 @@
         "cpu",
         "memory",
         "temperature",
+        "custom/power",
         "custom/battery",
         "network",
+        "custom/updates",
         "clock",
         "custom/histui",
         "custom/shots",
@@ -160,12 +162,29 @@
         "interval": 15,
         "signal": 8,
         "tooltip": true,
-        "on-click": "~/.config/hypr-rice/waybar/scripts/battery --wave"
+        "on-click": "~/.config/hypr-rice/waybar/scripts/battery --wave",
+        "on-click-right": "~/.local/bin/power-mode battery-care toggle"
     },
     "custom/settings": {
         "format": "󰒓",
         "tooltip": true,
         "tooltip-format": "Настройки: мониторы, клавиши, тема (Alt+F2)",
         "on-click": "~/.local/bin/settings-panel"
+    },
+    "custom/power": {
+        "exec": "~/.local/bin/power-mode",
+        "return-type": "json",
+        "interval": 60,
+        "signal": 9,
+        "tooltip": true,
+        "on-click": "~/.local/bin/power-mode next"
+    },
+    "custom/updates": {
+        "exec": "~/.config/hypr-rice/waybar/scripts/updates",
+        "return-type": "json",
+        "interval": 3600,
+        "signal": 10,
+        "tooltip": true,
+        "on-click": "~/.config/hypr-rice/waybar/scripts/updates --install"
     }
 }

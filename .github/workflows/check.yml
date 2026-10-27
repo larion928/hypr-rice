@@ -1,0 +1,62 @@
+# Every push: the scripts parse, the commit is signed, and `rice install` goes through on a clean
+# Arch system the way it does on a friend's machine (normal user, sudo, no terminal).
+name: check
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - run: pacman -Syu --noconfirm --needed git jq python openssh
+      - uses: actions/checkout@v4
+      - name: Shell scripts parse
+        run: |
+          status=0
+          for f in install.sh rice sync.sh system/hypr-theme-root system/rice-cache-trim \
+                   $(grep -rlI '^#!.*\(ba\)\?sh' home/.local/bin home/.config/hypr-rice/waybar/scripts); do
+            bash -n "$f" || { echo "::error file=$f::bash -n failed"; status=1; }
+          done
+          exit $status
+      - name: Python parses
+        run: |
+          python -m py_compile home/.config/hypr/scripts/*.py
+          for f in $(grep -rlI '^#!.*python' home/.local/bin home/.config/hypr-rice/waybar/scripts); do
+            python -m py_compile "$f"
+          done
+      - name: JSON is valid
+        run: |
+          find home -name '*.json' -not -path '*/node_modules/*' -print0 | xargs -0 -n1 jq -e . >/dev/null
+      - name: Commit is signed by the key in system/allowed_signers
+        run: |
+          git config --global --add safe.directory "$PWD"
+          git -c gpg.format=ssh -c gpg.ssh.allowedSignersFile=system/allowed_signers verify-commit HEAD
+
+  install:
+    needs: syntax
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    timeout-minutes: 60
+    steps:
+      - run: pacman -Syu --noconfirm --needed git sudo
+      - uses: actions/checkout@v4
+      - name: A normal user with sudo, like on a real install
+        run: |
+          useradd -m tester
+          echo 'tester ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/tester
+          cp -r "$GITHUB_WORKSPACE" /home/tester/hypr-rice
+          chown -R tester: /home/tester/hypr-rice
+      - name: rice install
+        run: sudo -u tester -H env RICE_ASSUME=y RICE_APPS=none bash /home/tester/hypr-rice/rice install
+      - name: The rice is in place
+        run: |
+          h=/home/tester
+          for f in .config/hypr/hyprland.lua .config/hypr/.rice-installed .config/hypr/current-theme \
+                   .config/hypr-rice/waybar/config.json .config/hypr-rice/allowed_signers .local/bin/rice; do
+            test -e "$h/$f" || { echo "::error::missing ~/$f"; exit 1; }
+          done
+          sudo -u tester -H Hyprland --verify-config -c "$h/.config/hypr/hyprland.lua"

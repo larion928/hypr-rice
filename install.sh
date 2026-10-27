@@ -16,6 +16,8 @@ set -euo pipefail
 REPO_URL="https://github.com/larion928/hypr-rice.git"
 BRANCH="${RICE_BRANCH:-main}"
 SRC="${RICE_SRC:-$HOME/.local/share/hypr-rice}"
+# Written by the first install: the key the rice's commits are signed with (see `rice update`).
+TRUST="$HOME/.config/hypr-rice/allowed_signers"
 
 die() { printf '\n\e[31mОшибка:\e[0m %s\n' "$*" >&2; exit 1; }
 
@@ -30,13 +32,20 @@ if ! command -v git >/dev/null; then
         || die "не удалось поставить git"
 fi
 
+signed_by_author() {
+    [ -f "$TRUST" ] || return 0
+    git -C "$SRC" -c gpg.format=ssh -c gpg.ssh.allowedSignersFile="$TRUST" verify-commit "$1" >/dev/null 2>&1
+}
+
 echo "==> Скачиваю hypr-rice"
 if [ -d "$SRC/.git" ]; then
     git -C "$SRC" fetch -q --depth 1 origin "$BRANCH"
+    signed_by_author "origin/$BRANCH" || die "версия на GitHub не подписана ключом автора, ничего не изменено"
     git -C "$SRC" reset -q --hard "origin/$BRANCH"
 else
     rm -rf "$SRC"
     git clone -q --depth 1 -b "$BRANCH" "$REPO_URL" "$SRC"
+    signed_by_author HEAD || { rm -rf "$SRC"; die "версия на GitHub не подписана ключом автора, ничего не изменено"; }
 fi
 echo "    $(git -C "$SRC" log -1 --format='%h  %s')"
 
