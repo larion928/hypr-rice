@@ -13,7 +13,7 @@ jobs:
     container: archlinux:base-devel
     steps:
       - run: pacman -Syu --noconfirm --needed git jq python openssh
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Shell scripts parse
         run: |
           status=0
@@ -44,7 +44,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - run: pacman -Syu --noconfirm --needed git sudo
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: A normal user with sudo, like on a real install
         run: |
           useradd -m tester
