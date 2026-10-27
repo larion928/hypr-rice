@@ -60,4 +60,8 @@ jobs:
                    .config/hypr-rice/waybar/config.json .config/hypr-rice/allowed_signers .local/bin/rice; do
             test -e "$h/$f" || { echo "::error::missing ~/$f"; exit 1; }
           done
-          sudo -u tester -H Hyprland --verify-config -c "$h/.config/hypr/hyprland.lua"
+          # AUR packages come from hypr-rice-pkgs; rice only warns when one is missing.
+          grep -v '^[[:space:]]*#' /home/tester/hypr-rice/packages/aur.txt | sed 's/[[:space:]]*#.*//' | grep . \
+              | xargs pacman -Q
+          mkdir -p /run/user/tester && chown tester: /run/user/tester
+          sudo -u tester -H XDG_RUNTIME_DIR=/run/user/tester Hyprland --verify-config -c "$h/.config/hypr/hyprland.lua"
