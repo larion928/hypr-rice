@@ -65,6 +65,7 @@ When another rice or desktop is found (niri, KDE, GNOME, another Hyprland rice, 
 | `rice remove` | remove programs from the catalog |
 | `rice update` | update the rice from GitHub (keeps the theme and machine files) |
 | `rice upgrade` | update the system and programs, AUR included |
+| `rice proton` | which Proton runs `.exe` files: the latest UMU-Proton (default) or any installed with ProtonPlus |
 | `rice repair` | re-apply the SDDM login screen, GTK theme and services |
 | `rice report` | write `~/rice-report.txt` for whoever helps you debug |
 | `rice uninstall` | remove the rice and restore the last backup |

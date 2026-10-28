@@ -68,6 +68,7 @@ curl -fsSL https://raw.githubusercontent.com/larion928/hypr-rice/main/install.sh
 | `rice remove` | удалить программы из списка |
 | `rice update` | обновить райс с GitHub (тема и настройки этой машины сохраняются) |
 | `rice upgrade` | обновить систему и программы, включая AUR |
+| `rice proton` | какая версия Proton запускает `.exe`: последняя UMU-Proton (по умолчанию) или любая из ProtonPlus |
 | `rice repair` | починить: экран входа SDDM, тема GTK, сервисы |
 | `rice report` | собрать отчёт `~/rice-report.txt`, чтобы прислать тому, кто помогает |
 | `rice uninstall` | убрать райс и вернуть последний бэкап |

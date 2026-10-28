@@ -1,0 +1,33 @@
+#!/bin/bash
+# proton-run FILE.exe — run a Windows program through Proton (umu); what a double-click on .exe,
+# .msi, .bat and .lnk files calls. The Proton version is picked with `rice proton`
+# (~/.config/hypr-rice/proton.conf); without one umu takes the latest UMU-Proton and downloads it
+# on first use. Output goes to ~/.cache/hypr-rice/proton/<program>.log.
+CONF="$HOME/.config/hypr-rice/proton.conf"
+COMPAT="$HOME/.local/share/Steam/compatibilitytools.d"
+[ $# -gt 0 ] || { echo "usage: proton-run FILE.exe [args]" >&2; exit 2; }
+
+name=$(basename "$1")
+log="$HOME/.cache/hypr-rice/proton/${name%.*}.log"
+mkdir -p "$(dirname "$log")"
+
+proton=$(sed -n 's/^proton=//p' "$CONF" 2>/dev/null)
+if [ -n "$proton" ] && [ -d "$COMPAT/$proton" ]; then
+    export PROTONPATH="$proton"
+    notify-send -a proton-run -i wine "Запускаю через Proton" "$name · $proton"
+elif ls -d "$COMPAT"/UMU-Proton-* >/dev/null 2>&1; then
+    notify-send -a proton-run -i wine "Запускаю через Proton" "$name"
+else
+    notify-send -a proton-run -i wine "Первый запуск Proton" \
+        "Скачиваю UMU-Proton (несколько сотен МБ), $name откроется после загрузки"
+fi
+
+started=$(date +%s)
+umu-run "$@" >"$log" 2>&1
+code=$?
+# A program that ran for a while and then exits non-zero is usually just closing; one that dies
+# within seconds did not start.
+if [ "$code" -ne 0 ] && [ $(($(date +%s) - started)) -lt 30 ]; then
+    notify-send -a proton-run -u critical -i wine "$name не запустился" "Код $code, подробности: $log"
+fi
+exit "$code"

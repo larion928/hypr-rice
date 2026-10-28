@@ -7,6 +7,7 @@
 #   rice remove       remove programs installed from the catalog
 #   rice update       fetch the latest rice from GitHub and apply it (keeps theme and machine files)
 #   rice upgrade      update the system, the hypr-rice repo and AUR programs
+#   rice proton       pick the Proton version that runs .exe files
 #   rice repair       re-apply SDDM, GTK theme and services
 #   rice report       write ~/rice-report.txt for whoever helps you debug
 #   rice uninstall    remove the rice and put the last backup back
@@ -348,19 +349,29 @@ enable_multilib() {
 }
 
 # Post-install steps some programs need ("hook:<name>" in apps.txt).
+EXE_TYPES=(application/x-ms-dos-executable application/x-msdownload application/vnd.microsoft.portable-executable
+           application/x-msi application/x-ms-shortcut application/x-bat)
+
 hook_proton_exe() {
-    # Double-clicking a .exe runs it through Proton (umu) instead of plain wine.
+    # Double-clicking a .exe runs it through Proton (umu, via ~/.local/bin/proton-run) instead of plain wine.
     local d="$HOME/.local/share/applications" m
     mkdir -p "$d"
     printf '%s\n' "[Desktop Entry]" "Type=Application" "Name=Proton (umu)" \
-        "Comment=Запустить Windows-программу через Proton" "Exec=umu-run %f" "Icon=wine" "Terminal=false" \
-        "NoDisplay=true" \
-        "MimeType=application/x-ms-dos-executable;application/x-msdownload;application/vnd.microsoft.portable-executable;application/x-msi;application/x-ms-shortcut;application/x-bat;" \
-        > "$d/umu-run.desktop"
-    for m in application/x-ms-dos-executable application/x-msdownload application/vnd.microsoft.portable-executable \
-             application/x-msi application/x-ms-shortcut application/x-bat; do
+        "Comment=Запустить Windows-программу через Proton" "Exec=$HOME/.local/bin/proton-run %f" "Icon=wine" \
+        "Terminal=false" "NoDisplay=true" "MimeType=$(IFS=';'; echo "${EXE_TYPES[*]}");" > "$d/umu-run.desktop"
+    for m in "${EXE_TYPES[@]}"; do
         xdg-mime default umu-run.desktop "$m" 2>/dev/null || true
     done
+    update-desktop-database "$d" 2>/dev/null || true
+}
+
+unhook_proton_exe() {
+    # Without this, .exe files would stay bound to a launcher whose umu-run is gone.
+    local d="$HOME/.local/share/applications" list="$HOME/.config/mimeapps.list"
+    rm -f "$d/umu-run.desktop"
+    if [ -f "$list" ]; then
+        sed -i -e 's/umu-run\.desktop;\?//g' -e '/=$/d' "$list"
+    fi
     update-desktop-database "$d" 2>/dev/null || true
 }
 
@@ -443,7 +454,11 @@ remove_apps() {  # removes PICKED (packages, flatpaks, AppImages)
                 appimage:*) rm -f "$HOME/Applications/$id.AppImage" "$HOME/.local/share/applications/hypr-rice-$id.desktop" ;;
                 flatpak:*) flat+=("${tok#flatpak:}") ;;
                 file:*) rm -f "$HOME/${tok#file:}" ;;
-                hook:*|browser) ;;
+                hook:*)
+                    local undo="unhook_${tok#hook:}"
+                    undo=${undo//-/_}
+                    if declare -F "$undo" >/dev/null; then "$undo"; fi ;;
+                browser) ;;
                 *) pacman -Qq "${tok#aur:}" >/dev/null 2>&1 && pk+=("${tok#aur:}") ;;
             esac
         done
@@ -890,6 +905,34 @@ cmd_update() {
     RICE_ASSUME=${RICE_ASSUME:-y} RICE_APPS=${RICE_APPS:-none} exec "$SRC/rice" install
 }
 
+cmd_proton() {  # which Proton runs .exe files (proton-run reads ~/.config/hypr-rice/proton.conf)
+    local compat="$HOME/.local/share/Steam/compatibilitytools.d" conf="$HOME/.config/hypr-rice/proton.conf"
+    local current options=("Автоматически: последняя UMU-Proton=auto") dir name choice
+    current=$(sed -n 's/^proton=//p' "$conf" 2>/dev/null)
+    for dir in "$compat"/*/; do
+        [ -f "$dir/proton" ] || continue
+        name=$(basename "$dir")
+        options+=("$name=$name")
+    done
+    step "Proton для .exe"
+    info "сейчас: ${current:-автоматически (последняя UMU-Proton)}"
+    [ ${#options[@]} -gt 1 ] || info "других версий нет; поставь их в ProtonPlus (раздел Steam), они появятся здесь"
+    if have_tty && fetch_gum; then
+        choice=$("$GUM" choose --height 12 --header "Какой Proton запускает .exe?" --cursor "› " "${GUM_STYLE[@]}" \
+            --label-delimiter="=" "${options[@]}" </dev/tty) || return 0
+    else
+        die "нужен терминал"
+    fi
+    mkdir -p "$(dirname "$conf")"
+    if [ "$choice" = auto ]; then
+        rm -f "$conf"
+        ok "автоматически: последняя UMU-Proton"
+    else
+        echo "proton=$choice" > "$conf"
+        ok "$choice"
+    fi
+}
+
 cmd_upgrade() {
     need_sudo
     step "Обновление системы"
@@ -997,11 +1040,12 @@ cmd_uninstall() {
 }
 
 menu() {
-    fetch_gum || die "меню не открылось (нет gum); команды: rice install|apps|remove|update|upgrade|repair|report|uninstall"
+    fetch_gum || die "меню не открылось (нет gum); команды: rice install|apps|remove|update|upgrade|proton|repair|report|uninstall"
     local choice
     choice=$("$GUM" choose --height 12 --header "hypr-rice — что сделать?" --cursor "› " "${GUM_STYLE[@]}" \
         "Установить программы=apps" "Удалить программы=remove" "Обновить райс=update" \
-        "Обновить систему и программы=upgrade" "Починить (SDDM, тема, сервисы)=repair" \
+        "Обновить систему и программы=upgrade" "Proton для .exe: версия=proton" \
+        "Починить (SDDM, тема, сервисы)=repair" \
         "Отчёт для помощи=report" "Переустановить райс=install" "Удалить райс=uninstall" \
         --label-delimiter="=" </dev/tty) || exit 0
     [ -n "$choice" ] && run "$choice"
@@ -1020,7 +1064,7 @@ run() {
 }
 
 case "${1:-}" in
-    install|apps|remove|update|upgrade|repair|report|uninstall) run "$1" ;;
+    install|apps|remove|update|upgrade|proton|repair|report|uninstall) run "$1" ;;
     ""|menu) menu ;;
     -h|--help|help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' ;;
     *) die "неизвестная команда: $1 (rice help)" ;;

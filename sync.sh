@@ -50,6 +50,7 @@ PATHS=(
     .local/bin/neohtop
     .local/bin/power-mode
     .local/bin/network-panel
+    .local/bin/proton-run
     .claude/statusline.sh
 )
 
