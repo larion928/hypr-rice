@@ -275,7 +275,10 @@ ShellRoot {
                 id: card
                 anchors { top: parent.top; right: parent.right; topMargin: 50; rightMargin: 14 }
                 width: 410
-                height: Math.min(body.implicitHeight + 36, parent.height - 80)
+                // Header and footer keep their size; the network list gets what is left and scrolls.
+                height: Math.min(18 + top.implicitHeight + (net.wifiOn ? 14 + list.implicitHeight : 0)
+                                 + (bottom.implicitHeight > 0 ? 14 + bottom.implicitHeight : 0) + 18,
+                                 parent.height - 80)
                 radius: root.r
                 color: root.a(root.c.bg, 0.96)
                 border.width: root.ui.border ?? 1
@@ -289,7 +292,7 @@ ShellRoot {
                 MouseArea { anchors.fill: parent }   // clicks inside do not close
 
                 Column {
-                    id: body
+                    id: top
                     anchors { left: parent.left; right: parent.right; top: parent.top; margins: 18 }
                     spacing: 14
 
@@ -388,11 +391,12 @@ ShellRoot {
                         font.family: root.bodyFont; font.pixelSize: 14
                         color: root.c.muted || "grey"
                     }
+                }
 
-                    Flickable {
+                Flickable {
                         visible: net.wifiOn
-                        width: parent.width
-                        height: Math.min(list.implicitHeight, card.parent.height - 360)
+                        anchors { left: parent.left; right: parent.right; top: top.bottom; bottom: bottom.top
+                                  leftMargin: 18; rightMargin: 18; topMargin: 14; bottomMargin: bottom.implicitHeight > 0 ? 14 : 0 }
                         contentHeight: list.implicitHeight
                         clip: true
                         boundsBehavior: Flickable.StopAtBounds
@@ -407,6 +411,11 @@ ShellRoot {
                             }
                         }
                     }
+
+                Column {
+                    id: bottom
+                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 18 }
+                    spacing: 10
 
                     Text {
                         visible: !!net.message
