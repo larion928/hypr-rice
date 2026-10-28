@@ -446,11 +446,15 @@ ShellRoot {
         width: parent ? parent.width : 0
         height: open ? 104 : 48
         radius: root.r
-        color: rowMouse.containsMouse || open ? root.a(root.c.bg2, 0.95) : root.a(root.c.bg2, 0.55)
+        color: rowHover.hovered || open ? root.a(root.c.bg2, 0.95) : root.a(root.c.bg2, 0.55)
         border.width: open ? 1 : 0
         border.color: root.a(root.c.accent, 0.5)
         Behavior on height { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
         clip: true
+
+        // Hover of the whole row, buttons inside included: a MouseArea loses it to the forget button
+        // on top of it, which then hides the button, which gives the hover back, in a loop.
+        HoverHandler { id: rowHover }
 
         MouseArea {
             id: rowMouse
@@ -501,8 +505,8 @@ ShellRoot {
             Chip { visible: row.saved && !row.connecting; label: "сохранена" }
             Chip { visible: row.connecting; label: "подключаю…"; tone: root.c.accent }
             IconButton {
-                visible: row.saved && !row.connecting && rowMouse.containsMouse
-                glyph: "\u{f0a87}"
+                visible: row.saved && !row.connecting && rowHover.hovered
+                glyph: "\u{f0a7a}"
                 hint: "Забыть сеть"
                 small: true
                 onClicked: net.forget(row.network.ssid)
