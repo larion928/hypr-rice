@@ -73,6 +73,8 @@ ShellRoot {
                     keys: "monitor display screen монитор экран разрешение частота герцовка масштаб", run: [settings, "monitors"] });
         list.push({ id: "hotkeys", name: "Горячие клавиши", desc: "изменить, добавить свои", glyph: "\u{f030c}",
                     keys: "keys hotkeys binds клавиши горячие сочетания хоткеи", run: [settings, "keys"] });
+        list.push({ id: "network", name: "Сеть", desc: "Wi-Fi, пароли, текущее подключение", glyph: "\u{f0928}",
+                    keys: "network wifi wi-fi сеть вайфай интернет подключение", run: [Quickshell.env("HOME") + "/.local/bin/network-panel"] });
         const power = Quickshell.env("HOME") + "/.local/bin/power-mode";
         list.push({ id: "power-saver", name: "Питание: экономия", desc: "без турбобуста, тише и дольше от батареи", glyph: "\u{f032a}",
                     keys: "power battery saver питание экономия энергосбережение", run: [power, "saver"] });

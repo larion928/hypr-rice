@@ -95,7 +95,10 @@
         "tooltip-format": "{ifname} via {gwaddr}",
         "format-linked": "{ifname} (No IP)",
         "format-disconnected": "⚠",
-        "format-alt": "{ifname}: {ipaddr}/{cidr}"
+        "on-click": "~/.local/bin/network-panel",
+        "on-click-right": "kitty --title nmtui -e nmtui",
+        "tooltip-format-wifi": "{essid} · {signalStrength}%\n{ipaddr}\nКлик — сети, ПКМ — nmtui",
+        "tooltip-format-ethernet": "{ifname} · {ipaddr}\nКлик — сети, ПКМ — nmtui"
     },
     "hyprland/language": {
         "format": "{short}",

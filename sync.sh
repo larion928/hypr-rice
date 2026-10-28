@@ -49,6 +49,7 @@ PATHS=(
     .local/bin/settings-panel
     .local/bin/neohtop
     .local/bin/power-mode
+    .local/bin/network-panel
     .claude/statusline.sh
 )
 

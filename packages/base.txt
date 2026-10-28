@@ -29,6 +29,7 @@ pipewire-pulse
 pipewire-alsa
 wireplumber
 networkmanager
+network-manager-applet
 bluez
 bluez-utils
 blueman

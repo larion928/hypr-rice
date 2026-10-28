@@ -221,6 +221,14 @@ hl.layer_rule({
 })
 
 hl.layer_rule({
+    name  = "network-panel-blur",
+    match = { namespace = "^network-panel$" },
+
+    blur    = true,
+    no_anim = true,
+})
+
+hl.layer_rule({
     name  = "help-panel-blur",
     match = { namespace = "^help-panel$" },
 

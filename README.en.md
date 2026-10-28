@@ -92,6 +92,9 @@ Alt+F2, the gear in the bar or the launcher ("Настройки", "Монито
 - **Signed updates.** Every commit of the rice is signed with the author's key. The first install
   remembers that key in `~/.config/hypr-rice/allowed_signers`, and `rice update` (like running the
   installer again) refuses a version from GitHub that is not signed with it.
+- **Network.** A click on the network in the bar opens the Wi-Fi picker: networks, the password right
+  in the row, the current connection and VPN, forgetting a network. Right-click opens nmtui; a button
+  at the bottom opens the full settings.
 
 ## Your own settings
 
