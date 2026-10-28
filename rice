@@ -907,8 +907,9 @@ cmd_update() {
 
 cmd_proton() {  # which Proton runs .exe files (proton-run reads ~/.config/hypr-rice/proton.conf)
     local compat="$HOME/.local/share/Steam/compatibilitytools.d" conf="$HOME/.config/hypr-rice/proton.conf"
-    local current options=("Автоматически: последняя UMU-Proton=auto") dir name choice
-    current=$(sed -n 's/^proton=//p' "$conf" 2>/dev/null)
+    local current dir name choice
+    local options=("Автоматически: последняя UMU-Proton=auto")
+    current=$(sed -n 's/^proton=//p' "$conf" 2>/dev/null || true)
     for dir in "$compat"/*/; do
         [ -f "$dir/proton" ] || continue
         name=$(basename "$dir")
