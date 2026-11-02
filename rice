@@ -115,32 +115,49 @@ FALLBACK_MIRRORS=(
     "https://ftp.fau.de/archlinux/\$repo/os/\$arch"
     "https://mirror.netcologne.de/archlinux/\$repo/os/\$arch"
 )
+MIRRORLIST=/etc/pacman.d/mirrorlist
+PACMAN_CONF=/etc/pacman.conf
 MIRRORS_SWAPPED=0
 use_fallback_mirrors() {
     [ "$MIRRORS_SWAPPED" = 1 ] && return 1
-    [ -f /etc/pacman.d/mirrorlist ] || return 1
+    [ -f "$MIRRORLIST" ] || return 1
     # Only plain Arch: derivatives (CachyOS, EndeavourOS) ship their own mirror setup.
-    grep -q '^Include = /etc/pacman.d/mirrorlist' /etc/pacman.conf || return 1
-    sudo cp -n /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.rice-backup
+    grep -q "^Include = /etc/pacman.d/mirrorlist" "$PACMAN_CONF" || return 1
+    sudo cp -n "$MIRRORLIST" "$MIRRORLIST.rice-backup"
     { echo "# Fallback mirrors added by hypr-rice; the original is mirrorlist.rice-backup."
       printf 'Server = %s\n' "${FALLBACK_MIRRORS[@]}"
-      cat /etc/pacman.d/mirrorlist.rice-backup; } | sudo tee /etc/pacman.d/mirrorlist >/dev/null
+      cat "$MIRRORLIST.rice-backup"; } | sudo tee "$MIRRORLIST" >/dev/null
     MIRRORS_SWAPPED=1
     info "зеркала не отвечают, переключаюсь на запасные (старый список: mirrorlist.rice-backup)"
 }
 
-pac() {  # pacman that survives flaky networks
+# pacman's messages for a download that failed on the way, as opposed to a refusal (missing
+# package, conflict, broken database), where a retry or another mirror changes nothing. A 404
+# is not among them: it means a stale package database, which `pacman -Syu` fixes, not a retry.
+NETWORK_ERROR='Operation too slow|Could not resolve host|Connection timed out|Connection reset|Failed to connect|SSL connect error|transfer closed|Recv failure|failed to synchronize all databases'
+
+pac() {  # pacman that retries downloads cut off by a flaky network
     # Stalled downloads ("Operation too slow") are common behind throttling; whatever was already
-    # fetched stays in the cache, so every retry gets further. From the 3rd try the fallback
-    # mirrors go first, from the 4th pacman stops giving up on slow transfers.
-    local try extra=()
+    # fetched stays in the cache, so every retry gets further. From the 2nd failure the fallback
+    # mirrors go first, from the 3rd pacman stops giving up on slow transfers.
+    local try extra=() errors status
+    errors=$(mktemp)
     for try in 1 2 3 4 5 6; do
-        sudo pacman --noconfirm "${extra[@]}" "$@" && return 0
+        # stderr is copied for the check below; stdout stays on the terminal with its progress bars.
+        status=0
+        sudo pacman --noconfirm "${extra[@]}" "$@" 2> >(tee "$errors" >&2) || status=$?
+        wait $! 2>/dev/null || true  # tee may still be writing $errors
+        if [ "$status" -eq 0 ]; then
+            rm -f "$errors"
+            return 0
+        fi
+        grep -qE "$NETWORK_ERROR" "$errors" || break
         [ "$try" -ge 2 ] && { use_fallback_mirrors || true; }
         [ "$try" -ge 3 ] && extra=(--disable-download-timeout)
-        info "загрузка прервалась, повтор $((try + 1))/6"
+        [ "$try" -lt 6 ] && info "загрузка прервалась, повтор $((try + 1))/6"
         sleep 3
     done
+    rm -f "$errors"
     return 1
 }
 
@@ -234,7 +251,7 @@ aur_install() {  # AUR packages: hypr-rice repo first, then yay, then the GitHub
 # ---------- program catalog (packages/apps.txt) ----------
 
 APP_IDS=()
-declare -A APP_GROUP APP_NAME APP_SRC
+declare -gA APP_GROUP APP_NAME APP_SRC  # -g: global even when tests source this file from a function
 load_apps() {
     local id group name src
     APP_IDS=()
@@ -759,46 +776,86 @@ coexist_dm_question() {
 
 # ---------- commands ----------
 
+# Decides what happens to the configs already in ~ (sets MODE, DO_BACKUP, found[]). Only a first
+# install backs anything up: later runs replace the rice's own files, and the user's other
+# configs (kitty, waybar of another desktop) are none of their business.
+inspect_existing_desktop() {
+    local d p
+    found=()
+    MODE=${RICE_MODE:-}
+    DO_BACKUP=0
+    USE_SDDM=1
+    if [ -f "$MARKER" ]; then
+        info "hypr-rice уже установлен ($(cat "$MARKER")). Файлы райса обновятся, остальное не тронется."
+        ask "Продолжить?" y || die "отменено"
+        MODE=${MODE:-$(install_setting mode)}
+        MODE=${MODE:-replace}
+        return
+    fi
+    for d in "${RICE_DIRS[@]}"; do
+        p="$HOME/.config/$d"
+        [ -e "$p" ] && [ -n "$(ls -A "$p" 2>/dev/null)" ] && found+=("$p")
+    done
+    if [ ${#found[@]} -eq 0 ]; then
+        ok "система чистая"
+        MODE=${MODE:-replace}
+        return
+    fi
+    info "Найден уже настроенный рабочий стол:"
+    printf '      %s\n' "${found[@]}"
+    [ -n "$MODE" ] || MODE=$(choose_mode)
+    case "$MODE" in
+        replace) info "Старый райс уйдёт в бэкап $BACKUP, вместо него встанет hypr-rice." ;;
+        coexist)
+            info "hypr-rice встанет рядом: настройки другого окружения не трогаются,"
+            info "выбор между ними — на экране входа."
+            [ -d "$HOME/.config/hypr" ] && info "Только чужой конфиг Hyprland уйдёт в бэкап: два райса в одном Hyprland не уживаются."
+            coexist_dm_question ;;
+        *) die "отменено, ничего не изменено" ;;
+    esac
+    DO_BACKUP=1
+}
+
+install_setting() {  # install_setting KEY: a value from install.conf, empty when unset
+    sed -n "s/^$1=//p" "$HOME/.config/hypr-rice/install.conf" 2>/dev/null || true
+}
+
+# Remembers the install: the version, the mode, and the backup that uninstall puts back.
+record_install() {
+    local backup
+    backup=$(install_setting backup)
+    [ "${DO_BACKUP:-0}" = 1 ] && backup=$BACKUP
+    echo "$(git -C "$SRC" log -1 --format='%h %cs' 2>/dev/null || echo local) $STAMP" > "$MARKER"
+    mkdir -p "$HOME/.config/hypr-rice"
+    printf '%s\n' "mode=$MODE" ${backup:+"backup=$backup"} > "$HOME/.config/hypr-rice/install.conf"
+    [ -f "$TRUST" ] || install -m644 "$SRC/system/allowed_signers" "$TRUST"
+}
+
+# The part of an install that a rice update repeats: files, system settings, app themes.
+apply_rice() {
+    local theme=$1
+    step "Файлы райса"
+    copy_rice_files
+
+    step "Системные настройки"
+    setup_system
+    setup_maintenance
+
+    step "Приложения"
+    setup_apps_config
+
+    step "Тема"
+    apply_theme "$theme"
+    record_install
+}
+
 cmd_install() {
     local theme="${RICE_THEME:-$(cat "$HOME/.config/hypr/current-theme" 2>/dev/null || echo claude)}"
     need_sudo
     load_apps
 
     step "Вопросы (дальше всё пойдёт само)"
-    found=()
-    local d p
-    for d in "${RICE_DIRS[@]}"; do
-        p="$HOME/.config/$d"
-        [ -e "$p" ] && [ -n "$(ls -A "$p" 2>/dev/null)" ] && found+=("$p")
-    done
-    DO_BACKUP=0
-    MODE=${RICE_MODE:-}
-    USE_SDDM=1
-    if [ -f "$MARKER" ]; then
-        info "hypr-rice уже установлен ($(cat "$MARKER")). Файлы обновятся, текущие уйдут в бэкап."
-        ask "Продолжить?" y || die "отменено"
-        DO_BACKUP=1
-        # Installs older than coexist mode have no install.conf.
-        MODE=${MODE:-$(sed -n 's/^mode=//p' "$HOME/.config/hypr-rice/install.conf" 2>/dev/null || true)}
-        MODE=${MODE:-replace}
-    elif [ ${#found[@]} -gt 0 ]; then
-        info "Найден уже настроенный рабочий стол:"
-        printf '      %s\n' "${found[@]}"
-        [ -n "$MODE" ] || MODE=$(choose_mode)
-        case "$MODE" in
-            replace) info "Старый райс уйдёт в бэкап $BACKUP, вместо него встанет hypr-rice." ;;
-            coexist)
-                info "hypr-rice встанет рядом: настройки другого окружения не трогаются,"
-                info "выбор между ними — на экране входа."
-                [ -d "$HOME/.config/hypr" ] && info "Только чужой конфиг Hyprland уйдёт в бэкап: два райса в одном Hyprland не уживаются."
-                coexist_dm_question ;;
-            *) die "отменено, ничего не изменено" ;;
-        esac
-        DO_BACKUP=1
-    else
-        ok "система чистая"
-        MODE=${MODE:-replace}
-    fi
+    inspect_existing_desktop
     pick_apps install
 
     step "Пакеты из официальных репозиториев"
@@ -816,7 +873,6 @@ cmd_install() {
 
     step "Пакеты AUR"
     setup_pkg_repo
-    pac -Sy >/dev/null || true
     local aur=()
     mapfile -t aur < <(list "$SRC/packages/aur.txt")
     aur_install "${aur[@]}" || true
@@ -827,23 +883,7 @@ cmd_install() {
         install_apps
     fi
 
-    step "Файлы райса"
-    copy_rice_files
-
-    step "Системные настройки"
-    setup_system
-    setup_maintenance
-
-    step "Приложения"
-    setup_apps_config
-
-    step "Тема"
-    apply_theme "$theme"
-    echo "$(git -C "$SRC" log -1 --format='%h %cs' 2>/dev/null || echo local) $STAMP" > "$MARKER"
-    mkdir -p "$HOME/.config/hypr-rice"
-    echo "mode=$MODE" > "$HOME/.config/hypr-rice/install.conf"
-    [ -f "$TRUST" ] || install -m644 "$SRC/system/allowed_signers" "$TRUST"
-
+    apply_rice "$theme"
     finish
     info "Перезагрузись и выбери сеанс Hyprland на экране входа."
     info "Alt+F1 — справка по хоткеям, Alt+R — лаунчер, Alt+Enter — терминал, rice — менеджер райса."
@@ -900,9 +940,39 @@ cmd_update() {
         ok "уже последняя версия ($after)"
         return
     fi
-    ok "$before → $after: $(git -C "$SRC" log -1 --format=%s)"
-    # The new rice script may differ from the running one; let it do the install.
-    RICE_ASSUME=${RICE_ASSUME:-y} RICE_APPS=${RICE_APPS:-none} exec "$SRC/rice" install
+    ok "$before → $after"
+    git -C "$SRC" log --format='      %s' "$before..$after" 2>/dev/null | head -n 15 || true
+    # The new rice script may differ from the running one; let it apply the update.
+    exec "$SRC/rice" apply-update
+}
+
+# What an update needs: the packages the new version added, its files, its settings. The system
+# itself is not upgraded here, that is `rice upgrade`.
+cmd_apply_update() {
+    need_sudo
+    load_apps
+    MODE=$(install_setting mode)
+    MODE=${MODE:-replace}
+    DO_BACKUP=0
+    PICKED=()
+
+    step "Новые пакеты райса"
+    install_missing_packages
+    apply_rice "$(cat "$HOME/.config/hypr/current-theme" 2>/dev/null || echo claude)"
+    finish
+}
+
+install_missing_packages() {
+    local packages=() missing=() aur=()
+    mapfile -t packages < <(list "$SRC/packages/base.txt")
+    mapfile -t missing < <(pacman -T "${packages[@]}" 2>/dev/null || true)
+    mapfile -t aur < <(list "$SRC/packages/aur.txt")
+    # Without -y: syncing the databases without upgrading would leave a partial upgrade.
+    if [ ${#missing[@]} -gt 0 ] && ! pac -S --needed "${missing[@]}"; then
+        warn "не встали новые пакеты: ${missing[*]}. Поставятся с обновлением системы: rice upgrade"
+    elif aur_install "${aur[@]}"; then
+        ok "все пакеты райса на месте"
+    fi
 }
 
 cmd_proton() {  # which Proton runs .exe files (proton-run reads ~/.config/hypr-rice/proton.conf)
@@ -1015,27 +1085,47 @@ cmd_report() {
     ok "отчёт: $out (пришли его тому, кто помогает)"
 }
 
+# The backup taken when the rice was first installed, or nothing if it replaced no other configs.
+# Installs from before install.conf kept it get the oldest backup that is not one of the rice
+# itself (older versions also backed the rice up on every update; those have the install marker).
+pre_rice_backup() {
+    local backup
+    backup=$(install_setting backup)
+    if [ -n "$backup" ]; then
+        [ -d "$backup" ] && echo "$backup"
+        return 0
+    fi
+    while IFS= read -r backup; do
+        [ -e "$backup/hypr/.rice-installed" ] || { echo "$backup"; return 0; }
+    done < <(find "$HOME" -maxdepth 1 -name '.rice-backup-*' | sort)
+}
+
 cmd_uninstall() {
-    local last
-    last=$(ls -d "$HOME"/.rice-backup-* 2>/dev/null | sort | tail -n1 || true)
+    local backup
+    backup=$(pre_rice_backup)
     step "Удаление hypr-rice"
-    [ -n "$last" ] && info "будет возвращён бэкап: $last" || info "бэкапов нет: файлы райса просто удалятся"
+    if [ -n "$backup" ]; then
+        info "будет возвращён бэкап: $backup"
+    else
+        info "бэкапа прежних настроек нет: файлы райса просто удалятся"
+    fi
     ask "Удалить hypr-rice из домашней папки?" n || return 0
     local f
     cd "$SRC/home"
     while IFS= read -r -d '' f; do rm -f "$HOME/${f#./}"; done < <(find . -type f -print0 -o -type l -print0)
     cd "$HOME"
-    rm -f "$MARKER" "$HOME/.local/bin/rice" "$HOME/.local/share/applications/hypr-rice-manager.desktop"
-    if [ -n "$last" ]; then
+    rm -f "$MARKER" "$HOME/.local/bin/rice" "$HOME/.local/share/applications/hypr-rice-manager.desktop" \
+          "$HOME/.config/hypr-rice/install.conf"
+    if [ -n "$backup" ]; then
         # Foreign configs were moved as whole directories, ours file by file under home/.
-        for f in "$last"/*; do
+        for f in "$backup"/*; do
             case "$(basename "$f")" in
-                home) (cd "$last/home" && tar -cf - .) | tar -C "$HOME" -xf - ;;
+                home) (cd "$backup/home" && tar -cf - .) | tar -C "$HOME" -xf - ;;
                 hypr) mkdir -p "$HOME/.config/hypr" && cp -a "$f/." "$HOME/.config/hypr/" ;;
                 *) [ -e "$HOME/.config/$(basename "$f")" ] || mv "$f" "$HOME/.config/" ;;
             esac
         done
-        ok "возвращено из $last"
+        ok "возвращено из $backup"
     fi
     info "Системные пакеты и SDDM остались; удалить их: sudo pacman -Rs <пакеты>"
 }
@@ -1056,17 +1146,21 @@ menu() {
 # source and home/ is synced from them, so install/update/uninstall would clobber unsynced work.
 run() {
     case "$1" in
-        install|update|uninstall)
+        install|update|apply_update|uninstall)
             if [ -e "$SRC/.author" ] && [ -z "${RICE_AUTHOR_OK:-}" ]; then
-                die "это рабочая копия автора ($SRC): rice $1 перезапишет живые конфиги и сбросит репозиторий. Если точно надо: RICE_AUTHOR_OK=1 rice $1"
+                die "это рабочая копия автора ($SRC): rice ${1//_/-} перезапишет живые конфиги и сбросит репозиторий. Если точно надо: RICE_AUTHOR_OK=1 rice ${1//_/-}"
             fi ;;
     esac
     "cmd_$1"
 }
 
-case "${1:-}" in
-    install|apps|remove|update|upgrade|proton|repair|report|uninstall) run "$1" ;;
-    ""|menu) menu ;;
-    -h|--help|help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' ;;
-    *) die "неизвестная команда: $1 (rice help)" ;;
-esac
+# Sourced by tests/run.sh for its functions; run as a command otherwise.
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    case "${1:-}" in
+        install|apps|remove|update|upgrade|proton|repair|report|uninstall) run "$1" ;;
+        apply-update) run apply_update ;;  # run by `rice update` from the freshly fetched script
+        ""|menu) menu ;;
+        -h|--help|help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' ;;
+        *) die "неизвестная команда: $1 (rice help)" ;;
+    esac
+fi

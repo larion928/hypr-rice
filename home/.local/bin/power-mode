@@ -13,11 +13,17 @@ BATTERY_SIGNAL=8  # "signal" of custom/battery
 current_profile() {
     if [ "$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null)" = performance ]; then
         echo performance
-    elif [ "$(cat /sys/devices/system/cpu/cpufreq/boost 2>/dev/null)" = 0 ]; then
+    elif boost_off; then
         echo saver
     else
         echo balanced
     fi
+}
+
+# Turbo boost switched off: cpufreq/boost on AMD and acpi-cpufreq, intel_pstate/no_turbo on Intel.
+boost_off() {
+    [ "$(cat /sys/devices/system/cpu/cpufreq/boost 2>/dev/null)" = 0 ] \
+        || [ "$(cat /sys/devices/system/cpu/intel_pstate/no_turbo 2>/dev/null)" = 1 ]
 }
 
 care_state() {

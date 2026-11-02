@@ -13,7 +13,6 @@ import json
 import math
 import os
 import re
-import shlex
 import shutil
 import subprocess
 import sys
@@ -1029,23 +1028,24 @@ def gen_system(t, wallpaper):
         return
     ui_path = THEMES / t["name"] / "ui.json"
     ui = json.loads(ui_path.read_text()) if ui_path.exists() else {}
-    cmds = []
     folders = ui.get("folders")
     stamp = HOME / ".cache/hypr-theme-folders"
-    # papirus-folders takes a few seconds; skip it when the colour does not change.
+    # papirus-folders takes a few seconds; skip it when the colour does not change. The stamp is
+    # written only once the helper succeeded, hence the small script (values go in as arguments).
     if folders and (not stamp.exists() or stamp.read_text().strip() != folders):
-        cmds.append(f"sudo -n {ROOT_HELPER} folders {folders} >/dev/null && echo {folders} > {stamp}")
+        run_detached(["sh", "-c", 'sudo -n "$0" folders "$1" >/dev/null && printf "%s\\n" "$1" > "$2"',
+                      ROOT_HELPER, folders, str(stamp)])
     if wallpaper:
         c = t["c"]
-        args = " ".join(shlex.quote(a) for a in (wallpaper, c["accent"], c["bg"], c["fg"], t["display"]))
-        cmds.append(f"sudo -n {ROOT_HELPER} sddm {args}")
+        run_detached(["sudo", "-n", ROOT_HELPER, "sddm", wallpaper, c["accent"], c["bg"], c["fg"], t["display"]])
     # Older rice versions themed Chromium through a colour policy, which locks out theme extensions.
     if any(Path(d, "hypr-rice.json").exists() for d in CHROMIUM_POLICY_DIRS):
-        cmds.append(f"sudo -n {ROOT_HELPER} browser-policy-off")
-    if cmds:
-        # Detached, so changetheme does not wait for the icon theme to be rewritten.
-        subprocess.Popen(["sh", "-c", "; ".join(cmds)], start_new_session=True,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        run_detached(["sudo", "-n", ROOT_HELPER, "browser-policy-off"])
+
+
+def run_detached(argv):
+    """Started in the background, so changetheme does not wait for the icon theme to be rewritten."""
+    subprocess.Popen(argv, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def telegram_slug(t):
@@ -1544,7 +1544,7 @@ def refresh():
     """Theme what appeared since the last theme change (a new Firefox profile, an Obsidian vault);
     run at every Hyprland start."""
     cur = HYPR / "current-theme"
-    if not cur.exists():
+    if not cur.exists() or not (THEMES / cur.read_text().strip() / "palette.json").exists():
         return
     t = load(cur.read_text().strip())
     wp = HYPR / "current-wallpaper"
@@ -1573,7 +1573,8 @@ def main(argv):
     if len(argv) >= 2 and argv[0] == "apply":
         wp = None
         if "--wallpaper" in argv:
-            wp = argv[argv.index("--wallpaper") + 1] or None
+            rest = argv[argv.index("--wallpaper") + 1:]
+            wp = rest[0] if rest and rest[0] else None
         apply(argv[1], wp)
     elif argv[:1] == ["build"]:
         build()

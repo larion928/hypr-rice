@@ -13,7 +13,7 @@ mkdir -p "$(dirname "$log")"
 
 proton=$(sed -n 's/^proton=//p' "$CONF" 2>/dev/null)
 if [ -n "$proton" ] && [ -d "$COMPAT/$proton" ]; then
-    export PROTONPATH="$proton"
+    export PROTONPATH="$COMPAT/$proton"  # the directory itself, not just its name
     notify-send -a proton-run -i wine "Запускаю через Proton" "$name · $proton"
 elif ls -d "$COMPAT"/UMU-Proton-* >/dev/null 2>&1; then
     notify-send -a proton-run -i wine "Запускаю через Proton" "$name"

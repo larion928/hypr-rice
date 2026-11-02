@@ -109,7 +109,7 @@ bind("screenshot_full", "SHIFT + Print", hl.dsp.exec_cmd("~/.local/bin/shot full
 
 bind("terminal", key("Return"), hl.dsp.exec_cmd(terminal),    desc("Приложения | Терминал"))
 bind("close",    key("C"),      hl.dsp.window.close(),        desc("Окна | Закрыть окно"))
-bind("exit",     key("M"),      hl.dsp.exit(),                desc("Система | Выйти из Hyprland"))
+bind("exit",     key("M"),      hl.dsp.exec_cmd("~/.local/bin/power-menu"), desc("Система | Меню: выйти, перезагрузить, выключить"))
 bind("files",    key("E"),      hl.dsp.exec_cmd(fileManager), desc("Приложения | Файлы (Thunar)"))
 bind("float",    key("V"),      hl.dsp.window.float(),        desc("Окна | Плавающее / в сетке"))
 bind("launcher", key("R"),      hl.dsp.exec_cmd(menu),        desc("Приложения | Лаунчер"))

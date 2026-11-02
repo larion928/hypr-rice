@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # rice-sync — copy the live rice from $HOME into this repo, check it for secrets,
-# then commit and push.
-#   rice-sync            sync, commit, push
-#   rice-sync --dry-run  sync and show the diff, no commit
+# then commit and push to the dev branch. Users update from main, so nothing reaches them
+# until a release.
+#   sync.sh ["message"]  sync, commit (the message is what `rice update` shows), push to dev
+#   sync.sh --dry-run    sync and show the diff, no commit
+#   sync.sh --release    run the tests, then publish dev as main
 # Machine and user files stay out: hypr/monitors.lua, devices.lua, binds-user.lua, user.lua,
 # fish/user.fish, hypr-rice/waybar/config.local.json, hypr-rice/kitty/user.conf, waybar/user.css.
 set -euo pipefail
@@ -10,7 +12,24 @@ set -euo pipefail
 REPO=$(cd "$(dirname "$(readlink -f "$0")")" && pwd)
 DST="$REPO/home"
 DRY=0
-[ "${1:-}" = "--dry-run" ] && DRY=1
+MESSAGE="sync: $(date '+%Y-%m-%d %H:%M')"
+case "${1:-}" in
+    --dry-run) DRY=1 ;;
+    --release)
+        cd "$REPO"
+        [ "$(git rev-parse --abbrev-ref HEAD)" = dev ] || { echo "релиз делается из ветки dev" >&2; exit 1; }
+        [ -z "$(git status --porcelain)" ] || { echo "есть незакоммиченные изменения: сначала sync.sh" >&2; exit 1; }
+        git fetch -q origin
+        [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/dev)" ] || { echo "dev не отправлен: сначала sync.sh" >&2; exit 1; }
+        "$REPO/tests/run.sh" || { echo "тесты не прошли, релиза не будет" >&2; exit 1; }
+        git push -q origin dev:main
+        echo "Выпущено в main: $(git log -1 --format='%h %s')"
+        exit 0 ;;
+    "") ;;
+    *) MESSAGE=$1 ;;
+esac
+[ "$(git -C "$REPO" rev-parse --abbrev-ref HEAD)" = dev ] \
+    || { echo "коммиты идут в ветку dev: git -C $REPO checkout dev" >&2; exit 1; }
 
 # What makes up the rice, relative to $HOME. Directories are copied whole minus EXCLUDES.
 PATHS=(
@@ -129,6 +148,6 @@ if [ "$DRY" = 1 ]; then
     echo "(--dry-run: ничего не закоммичено)"
     exit 0
 fi
-git commit -qm "sync: $(date '+%Y-%m-%d %H:%M')"
-git push -q origin main
+git commit -qm "$MESSAGE"
+git push -q origin dev
 echo "Отправлено: $(git log -1 --format='%h %s')"

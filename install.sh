@@ -43,6 +43,8 @@ if [ -d "$SRC/.git" ]; then
     signed_by_author "origin/$BRANCH" || die "версия на GitHub не подписана ключом автора, ничего не изменено"
     git -C "$SRC" reset -q --hard "origin/$BRANCH"
 else
+    # Only an empty or missing folder: RICE_SRC may point at something of the user's.
+    [ ! -e "$SRC" ] || [ -z "$(ls -A "$SRC" 2>/dev/null)" ] || die "папка $SRC не пустая и это не hypr-rice, выбери другую (RICE_SRC)"
     rm -rf "$SRC"
     git clone -q --depth 1 -b "$BRANCH" "$REPO_URL" "$SRC"
     signed_by_author HEAD || { rm -rf "$SRC"; die "версия на GitHub не подписана ключом автора, ничего не изменено"; }

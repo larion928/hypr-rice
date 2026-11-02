@@ -1,7 +1,9 @@
 #!/bin/bash
-# waybar-start — (re)start the rice's waybar and make sure its bar actually appears.
-# Right after login waybar sometimes starts before the output is ready and never maps a bar,
-# so the layer list is checked and waybar restarted once if needed.
+# waybar-start — (re)start the rice's waybar and make sure its bar actually shows.
+# Two ways it fails to: right after login waybar may start before the output is ready and map
+# no bar at all; and a bar mapped while Hyprland reloads its config (changetheme does both at
+# once) keeps its fade-in alpha at 0 forever, an invisible bar holding its space. Either way a
+# restart brings it back, so the bar is checked and waybar restarted up to twice.
 CONF="$HOME/.config/hypr-rice/waybar"
 
 start() {
@@ -17,11 +19,16 @@ start() {
     setsid -f waybar -c "$CONF/config.json" -s "$style" --log-level error >/dev/null 2>&1
 }
 
-mapped() { hyprctl layers -j 2>/dev/null | grep -q '"namespace": *"waybar"'; }
+# Every waybar layer is mapped and fully faded in (the fade takes well under a second).
+visible() {
+    hyprctl layers -j 2>/dev/null \
+        | jq -e '[.[].levels[][] | select(.namespace == "waybar")] | length > 0 and all(.alpha > 0.99)' >/dev/null
+}
 
-start
-for _ in 1 2 3 4 5 6 7 8; do
-    sleep 1
-    mapped && exit 0
+for _ in 1 2 3; do
+    start
+    for _ in 1 2 3 4 5 6 7 8; do
+        sleep 0.5
+        visible && exit 0
+    done
 done
-start

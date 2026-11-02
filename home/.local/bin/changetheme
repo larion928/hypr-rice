@@ -73,6 +73,15 @@ changetheme — переключение темы Hyprland-окружения
 EOF
 }
 
+finish() {
+    if [ "${THEMEGEN_FAILED:-0}" = 1 ]; then
+        echo "Тема $THEME применена не полностью (см. ошибку выше)"
+        exit 1
+    fi
+    echo "Текущая тема: $THEME!"
+    exit 0
+}
+
 OFFLINE=0
 ARGS=()
 for arg in "$@"; do
@@ -115,8 +124,13 @@ fi
 
 # --- 2. Палитра и конфиги приложений из themes/<тема>/palette.json ---
 if [ -f "$CONFIG_DIR/palette.json" ]; then
-    python3 "$HOME/.config/hypr/scripts/themegen.py" apply "$THEME" --wallpaper "$SELECTED_WALL" \
-        && echo "Применена палитра темы: $THEME"
+    if python3 "$HOME/.config/hypr/scripts/themegen.py" apply "$THEME" --wallpaper "$SELECTED_WALL"; then
+        echo "Применена палитра темы: $THEME"
+    else
+        # The rest still runs: a half-applied theme beats the old one with a new wallpaper.
+        THEMEGEN_FAILED=1
+        echo "ОШИБКА: themegen.py не смог применить палитру, часть приложений осталась в прежней теме"
+    fi
 else
     echo "Предупреждение: в теме нет palette.json — цвета остаются от прежней темы"
 fi
@@ -179,8 +193,7 @@ if [ -f "$HISTUI_CSS" ]; then
 
     if [ "$OFFLINE" = 1 ]; then
         echo "Тема уведомлений histui записана: $THEME"
-        echo "Текущая тема: $THEME!"
-        exit 0
+        finish
     fi
     systemctl --user daemon-reload
     systemctl --user restart histuid
@@ -197,4 +210,4 @@ else
     echo "Предупреждение: файл histui.css не найден в теме $THEME, оставляю текущий стиль"
 fi
 
-echo "Текущая тема: $THEME!"
+finish

@@ -15,8 +15,8 @@ import sys
 import time
 from pathlib import Path
 
-BAT = Path("/sys/class/power_supply/BAT0")
-AC = Path("/sys/class/power_supply/ADP0")
+# Tests point this at a fake tree.
+POWER_SUPPLY = Path(os.environ.get("POWER_SUPPLY_DIR", "/sys/class/power_supply"))
 HYPR = Path.home() / ".config/hypr"
 FRAME = Path.home() / ".cache/waybar-battery-frame"
 WAVE_PID = Path.home() / ".cache/waybar-battery-wave.pid"
@@ -29,6 +29,21 @@ def read(p, default=""):
         return p.read_text().strip()
     except OSError:
         return default
+
+
+def laptop_battery():
+    """The battery that powers this machine, or None on a desktop. Names differ between laptops
+    (BAT0, BAT1, CMB0), and a wireless mouse or headset shows up as a Battery too, with scope Device."""
+    for supply in sorted(POWER_SUPPLY.glob("*")):
+        if read(supply / "type") == "Battery" and read(supply / "scope") != "Device":
+            return supply
+    return None
+
+
+def on_charger():
+    """Any charger plugged in: Mains on most laptops (AC, ADP0, ACAD), USB for USB-C charging."""
+    return any(read(supply / "type") in ("Mains", "USB") and read(supply / "online") == "1"
+               for supply in POWER_SUPPLY.glob("*"))
 
 
 def refresh():
@@ -80,9 +95,13 @@ def main():
     if sys.argv[1:] == ["--wave"]:
         wave()
         return
-    cap = int(read(BAT / "capacity", "0") or 0)
-    status = read(BAT / "status")
-    on_ac = read(AC / "online") == "1"
+    battery = laptop_battery()
+    if battery is None:
+        print(json.dumps({"text": ""}))  # empty text hides the module
+        return
+    cap = int(read(battery / "capacity", "0") or 0)
+    status = read(battery / "status")
+    on_ac = on_charger()
     if status == "Charging":
         state, label = "charging", "Заряжается"
     elif on_ac:

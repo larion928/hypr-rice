@@ -63,12 +63,12 @@ When another rice or desktop is found (niri, KDE, GNOME, another Hyprland rice, 
 |---|---|
 | `rice apps` | add programs (the same checklist; installed ones start ticked) |
 | `rice remove` | remove programs from the catalog |
-| `rice update` | update the rice from GitHub (keeps the theme and machine files) |
+| `rice update` | update the rice from GitHub: its files and missing packages (keeps the theme and machine files, does not upgrade the system) |
 | `rice upgrade` | update the system and programs, AUR included |
 | `rice proton` | which Proton runs `.exe` files: the latest UMU-Proton (default) or any installed with ProtonPlus |
 | `rice repair` | re-apply the SDDM login screen, GTK theme and services |
 | `rice report` | write `~/rice-report.txt` for whoever helps you debug |
-| `rice uninstall` | remove the rice and restore the last backup |
+| `rice uninstall` | remove the rice and restore the configs from before it |
 
 ## Settings (Alt+F2)
 
@@ -99,7 +99,7 @@ Alt+F2, the gear in the bar or the launcher ("Настройки", "Монито
 
 ## Your own settings
 
-`rice update` replaces the rice's files with new versions (the old ones go to `~/.rice-backup-<date>/`).
+`rice update` replaces the rice's files with new versions, without a backup: only the first install makes one.
 Keep your changes in these files, updates leave them alone:
 
 | File | |
@@ -148,7 +148,8 @@ Environment variables before `bash`, e.g. `curl … | RICE_THEME=ocean bash`:
 ```
 install.sh        bootstrap: fetches the repo and runs `rice install`
 rice              the manager (install, programs, update, repair, report)
-sync.sh           (author) copy the live rice into the repo, check for secrets, commit, push
+sync.sh           (author) copy the live rice into the repo and push to dev; --release publishes to main
+tests/run.sh      tests of the rice manager and the battery module (nothing on the system is touched)
 packages/         base.txt (repos), aur.txt, apps.txt (program catalog)
 home/             goes to ~ ; __HOME__ is replaced with your home path
 system/           root helper (folder colours, SDDM), SDDM config, Fn Lock rule, package repo key
