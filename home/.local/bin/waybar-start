@@ -23,23 +23,10 @@ style() {
     fi
 }
 
-# Every Wayland message between waybar and Hyprland (WAYLAND_DEBUG), to tell at the next invisible
-# bar whether waybar never drew it or Hyprland never faded it in. About 3 MB an hour, kept in RAM:
-# past 20 MB the file moves to .1 and a new one starts. Times in it are UTC.
-WAYLAND_LOG="${XDG_RUNTIME_DIR:-/tmp}/waybar-wayland.log"
-WAYLAND_LOG_LIMIT=$((20 * 1024 * 1024))
-# Appends, so a restart after an invisible bar keeps the record of it.
-ROTATE_LOG='BEGIN { while ((getline line < file) > 0) size += length(line) + 1; close(file) }
-            { print >> file; fflush(file); size += length($0) + 1 }
-            size > limit { close(file); system("mv -f \"" file "\" \"" file ".1\""); size = 0 }'
-
 start() {
     pkill -x waybar 2>/dev/null
     for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -x waybar >/dev/null || break; sleep 0.2; done
-    # The log writer goes into waybar's own session: if it died with this script, waybar would be
-    # killed by its next write to the closed pipe.
-    setsid -f bash -c 'WAYLAND_DEBUG=1 waybar -c "$1" -s "$2" --log-level error 2>&1 >/dev/null | awk -v file="$3" -v limit="$4" "$5"' \
-        _ "$CONF/config.json" "$(style)" "$WAYLAND_LOG" "$WAYLAND_LOG_LIMIT" "$ROTATE_LOG"
+    setsid -f waybar -c "$CONF/config.json" -s "$(style)" --log-level error >/dev/null 2>&1
 }
 
 # Every waybar layer is mapped and fully faded in (the fade takes well under a second).
