@@ -153,15 +153,17 @@ curl -fsSL https://raw.githubusercontent.com/larion928/hypr-rice/main/install.sh
 install.sh        загрузчик: скачивает репозиторий и запускает rice install
 rice              менеджер райса (установка, программы, обновление, починка, отчёт)
 sync.sh           (для автора) собрать райс в репозиторий и отправить в dev; --release выпускает в main
-tests/run.sh      тесты менеджера райса и модуля батареи (без реальных изменений в системе)
+tests/run.sh      тесты менеджера райса, модуля батареи и генератора тем (без реальных изменений в системе)
+tests/themegen_snapshot.sh  снимок всего, что генератор тем пишет, для сверки до и после правок
 packages/         base.txt (репозитории), aur.txt, apps.txt (каталог программ)
 home/             раскладывается в ~ ; __HOME__ заменяется на твою домашнюю папку
 system/           root-помощник (цвет папок, SDDM), конфиг SDDM, Fn Lock, ключ репозитория пакетов
 ```
 
 Тема лежит в `home/.config/hypr/themes/<имя>/`: `palette.json`, `ui.json`, `hypr.lua`,
-`style.css` (waybar), `histui.css`, `hyprlock.conf`, `screenshot.qml`, `shutter.wav` и обои.
-Общие конфиги программ генерируются из палитры скриптом `~/.config/hypr/scripts/themegen.py`.
+`style.css` (waybar), `histui.css`, `hyprlock.conf`, `screenshot.qml`, `battery.py` (значок батареи),
+`shutter.wav` и обои. Общие конфиги программ генерируются из палитры скриптом
+`~/.config/hypr/scripts/themegen.py`; код для каждой программы — в `scripts/apptheme/`.
 
 ## Лицензия
 

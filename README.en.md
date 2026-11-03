@@ -149,15 +149,17 @@ Environment variables before `bash`, e.g. `curl … | RICE_THEME=ocean bash`:
 install.sh        bootstrap: fetches the repo and runs `rice install`
 rice              the manager (install, programs, update, repair, report)
 sync.sh           (author) copy the live rice into the repo and push to dev; --release publishes to main
-tests/run.sh      tests of the rice manager and the battery module (nothing on the system is touched)
+tests/run.sh      tests of the rice manager, the battery module and the theme generator (nothing on the system is touched)
+tests/themegen_snapshot.sh  a snapshot of everything the theme generator writes, to compare before and after a change
 packages/         base.txt (repos), aur.txt, apps.txt (program catalog)
 home/             goes to ~ ; __HOME__ is replaced with your home path
 system/           root helper (folder colours, SDDM), SDDM config, Fn Lock rule, package repo key
 ```
 
 A theme lives in `home/.config/hypr/themes/<name>/`: `palette.json`, `ui.json`, `hypr.lua`,
-`style.css` (waybar), `histui.css`, `hyprlock.conf`, `screenshot.qml`, `shutter.wav`, wallpapers.
-Shared app configs are generated from the palette by `~/.config/hypr/scripts/themegen.py`.
+`style.css` (waybar), `histui.css`, `hyprlock.conf`, `screenshot.qml`, `battery.py` (the battery icon),
+`shutter.wav`, wallpapers. Shared app configs are generated from the palette by
+`~/.config/hypr/scripts/themegen.py`; the code for each program is in `scripts/apptheme/`.
 
 ## License
 

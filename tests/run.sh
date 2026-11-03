@@ -191,6 +191,18 @@ test_battery_ignores_mouse() {
     [ "$(battery | jq -r .text)" = "" ] || fail "батарея мышки принята за батарею ноутбука: $(battery)"
 }
 
+# themegen builds and applies every theme in a fake $HOME; tests/themegen_snapshot.sh records it all.
+test_themegen_applies_every_theme() {
+    "$REPO/tests/themegen_snapshot.sh" "$HOME/snapshot" >/dev/null || fail "themegen упал, вывод выше"
+    local folder theme
+    for folder in "$REPO"/home/.config/hypr/themes/*/; do
+        theme=$(basename "$folder")
+        [ -s "$HOME/snapshot/apply-$theme/.config/hypr-rice/kitty/theme.conf" ] || fail "$theme: нет темы kitty"
+        ls "$HOME/snapshot/build/.config/hypr/themes/$theme/assets/battery-0.svg" >/dev/null 2>&1 \
+            || fail "$theme: нет значка батареи"
+    done
+}
+
 tests=("$@")
 [ ${#tests[@]} -gt 0 ] || mapfile -t tests < <(declare -F | awk '{print $3}' | grep '^test_')
 for name in "${tests[@]}"; do
