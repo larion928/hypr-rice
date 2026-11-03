@@ -169,7 +169,7 @@ ShellRoot {
                                 Text {
                                     anchors.horizontalCenter: parent.horizontalCenter
                                     text: btn.armed ? "ещё раз" : btn.modelData.key
-                                    font.family: theme.font; font.pixelSize: 12
+                                    font.family: theme.bodyFont; font.pixelSize: 12
                                     color: theme.c.muted || "grey"
                                 }
                             }
@@ -187,7 +187,7 @@ ShellRoot {
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: "буквы или ← →, Enter — выбрать, Esc — отмена"
-                    font.family: theme.font; font.pixelSize: 14
+                    font.family: theme.bodyFont; font.pixelSize: 14
                     color: theme.c.muted || "grey"
                 }
             }
@@ -206,7 +206,7 @@ ShellRoot {
                     spacing: 6
                     Text {
                         text: (Quickshell.env("USER") || "user") + "@" + (Quickshell.env("HOSTNAME") || "archlinux") + ":~$ power --menu"
-                        font.family: theme.font; font.pixelSize: 17
+                        font.family: theme.bodyFont; font.pixelSize: 17
                         color: theme.c.accent || "green"
                     }
                     Item { width: 1; height: 8 }
@@ -224,7 +224,7 @@ ShellRoot {
                                 anchors { left: parent.left; leftMargin: 8; verticalCenter: parent.verticalCenter }
                                 text: (line.sel ? "> " : "  ") + "[" + line.modelData.key + "]  "
                                       + (line.armed ? "confirm? press again" : line.modelData.shell)
-                                font.family: theme.font; font.pixelSize: 17
+                                font.family: theme.bodyFont; font.pixelSize: 17
                                 color: line.armed ? (theme.c.crit || "red") : line.sel ? (theme.c.accent2 || "lime") : (theme.c.accent3 || "green")
                             }
                             MouseArea {
@@ -240,7 +240,7 @@ ShellRoot {
                         spacing: 0
                         Text {
                             text: "$ "
-                            font.family: theme.font; font.pixelSize: 17
+                            font.family: theme.bodyFont; font.pixelSize: 17
                             color: theme.c.accent || "green"
                         }
                         Rectangle {

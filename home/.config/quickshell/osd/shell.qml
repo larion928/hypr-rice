@@ -152,7 +152,7 @@ ShellRoot {
                     text: (root.kind === "brightness" ? "bri " : root.muted ? "mute" : "vol ")
                           + " [" + "#".repeat(full) + "-".repeat(cells - full) + "] "
                           + String(root.pct).padStart(3, " ") + "%"
-                    font.family: theme.font; font.pixelSize: 18
+                    font.family: theme.bodyFont; font.pixelSize: 18
                     color: root.muted ? (theme.c.muted || "grey") : (theme.c.accent || "green")
                 }
             }
@@ -191,7 +191,7 @@ ShellRoot {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: String(root.pct).padStart(3, " ")
-                        font.family: theme.font; font.pixelSize: 18; font.bold: true
+                        font.family: theme.bodyFont; font.pixelSize: 18; font.bold: true
                         color: theme.c.accent || "magenta"
                     }
                 }
@@ -204,7 +204,7 @@ ShellRoot {
                 Text {
                     anchors { horizontalCenter: parent.horizontalCenter; bottom: line.top; bottomMargin: 10 }
                     text: root.label.toLowerCase() + "  " + root.pct
-                    font.family: theme.font; font.pixelSize: 13
+                    font.family: theme.bodyFont; font.pixelSize: 13
                     color: theme.c.muted || "grey"
                 }
                 Rectangle {
