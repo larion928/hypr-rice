@@ -281,6 +281,31 @@ assert claude["position"] == "bottom", "the shared position stays where the them
 PY
 }
 
+# Without thermal_zone0 waybar's temperature module reads the CPU's own sensor, found by name; with
+# the zone it is left alone.
+test_waybar_finds_cpu_sensor() {
+    local sys="$HOME/sys"
+    mkdir -p "$sys/devices/pci/hwmon/hwmon3" "$sys/devices/acpi/hwmon/hwmon0" "$sys/class/hwmon" "$sys/class/thermal"
+    echo acpitz > "$sys/devices/acpi/hwmon/hwmon0/name"
+    echo k10temp > "$sys/devices/pci/hwmon/hwmon3/name"
+    echo 62750 > "$sys/devices/pci/hwmon/hwmon3/temp1_input"
+    ln -s "$sys/devices/acpi/hwmon/hwmon0" "$sys/class/hwmon/hwmon0"
+    ln -s "$sys/devices/pci/hwmon/hwmon3" "$sys/class/hwmon/hwmon3"
+    python3 - "$REPO/home/.config/hypr/scripts" "$sys" <<'PY' || fail "датчик найден не так"
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from apptheme import waybar
+root = Path(sys.argv[2])
+waybar.HWMON = root / "class/hwmon"
+waybar.THERMAL_ZONE = root / "class/thermal/thermal_zone0"
+found = waybar.cpu_sensor()
+assert found == {"hwmon-path-abs": str(root / "devices/pci/hwmon"), "input-filename": "temp1_input"}, found
+waybar.THERMAL_ZONE.mkdir()
+assert waybar.cpu_sensor() == {}, "with thermal_zone0 the module keeps its default"
+PY
+}
+
 # themegen builds and applies every theme in a fake $HOME; tests/themegen_snapshot.sh records it all.
 test_themegen_applies_every_theme() {
     "$REPO/tests/themegen_snapshot.sh" "$HOME/snapshot" >/dev/null || fail "themegen упал, вывод выше"

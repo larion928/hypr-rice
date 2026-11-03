@@ -3,6 +3,7 @@ settings window and the machine's own; fonts.css with the user's font for the th
 import dataclasses
 import json
 import re
+from pathlib import Path
 
 from .files import write
 from .paths import RICE_CONF
@@ -30,6 +31,8 @@ def write_config(theme):
     if not BASE.exists():
         return
     config = config_for(theme)
+    if isinstance(config.get("temperature"), dict):
+        config["temperature"] = {**cpu_sensor(), **config["temperature"]}
     # Machine-specific bits (outputs in persistent-workspaces, ...), not part of the rice repo.
     local = RICE_CONF / "waybar/config.local.json"
     if local.exists():
@@ -39,6 +42,26 @@ def write_config(theme):
             both_tables = isinstance(options, dict) and isinstance(shared, dict)
             config[module] = {**shared, **options} if both_tables else options
     write(RICE_CONF / "waybar/config.json", json.dumps(config, indent=4, ensure_ascii=False) + "\n")
+
+
+# Waybar's temperature module reads thermal_zone0 unless told otherwise, and a laptop without that zone
+# (AMD ones often) silently shows no temperature at all.
+THERMAL_ZONE = Path("/sys/class/thermal/thermal_zone0")
+HWMON = Path("/sys/class/hwmon")
+CPU_SENSORS = ("k10temp", "coretemp", "zenpower", "cpu_thermal")
+
+
+def cpu_sensor():
+    """Where the temperature module should read, without thermal_zone0: the CPU's own sensor, by its
+    device's path since the hwmon number changes between boots. {} when the zone is there or no CPU
+    sensor is."""
+    if THERMAL_ZONE.exists():
+        return {}
+    for hwmon in sorted(HWMON.glob("hwmon*")):
+        name = hwmon / "name"
+        if name.exists() and name.read_text().strip() in CPU_SENSORS and (hwmon / "temp1_input").exists():
+            return {"hwmon-path-abs": str(hwmon.resolve().parent), "input-filename": "temp1_input"}
+    return {}
 
 
 def config_for(theme):

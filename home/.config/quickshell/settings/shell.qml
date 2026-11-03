@@ -23,13 +23,20 @@ ShellRoot {
     property var themes: []
     property bool closing: false
     property bool picking: false  // a file dialog is open: the window steps aside, it holds the keyboard
-    property string page: Quickshell.env("SETTINGS_PAGE") || "monitors"
+    // $SETTINGS_PAGE: monitors, keys, theme, or theme:<name>[:<section>] for one theme's settings.
+    readonly property var startAt: (Quickshell.env("SETTINGS_PAGE") || "monitors").split(":")
+    property string page: startAt[0]
     readonly property int r: Math.min(theme.ui.radius ?? 14, 22)
 
     FileView { id: themeListFile; path: Quickshell.env("RICE_THEME_LIST"); blockLoading: true }
 
     Component.onCompleted: {
         try { themes = JSON.parse(themeListFile.text()); } catch (e) {}
+        const opened = themes.find(t => t.name === startAt[1]);
+        if (opened) {
+            themeEdit.open(opened);
+            if (startAt[2]) themeEdit.section = startAt[2];
+        }
         monProc.running = true;
         bindsProc.running = true;
     }

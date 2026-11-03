@@ -1,5 +1,6 @@
 #!/bin/bash
-# settings-panel [monitors|keys|theme] — toggle the settings window (~/.config/quickshell/settings):
+# settings-panel [monitors|keys|theme|theme:<name>[:fonts|colors|wallpapers|waybar]] — toggle the settings
+# window (~/.config/quickshell/settings):
 # monitors, hotkeys and theme. Alt+F2, the waybar gear, or "Настройки" in the launcher.
 source "$HOME/.config/quickshell/panel.sh"
 if panel_is_open settings; then close_panel settings; exit 0; fi
