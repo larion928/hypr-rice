@@ -1,22 +1,31 @@
 #!/bin/bash
-# waybar-start — (re)start the rice's waybar and make sure its bar actually shows.
-# Two ways it fails to: right after login waybar may start before the output is ready and map
-# no bar at all; and a bar mapped while Hyprland reloads its config (changetheme does both at
-# once) keeps its fade-in alpha at 0 forever, an invisible bar holding its space. Either way a
-# restart brings it back, so the bar is checked and waybar restarted up to twice.
+# waybar-start [reload] — show the rice's waybar and make sure its bar is actually visible.
+#   waybar-start          (re)start waybar: login, Alt+Shift+O
+#   waybar-start reload   make the running waybar reread its config and style (changetheme);
+#                         starts it when it is not running
+# A restart has two ways to end with no visible bar: right after login waybar may start before the
+# output is ready and map no bar at all; and a bar mapped while Hyprland reloads its config keeps
+# its fade-in alpha at 0 forever, an invisible bar holding its space. changetheme reloads Hyprland,
+# so it asks for a reload instead of a restart; and whatever happened, the bar is checked and
+# waybar restarted up to three times.
 CONF="$HOME/.config/hypr-rice/waybar"
+
+# user.css (not part of the rice) goes on top of the theme. The combined file stays next to
+# style.css so its relative @import keeps working.
+style() {
+    if [ -f "$CONF/user.css" ]; then
+        cat "$CONF/style.css" "$CONF/user.css" > "$CONF/style.run.css"
+        echo "$CONF/style.run.css"
+    else
+        rm -f "$CONF/style.run.css"
+        echo "$CONF/style.css"
+    fi
+}
 
 start() {
     pkill -x waybar 2>/dev/null
     for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -x waybar >/dev/null || break; sleep 0.2; done
-    # user.css (not part of the rice) goes on top of the theme. The combined file stays next to
-    # style.css so its relative @import keeps working.
-    local style="$CONF/style.css"
-    if [ -f "$CONF/user.css" ]; then
-        cat "$CONF/style.css" "$CONF/user.css" > "$CONF/style.run.css"
-        style="$CONF/style.run.css"
-    fi
-    setsid -f waybar -c "$CONF/config.json" -s "$style" --log-level error >/dev/null 2>&1
+    setsid -f waybar -c "$CONF/config.json" -s "$(style)" --log-level error >/dev/null 2>&1
 }
 
 # Every waybar layer is mapped and fully faded in (the fade takes well under a second).
@@ -25,10 +34,33 @@ visible() {
         | jq -e '[.[].levels[][] | select(.namespace == "waybar")] | length > 0 and all(.alpha > 0.99)' >/dev/null
 }
 
-for _ in 1 2 3; do
-    start
+shows_within_4s() {
     for _ in 1 2 3 4 5 6 7 8; do
         sleep 0.5
-        visible && exit 0
+        visible && return 0
     done
+    return 1
+}
+
+# A bar that did not show, as waybar and Hyprland saw it; the cause is still unknown.
+log_invisible_bar() {
+    {
+        date '+%F %T'
+        ps -o pid,pcpu,etime,args -C waybar
+        hyprctl layers -j | jq -c '[.[].levels[][] | select(.namespace == "waybar")]'
+    } >> "$HOME/.cache/waybar-start.log" 2>&1
+}
+
+# The style file the running waybar was started with; a reload rereads only that one.
+running_style() { ps -o args= -C waybar | sed -n 's/.* -s \([^ ]*\).*/\1/p' | head -n1; }
+
+if [ "${1:-}" = reload ] && [ "$(running_style)" = "$(style)" ]; then
+    pkill -USR2 -x waybar
+    shows_within_4s && exit 0
+    log_invisible_bar
+fi
+for _ in 1 2 3; do
+    start
+    shows_within_4s && exit 0
+    log_invisible_bar
 done

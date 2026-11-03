@@ -39,7 +39,8 @@ changetheme — переключение темы Hyprland-окружения
   4. Waybar   — копирует themes/<тема>/style.css в waybar/style.css
                 (именно копирует, не симлинк — иначе относительный
                 @import url("wallust-colors.css") внутри не найдётся),
-                перезапускает waybar
+                просит waybar перечитать конфиг и стиль (waybar-start reload),
+                без перезапуска: панель, запущенная во время hyprctl reload, остаётся невидимой
   5. histui   — копирует themes/<тема>/histui.css + текущую палитру
                 colors.css в ~/.config/histui/themes/<тема>/, прописывает
                 --theme <тема> в histuid.service и рестартует демон
@@ -156,7 +157,7 @@ if [ -f "$CONFIG_DIR/style.css" ]; then
     rm -f "$HOME/.config/hypr-rice/waybar/style.css"
     cp "$CONFIG_DIR/style.css" "$HOME/.config/hypr-rice/waybar/style.css"
     if [ "$OFFLINE" = 0 ]; then
-        "$HOME/.local/bin/waybar-start" &>/dev/null &
+        "$HOME/.local/bin/waybar-start" reload &>/dev/null &
         disown
     fi
 fi
