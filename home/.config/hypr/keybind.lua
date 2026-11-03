@@ -47,6 +47,18 @@ local function bind(id, keys, dispatcher, opts)
     if current ~= "" then hl.bind(current, dispatcher, opts) end
 end
 
+-- Whether a program is on PATH: binds for optional programs exist only where they are installed.
+local function installed(program)
+    for dir in (os.getenv("PATH") or ""):gmatch("[^:]+") do
+        local file = io.open(dir .. "/" .. program, "r")
+        if file then
+            file:close()
+            return true
+        end
+    end
+    return false
+end
+
 -----------------
 --- MY HOTKEY ---
 -----------------
@@ -68,7 +80,10 @@ hl.bind(key("J"), hl.dsp.window.resize({ x = 0,   y = 70,  relative = true }), {
 -- Main binds
 bind("lock",         key("I"),         hl.dsp.exec_cmd("hyprlock"),                     desc("Система | Заблокировать экран"))
 bind("browser",      key("B"),         hl.dsp.exec_cmd(browser),                        desc("Приложения | Браузер"))
-bind("telegram",     key("T"),         hl.dsp.exec_cmd("AyuGram"),                      desc("Приложения | AyuGram"))
+local telegram = installed("AyuGram") and "AyuGram" or installed("Telegram") and "Telegram" or nil
+if telegram then
+    bind("telegram", key("T"), hl.dsp.exec_cmd(telegram), desc("Приложения | " .. telegram))
+end
 bind("theme_picker", key("SHIFT + T"), hl.dsp.exec_cmd("~/.local/bin/theme-picker"),    desc("Оформление | Выбор темы"))
 bind("screen_fx",    key("SHIFT + F"), hl.dsp.exec_cmd("~/.local/bin/screen-fx"),       desc("Оформление | Эффект экрана (в теме hacker)"))
 bind("bar_restart",  key("SHIFT + O"), hl.dsp.exec_cmd("~/.local/bin/waybar-start"),    desc("Оформление | Перезапустить панель"))
