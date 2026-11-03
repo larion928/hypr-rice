@@ -415,7 +415,6 @@ ShellRoot {
         property string section: "fonts"
         property string fontSlot: "font"
         property string colorKey: "accent"
-        property string panelSide: "modules-right"  // where «добавить» puts a module
         property var installedFonts: []
         property string fontQuery: ""
         readonly property var matchingFonts: themeEdit.installedFonts.filter(
@@ -521,32 +520,8 @@ ShellRoot {
         function moduleName(module) {
             return themeEdit.moduleNames[module] || module;
         }
-        function moveModule(side, index, step) {
-            const layout = themeEdit.panelCopy();
-            const list = layout[side];
-            const to = index + step;
-            if (to < 0 || to >= list.length) return;
-            [list[index], list[to]] = [list[to], list[index]];
-            themeEdit.change("waybar", layout);
-        }
-        function shiftModule(side, index, direction) {
-            const names = themeEdit.sides.map(([name]) => name);
-            const target = names[names.indexOf(side) + direction];
-            if (!target) return;
-            const layout = themeEdit.panelCopy();
-            const [module] = layout[side].splice(index, 1);
-            layout[target] = (layout[target] || []).concat([module]);
-            themeEdit.change("waybar", layout);
-        }
-        function removeModule(side, index) {
-            const layout = themeEdit.panelCopy();
-            layout[side].splice(index, 1);
-            themeEdit.change("waybar", layout);
-        }
-        function addModule(module) {
-            const layout = themeEdit.panelCopy();
-            layout[themeEdit.panelSide] = (layout[themeEdit.panelSide] || []).concat([module]);
-            themeEdit.change("waybar", layout);
+        function preview(module) {
+            return (themeEdit.editing && themeEdit.editing.waybar.preview[module]) || themeEdit.moduleName(module);
         }
         function setPosition(position) {
             themeEdit.change("waybar", Object.assign(themeEdit.panelCopy(), { position: position }));
@@ -1507,21 +1482,73 @@ ShellRoot {
         }
     }
 
-    // The waybar layout: position, the three groups of modules, and the modules to add. Saved for this
-    // theme with «Сохранить» above, or for every theme with the button here.
+    // The waybar layout as a bar to drag modules around on: within the bar to move them, off the bar to
+    // take them away, from the set below onto it to add them. Saved for this theme with «Сохранить»
+    // above, or for every theme with the button here.
     component PanelSection: Item {
+        id: panelEditor
+        property var drag: null         // the module being dragged: {module, side, index}; side "" from the set below
+        property string dropSide: ""    // where letting go would put it; "" is off the bar, which takes it away
+        property int dropIndex: 0
+        property real markerX: 0
+        property string hovered: ""
+
+        function row(side) {
+            return side === "modules-left" ? leftRow : side === "modules-center" ? centerRow : rightRow;
+        }
+        function pills(side) {
+            const list = [];
+            for (const child of panelEditor.row(side).children)
+                if (child.pillModule !== undefined) list.push(child);
+            return list;
+        }
+        function start(module, side, index, point) {
+            panelEditor.drag = { module: module, side: side, index: index };
+            panelEditor.follow(point);
+        }
+        // point is in panelEditor's coordinates.
+        function follow(point) {
+            ghost.x = point.x - ghost.width / 2;
+            ghost.y = point.y - ghost.height / 2;
+            const onBar = mockBar.mapFromItem(panelEditor, point.x, point.y);
+            if (onBar.x < 0 || onBar.x > mockBar.width || onBar.y < -24 || onBar.y > mockBar.height + 24) {
+                panelEditor.dropSide = "";
+                return;
+            }
+            const third = mockBar.width / 3;
+            const side = onBar.x < third ? "modules-left" : onBar.x < 2 * third ? "modules-center" : "modules-right";
+            const inRow = panelEditor.row(side).mapFromItem(mockBar, onBar.x, onBar.y);
+            const pills = panelEditor.pills(side);
+            let index = 0;
+            for (const pill of pills)
+                if (inRow.x > pill.x + pill.width / 2) index++;
+            const rowItem = panelEditor.row(side);
+            const edge = index < pills.length ? pills[index].x - 4 : (pills.length ? pills[pills.length - 1].x + pills[pills.length - 1].width + 2 : 0);
+            panelEditor.markerX = rowItem.mapToItem(mockBar, edge, 0).x;
+            panelEditor.dropSide = side;
+            panelEditor.dropIndex = index;
+        }
+        function finish() {
+            const drag = panelEditor.drag;
+            panelEditor.drag = null;
+            if (!drag || (!drag.side && !panelEditor.dropSide)) return;
+            const layout = themeEdit.panelCopy();
+            if (drag.side) layout[drag.side].splice(drag.index, 1);
+            if (panelEditor.dropSide) {
+                let index = panelEditor.dropIndex;
+                if (drag.side === panelEditor.dropSide && drag.index < index) index--;  // it was taken out above
+                layout[panelEditor.dropSide] = (layout[panelEditor.dropSide] || []);
+                layout[panelEditor.dropSide].splice(index, 0, drag.module);
+            }
+            themeEdit.change("waybar", layout);
+        }
+
         Row {
             id: panelTop
             spacing: 10
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: "Панель"
-                font.family: theme.bodyFont; font.pixelSize: 15
-                color: theme.c.fg || "white"
-            }
             Chip { text: "Сверху"; active: themeEdit.editing !== null && themeEdit.panel().position !== "bottom"; onClicked: themeEdit.setPosition("top") }
             Chip { text: "Снизу"; active: themeEdit.editing !== null && themeEdit.panel().position === "bottom"; onClicked: themeEdit.setPosition("bottom") }
-            Item { width: 20; height: 1 }
+            Item { width: 16; height: 1 }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: !themeEdit.editing ? ""
@@ -1541,98 +1568,153 @@ ShellRoot {
             }
             Chip { text: "Сохранить для всех тем"; onClicked: themeEdit.savePanelEverywhere() }
         }
+        Text {
+            id: panelHint
+            anchors { left: parent.left; top: panelTop.bottom; topMargin: 14 }
+            text: "Перетаскивай значки: по панели — переставить, с панели вниз — убрать, из набора снизу на панель — добавить."
+            font.family: theme.bodyFont; font.pixelSize: 13
+            color: theme.c.muted || "grey"
+        }
 
-        Row {
-            id: sideColumns
-            anchors { left: parent.left; right: parent.right; top: panelTop.bottom; topMargin: 16 }
-            height: parent.height * 0.62
-            spacing: 14
+        Rectangle {
+            id: mockBar
+            anchors { left: parent.left; right: parent.right; top: panelHint.bottom; topMargin: 22 }
+            height: 54
+            radius: Math.min(theme.ui.radius ?? 12, 16)
+            color: Color.withAlpha(theme.c.bg, 0.95)
+            border.width: panelEditor.drag && panelEditor.dropSide ? 2 : 1
+            border.color: panelEditor.drag && panelEditor.dropSide ? (theme.c.accent || "white") : Color.withAlpha(theme.c.accent, 0.4)
+
+            // The thirds a module dropped there goes to; shown while dragging.
             Repeater {
-                model: themeEdit.sides
+                model: 3
                 Rectangle {
-                    id: sideBox
-                    required property var modelData
-                    readonly property string side: modelData[0]
-                    width: (sideColumns.width - 28) / 3; height: sideColumns.height
-                    radius: root.r > 4 ? 10 : 0
-                    color: Color.withAlpha(theme.c.bg2, 0.9)
-                    border.color: themeEdit.panelSide === side ? (theme.c.accent || "white") : Color.withAlpha(theme.c.muted, 0.3)
-                    MouseArea { anchors.fill: parent; onClicked: themeEdit.panelSide = sideBox.side }
+                    required property int index
+                    visible: panelEditor.drag !== null
+                    x: index * mockBar.width / 3; width: mockBar.width / 3; height: mockBar.height
+                    color: "transparent"
+                    border.color: Color.withAlpha(theme.c.muted, 0.25)
                     Text {
-                        id: sideTitle
-                        x: 14; y: 10
-                        text: sideBox.modelData[1] + (themeEdit.panelSide === sideBox.side ? "  · сюда добавляются модули" : "")
-                        font.family: theme.bodyFont; font.pixelSize: 14; font.bold: true
-                        color: theme.c.fg || "white"
-                    }
-                    ListView {
-                        anchors { left: parent.left; right: parent.right; top: sideTitle.bottom; bottom: parent.bottom; margins: 8; topMargin: 8 }
-                        clip: true
-                        spacing: 4
-                        boundsBehavior: Flickable.StopAtBounds
-                        model: themeEdit.editing ? (themeEdit.panel()[sideBox.side] || []) : []
-                        delegate: Rectangle {
-                            id: moduleRow
-                            required property string modelData
-                            required property int index
-                            width: ListView.view.width; height: 38
-                            radius: root.r > 4 ? 7 : 0
-                            color: Color.withAlpha(theme.c.bg, 0.8)
-                            Text {
-                                anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter; right: moduleButtons.left }
-                                elide: Text.ElideRight
-                                text: themeEdit.moduleName(moduleRow.modelData)
-                                font.family: theme.bodyFont; font.pixelSize: 14
-                                color: theme.c.fg || "white"
-                            }
-                            Row {
-                                id: moduleButtons
-                                anchors { right: parent.right; rightMargin: 4; verticalCenter: parent.verticalCenter }
-                                spacing: 2
-                                Repeater {
-                                    model: [["↑", () => themeEdit.moveModule(sideBox.side, moduleRow.index, -1)],
-                                            ["↓", () => themeEdit.moveModule(sideBox.side, moduleRow.index, 1)],
-                                            ["←", () => themeEdit.shiftModule(sideBox.side, moduleRow.index, -1)],
-                                            ["→", () => themeEdit.shiftModule(sideBox.side, moduleRow.index, 1)],
-                                            ["✕", () => themeEdit.removeModule(sideBox.side, moduleRow.index)]]
-                                    Rectangle {
-                                        required property var modelData
-                                        width: 28; height: 28; radius: 6
-                                        color: arrowArea.containsMouse ? Color.withAlpha(theme.c.accent, 0.25) : "transparent"
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: parent.modelData[0]
-                                            font.family: theme.font; font.pixelSize: 15
-                                            color: theme.c.fg || "white"
-                                        }
-                                        MouseArea { id: arrowArea; anchors.fill: parent; hoverEnabled: true; onClicked: parent.modelData[1]() }
-                                    }
-                                }
-                            }
-                        }
+                        anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: -22 }
+                        text: ["слева", "по центру", "справа"][parent.index]
+                        font.family: theme.bodyFont; font.pixelSize: 12
+                        color: theme.c.muted || "grey"
                     }
                 }
             }
+            Row {
+                id: leftRow
+                anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
+                spacing: 6
+                Repeater {
+                    model: themeEdit.editing ? (themeEdit.panel()["modules-left"] || []) : []
+                    BarModule { editor: panelEditor; side: "modules-left" }
+                }
+            }
+            Row {
+                id: centerRow
+                anchors.centerIn: parent
+                spacing: 6
+                Repeater {
+                    model: themeEdit.editing ? (themeEdit.panel()["modules-center"] || []) : []
+                    BarModule { editor: panelEditor; side: "modules-center" }
+                }
+            }
+            Row {
+                id: rightRow
+                anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                spacing: 6
+                Repeater {
+                    model: themeEdit.editing ? (themeEdit.panel()["modules-right"] || []) : []
+                    BarModule { editor: panelEditor; side: "modules-right" }
+                }
+            }
+            Rectangle {
+                visible: panelEditor.drag !== null && panelEditor.dropSide !== ""
+                x: panelEditor.markerX; y: 6
+                width: 3; height: parent.height - 12; radius: 1
+                color: theme.c.accent || "white"
+            }
+        }
+        Text {
+            id: hoveredName
+            anchors { left: parent.left; top: mockBar.bottom; topMargin: 30 }
+            text: panelEditor.drag ? (panelEditor.dropSide ? "Отпусти, чтобы поставить сюда" : "Отпусти здесь, чтобы убрать с панели")
+                  : panelEditor.hovered ? themeEdit.moduleName(panelEditor.hovered) : " "
+            font.family: theme.bodyFont; font.pixelSize: 14
+            color: panelEditor.drag && !panelEditor.dropSide ? (theme.c.crit || "red") : (theme.c.fg || "white")
         }
 
         Text {
-            id: addTitle
-            anchors { left: parent.left; top: sideColumns.bottom; topMargin: 16 }
-            text: "Добавить модуль (в выделенную колонку):"
-            font.family: theme.bodyFont; font.pixelSize: 14
-            color: theme.c.muted || "grey"
+            id: setTitle
+            anchors { left: parent.left; top: hoveredName.bottom; topMargin: 22 }
+            text: "Можно добавить"
+            font.family: theme.bodyFont; font.pixelSize: 14; font.bold: true
+            color: theme.c.fg || "white"
         }
         Flow {
-            anchors { left: parent.left; right: parent.right; top: addTitle.bottom; bottom: parent.bottom; topMargin: 10 }
+            anchors { left: parent.left; right: parent.right; top: setTitle.bottom; topMargin: 10 }
             spacing: 8
             Repeater {
                 model: themeEdit.editing ? themeEdit.editing.waybar.available.filter(module => !themeEdit.onPanel(module)) : []
-                Chip {
-                    required property string modelData
-                    text: "+ " + themeEdit.moduleName(modelData)
-                    onClicked: themeEdit.addModule(modelData)
-                }
+                BarModule { editor: panelEditor; side: ""; showName: true }
             }
+        }
+
+        // What follows the pointer while dragging.
+        Rectangle {
+            id: ghost
+            visible: panelEditor.drag !== null
+            z: 10
+            width: ghostText.implicitWidth + 24; height: 38
+            radius: 8
+            color: Color.withAlpha(theme.c.bg2, 0.95)
+            border.color: theme.c.accent || "white"
+            Text {
+                id: ghostText
+                anchors.centerIn: parent
+                text: panelEditor.drag ? themeEdit.preview(panelEditor.drag.module) : ""
+                font.family: theme.font; font.pixelSize: 16
+                color: theme.c.fg || "white"
+            }
+        }
+    }
+
+    // One module as it looks on the bar; drag it. With showName (the set below the bar) its name is
+    // written next to it.
+    component BarModule: Rectangle {
+        id: barModule
+        required property string modelData
+        required property int index
+        property var editor
+        property string side
+        property bool showName: false
+        readonly property string pillModule: modelData
+        readonly property bool lifted: editor.drag !== null && editor.drag.side === side && editor.drag.index === index && side !== ""
+        width: moduleText.implicitWidth + 22; height: 36
+        radius: 8
+        color: moduleArea.containsMouse ? Color.withAlpha(theme.c.accent, 0.18) : Color.withAlpha(theme.c.bg2, 0.9)
+        border.color: Color.withAlpha(theme.c.muted, 0.3)
+        opacity: lifted ? 0.25 : 1
+        Text {
+            id: moduleText
+            anchors.centerIn: parent
+            text: themeEdit.preview(barModule.modelData) + (barModule.showName ? "  " + themeEdit.moduleName(barModule.modelData) : "")
+            font.family: theme.font; font.pixelSize: 15
+            color: theme.c.fg || "white"
+        }
+        MouseArea {
+            id: moduleArea
+            anchors.fill: parent
+            hoverEnabled: true
+            preventStealing: true
+            cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+            onEntered: barModule.editor.hovered = barModule.modelData
+            onExited: if (barModule.editor.hovered === barModule.modelData) barModule.editor.hovered = ""
+            onPressed: mouse => barModule.editor.start(barModule.modelData, barModule.side, barModule.index,
+                                                       mapToItem(barModule.editor, mouse.x, mouse.y))
+            onPositionChanged: mouse => { if (pressed) barModule.editor.follow(mapToItem(barModule.editor, mouse.x, mouse.y)); }
+            onReleased: barModule.editor.finish()
         }
     }
 

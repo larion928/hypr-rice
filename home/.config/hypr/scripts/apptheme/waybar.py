@@ -2,6 +2,7 @@
 settings window and the machine's own; fonts.css with the user's font for the theme."""
 import dataclasses
 import json
+import re
 
 from .files import write
 from .paths import RICE_CONF
@@ -68,9 +69,34 @@ def layout(theme):
     config = config_for(theme)
     without_own = config_for(dataclasses.replace(theme, edits={}))
     themes_own = config_for(dataclasses.replace(theme, edits={}, shared={}))
-    modules = [key for key, value in config.items() if isinstance(value, dict) and defined(key, config)]
+    modules = sorted({key for key, value in config.items() if isinstance(value, dict) and defined(key, config)}
+                     | set(BUILT_IN))
     return {"current": pick_layout(config), "withoutOwn": pick_layout(without_own),
-            "themesOwn": pick_layout(themes_own), "available": sorted(set(modules) | set(BUILT_IN))}
+            "themesOwn": pick_layout(themes_own), "available": modules,
+            "preview": {module: preview(module, config.get(module)) for module in modules}}
+
+
+# How a module looks on the bar in the settings window: its own "format" with sample values, or this
+# for the modules that get their text from a script, have none, or are waybar's own.
+SAMPLE_VALUES = {"usage": "12", "temperatureC": "48", "capacity": "58", "volume": "70", "short": "ru", "": "41"}
+SAMPLE_LOOKS = {
+    "hyprland/workspaces": "1 2 3 4", "hyprland/window": "Заголовок окна", "clock": "13:37",
+    "network": "󰖩", "custom/battery": "󰁹 58%", "custom/power": "󰾅", "custom/updates": "󰏗 3",
+    "custom/histui": "󰂚", "custom/claude": "✻ 42%", "tray": "󰀻 󰍹", "backlight": "󰃠 80%",
+    "bluetooth": "󰂯", "idle_inhibitor": "󰅶", "mpris": "󰎈 Песня", "disk": "󰋊 40%",
+    "power-profiles-daemon": "󰾅",
+}
+
+
+def preview(module, options):
+    if module in SAMPLE_LOOKS:
+        return SAMPLE_LOOKS[module]
+    look = options.get("format", "") if isinstance(options, dict) else ""
+    icons = options.get("format-icons") if isinstance(options, dict) else None
+    first_icon = (next(iter(icons.values()), "") if isinstance(icons, dict)
+                  else icons[-1] if isinstance(icons, list) and icons else "")
+    look = look.replace("{icon}", first_icon)
+    return re.sub(r"\{(\w*)\}", lambda match: SAMPLE_VALUES.get(match.group(1), ""), look).strip() or module
 
 
 def pick_layout(config):
