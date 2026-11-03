@@ -66,7 +66,6 @@ PATHS=(
     .local/bin/portal-restart
     .local/bin/waybar-start
     .local/bin/settings-panel
-    .local/bin/neohtop
     .local/bin/power-mode
     .local/bin/network-panel
     .local/bin/proton-run
@@ -121,6 +120,39 @@ if [ -f "$code_settings" ]; then
 fi
 sed -i 's|^ExecStart=/usr/bin/histuid --theme .*|ExecStart=/usr/bin/histuid --theme claude|' \
     "$DST/.config/systemd/user/histuid.service"
+
+# Prebuilt files too big for git (release: in packages/apps.txt) go to the GitHub release "files"
+# as <file>-<first 12 characters of its sha256>; the repo keeps their checksums, which is what
+# rice checks a download against. A new name per version: users still on the previous one keep
+# getting the file their checksums expect.
+publish_release_files() {
+    local sums="$REPO/packages/release.sha256" path sha upload
+    : > "$sums.new"
+    for path in $(grep -o 'release:[^ ]*' "$REPO/packages/apps.txt" | cut -d: -f2); do
+        if [ ! -f "$HOME/$path" ]; then
+            echo "нет на этой машине, оставляю прежний: $path"
+            grep -F "  $path" "$sums" >> "$sums.new" || true
+            continue
+        fi
+        sha=$(sha256sum < "$HOME/$path" | cut -d' ' -f1)
+        echo "$sha  $path" >> "$sums.new"
+        grep -qxF "$sha  $path" "$sums" 2>/dev/null && continue
+        if [ "$DRY" = 1 ]; then
+            echo "(--dry-run: не выкладываю новую версию $path)"
+            continue
+        fi
+        gh release view files -R larion928/hypr-rice >/dev/null 2>&1 \
+            || gh release create files -R larion928/hypr-rice --latest=false --title "Собранные файлы" \
+                   --notes "Файлы, которые rice скачивает вместо хранения в git; контрольные суммы в packages/release.sha256."
+        upload=$(mktemp -d)
+        cp "$HOME/$path" "$upload/$(basename "$path")-${sha:0:12}"
+        gh release upload files -R larion928/hypr-rice --clobber "$upload"/*
+        rm -rf "$upload"
+        echo "выложено: $path (${sha:0:12})"
+    done
+    mv "$sums.new" "$sums"
+}
+publish_release_files
 
 # Refuse to publish anything that looks like a secret.
 SECRET_RE='sk-ant-[A-Za-z0-9_-]{10,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|BEGIN [A-Z ]*PRIVATE KEY|"(accessToken|refreshToken)"[[:space:]]*:[[:space:]]*"|AKIA[0-9A-Z]{16}'

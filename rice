@@ -269,7 +269,7 @@ app_packages_installed() {
     local tok
     for tok in ${APP_SRC[$1]}; do
         case "$tok" in
-            file:*|hook:*|browser) ;;
+            file:*|release:*|hook:*|browser) ;;
             appimage:*) [ -x "$HOME/Applications/$1.AppImage" ] || return 1 ;;
             flatpak:*) flatpak info "${tok#flatpak:}" >/dev/null 2>&1 || return 1 ;;
             *) pacman -Qq "${tok#aur:}" >/dev/null 2>&1 || return 1 ;;
@@ -282,8 +282,8 @@ app_installed() {
     app_packages_installed "$1" || return 1
     local tok
     for tok in ${APP_SRC[$1]}; do
-        [[ $tok == file:* ]] || continue
-        [ -e "$HOME/${tok#file:}" ] || return 1
+        [[ $tok == file:* || $tok == release:* ]] || continue
+        [ -e "$HOME/${tok#*:}" ] || return 1
     done
 }
 
@@ -407,7 +407,7 @@ app_desktop_file() {  # first .desktop file an installed app ships
         case "$tok" in
             flatpak:*) f="${tok#flatpak:}.desktop"; [ -e "/var/lib/flatpak/exports/share/applications/$f" ] \
                            || [ -e "$HOME/.local/share/flatpak/exports/share/applications/$f" ] && { echo "$f"; return; } ;;
-            hook:*|browser|file:*|appimage:*) ;;
+            hook:*|browser|file:*|release:*|appimage:*) ;;
             *) f=$(pacman -Qlq "${tok#aur:}" 2>/dev/null | grep -m1 '/usr/share/applications/.*\.desktop$') \
                    && { basename "$f"; return; } ;;
         esac
@@ -427,6 +427,7 @@ install_apps() {  # installs PICKED
                 browser) browsers+=("$id") ;;
                 file:*)  # a rice file that only ships with this program (put back if it was dropped)
                     [ -e "$HOME/${tok#file:}" ] || install -Dm755 "$SRC/home/${tok#file:}" "$HOME/${tok#file:}" ;;
+                release:*) install_release_file "${tok#release:}" || true ;;
                 *) repo_pk+=("$tok") ;;
             esac
         done
@@ -472,6 +473,54 @@ install_apps() {  # installs PICKED
     ok "программ: ${#PICKED[@]}"
 }
 
+# Prebuilt files of the rice too big for git (neoHtop with the rice's themes built in) are assets of
+# the GitHub release "files", named <file>-<first 12 characters of its sha256>; sync.sh uploads them.
+# Their checksums are in packages/release.sha256 in the signed repo, so a file changed on GitHub
+# is refused.
+RELEASE_URL="https://github.com/larion928/hypr-rice/releases/download/files"
+
+release_sha256() {  # release_sha256 PATH: the checksum the repo expects for ~/PATH
+    awk -v path="$1" '$2 == path {print $1}' "$SRC/packages/release.sha256"
+}
+
+file_sha256() { sha256sum < "$1" | cut -d' ' -f1; }
+
+install_release_file() {  # install_release_file PATH: puts the expected file at ~/PATH
+    local path=$1 want dest part
+    want=$(release_sha256 "$path")
+    [ -n "$want" ] || { warn "$path: нет контрольной суммы в packages/release.sha256"; return 1; }
+    dest="$HOME/$path"
+    if [ -f "$dest" ] && [ "$(file_sha256 "$dest")" = "$want" ]; then
+        return 0
+    fi
+    part="$dest.part"
+    mkdir -p "$(dirname "$dest")"
+    if ! curl -fL --progress-bar -o "$part" "$RELEASE_URL/$(basename "$path")-${want:0:12}"; then
+        rm -f "$part"
+        warn "$(basename "$path") не скачался"
+        return 1
+    fi
+    if [ "$(file_sha256 "$part")" != "$want" ]; then
+        rm -f "$part"
+        warn "$(basename "$path"): скачанный файл не совпал с контрольной суммой и не установлен"
+        return 1
+    fi
+    chmod 755 "$part"
+    mv "$part" "$dest"
+}
+
+# After an update, installed programs get their prebuilt files of the new version.
+update_release_files() {
+    local id tok
+    for id in "${APP_IDS[@]}"; do
+        for tok in ${APP_SRC[$id]}; do
+            [[ $tok == release:* ]] || continue
+            [ -e "$HOME/${tok#release:}" ] || continue
+            install_release_file "${tok#release:}" || true
+        done
+    done
+}
+
 remove_apps() {  # removes PICKED (packages, flatpaks, AppImages)
     local id tok pk=() flat=()
     for id in "${PICKED[@]}"; do
@@ -479,7 +528,7 @@ remove_apps() {  # removes PICKED (packages, flatpaks, AppImages)
             case "$tok" in
                 appimage:*) rm -f "$HOME/Applications/$id.AppImage" "$HOME/.local/share/applications/hypr-rice-$id.desktop" ;;
                 flatpak:*) flat+=("${tok#flatpak:}") ;;
-                file:*) rm -f "$HOME/${tok#file:}" ;;
+                file:*|release:*) rm -f "$HOME/${tok#*:}" ;;
                 hook:*)
                     local undo="unhook_${tok#hook:}"
                     undo=${undo//-/_}
@@ -833,6 +882,7 @@ apply_rice() {
     local theme=$1
     step "Файлы райса"
     copy_rice_files
+    update_release_files
 
     step "Системные настройки"
     setup_system
@@ -1111,6 +1161,7 @@ cmd_uninstall() {
     local f
     cd "$SRC/home"
     while IFS= read -r -d '' f; do rm -f "$HOME/${f#./}"; done < <(find . -type f -print0 -o -type l -print0)
+    while read -r _ f; do rm -f "$HOME/$f"; done < "$SRC/packages/release.sha256"
     cd "$HOME"
     rm -f "$MARKER" "$HOME/.local/bin/rice" "$HOME/.local/share/applications/hypr-rice-manager.desktop" \
           "$HOME/.config/hypr-rice/install.conf"

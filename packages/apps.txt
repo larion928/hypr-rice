@@ -5,6 +5,8 @@
 #   flatpak:id     Flathub app (installed per user)
 #   appimage:URL   AppImage saved to ~/Applications/<id>.AppImage with a launcher entry
 #   file:path      file of the rice (relative to ~) that only ships with this program
+#   release:path   prebuilt file of the rice (relative to ~), downloaded from the GitHub release "files"
+#                  and checked against packages/release.sha256
 #   hook:name      extra setup step, hook_<name> in the rice script
 #   browser        a web browser: the first one picked becomes the default (Alt+B)
 # No commas in names: the checklist uses them as separators.
@@ -54,7 +56,7 @@ obsidian    | Офис       | Obsidian                         | obsidian
 happ        | Интернет   | Happ (VPN)                       | aur:happ-desktop-bin
 qbittorrent | Интернет   | qBittorrent                      | qbittorrent
 transmission | Интернет  | Transmission                     | transmission-gtk
-neohtop     | Утилиты    | neoHtop (диспетчер задач)        | webkit2gtk-4.1 file:.local/bin/neohtop
+neohtop     | Утилиты    | neoHtop (диспетчер задач)        | webkit2gtk-4.1 release:.local/bin/neohtop
 drift       | Утилиты    | drift                            | aur:drift-bin
 keepassxc   | Утилиты    | KeePassXC (пароли)               | keepassxc
 bitwarden   | Утилиты    | Bitwarden (пароли)               | bitwarden

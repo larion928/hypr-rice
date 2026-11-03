@@ -191,6 +191,30 @@ test_battery_ignores_mouse() {
     [ "$(battery | jq -r .text)" = "" ] || fail "батарея мышки принята за батарею ноутбука: $(battery)"
 }
 
+# A prebuilt file from the GitHub release goes in only when its checksum is the one the signed
+# repo lists; curl is faked to serve $HOME/served.
+test_release_file_is_checked() {
+    load_rice
+    SRC=$HOME/src
+    mkdir -p "$SRC/packages"
+    echo genuine > "$HOME/genuine"
+    echo "$(sha256sum < "$HOME/genuine" | cut -d' ' -f1)  .local/bin/tool" > "$SRC/packages/release.sha256"
+    curl() {
+        local out
+        while [ $# -gt 0 ]; do [ "$1" = -o ] && out=$2; shift; done
+        cp "$HOME/served" "$out"
+    }
+
+    echo forged > "$HOME/served"
+    install_release_file .local/bin/tool 2>/dev/null && fail "подменённый файл принят"
+    [ ! -e "$HOME/.local/bin/tool" ] || fail "подменённый файл остался на месте"
+
+    cp "$HOME/genuine" "$HOME/served"
+    install_release_file .local/bin/tool >/dev/null || fail "настоящий файл не принят"
+    cmp -s "$HOME/.local/bin/tool" "$HOME/genuine" || fail "поставлен не тот файл"
+    [ -x "$HOME/.local/bin/tool" ] || fail "файл не исполняемый"
+}
+
 # themegen builds and applies every theme in a fake $HOME; tests/themegen_snapshot.sh records it all.
 test_themegen_applies_every_theme() {
     "$REPO/tests/themegen_snapshot.sh" "$HOME/snapshot" >/dev/null || fail "themegen упал, вывод выше"
