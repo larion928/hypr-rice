@@ -39,8 +39,9 @@ changetheme — переключение темы Hyprland-окружения
   4. Waybar   — копирует themes/<тема>/style.css в waybar/style.css
                 (именно копирует, не симлинк — иначе относительный
                 @import url("wallust-colors.css") внутри не найдётся),
-                просит waybar перечитать конфиг и стиль (waybar-start reload),
-                без перезапуска: панель, запущенная во время hyprctl reload, остаётся невидимой
+                просит waybar перечитать конфиг и стиль (waybar-start reload)
+                без перезапуска: после перезапуска при смене темы панель иногда
+                оставалась невидимой, причина неизвестна
   5. histui   — копирует themes/<тема>/histui.css + текущую палитру
                 colors.css в ~/.config/histui/themes/<тема>/, прописывает
                 --theme <тема> в histuid.service и рестартует демон
