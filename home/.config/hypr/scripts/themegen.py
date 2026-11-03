@@ -7,6 +7,8 @@
                                                  Telegram themes, battery icons)
   themegen.py refresh                            re-theme apps that appeared since the last change
                                                  (Firefox profiles, Obsidian vaults); run at login
+  themegen.py offer <theme>                      offer the theme to a running Telegram / AyuGram, which
+                                                 opens its full-screen preview; changetheme runs it last
 
 Each program has its module in apptheme/.
 """
@@ -37,7 +39,6 @@ def apply(name, wallpaper=None):
     vesktop.apply(theme)
     firefox.apply(theme, wallpaper)
     chromium.apply(theme, wallpaper)
-    telegram.offer(theme)
     gtk.reload()
 
 
@@ -86,6 +87,8 @@ def main(argv):
         build()
     elif argv[:1] == ["refresh"]:
         refresh()
+    elif len(argv) >= 2 and argv[0] == "offer":
+        telegram.offer(load(argv[1]))
     else:
         print(__doc__.strip(), file=sys.stderr)
         return 2

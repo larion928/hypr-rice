@@ -39,9 +39,9 @@ changetheme — переключение темы Hyprland-окружения
   4. Waybar   — копирует themes/<тема>/style.css в waybar/style.css
                 (именно копирует, не симлинк — иначе относительный
                 @import url("wallust-colors.css") внутри не найдётся),
-                просит waybar перечитать конфиг и стиль (waybar-start reload)
-                без перезапуска: после перезапуска при смене темы панель иногда
-                оставалась невидимой, причина неизвестна
+                просит waybar перечитать конфиг и стиль (waybar-start reload),
+                и только когда панель видна, предлагает тему Telegram/AyuGram
+                (themegen.py offer)
   5. histui   — копирует themes/<тема>/histui.css + текущую палитру
                 colors.css в ~/.config/histui/themes/<тема>/, прописывает
                 --theme <тема> в histuid.service и рестартует демон
@@ -157,10 +157,13 @@ if [ -f "$CONFIG_DIR/style.css" ]; then
     # rm обязателен: если style.css — старый симлинк, cp перезапишет файл темы
     rm -f "$HOME/.config/hypr-rice/waybar/style.css"
     cp "$CONFIG_DIR/style.css" "$HOME/.config/hypr-rice/waybar/style.css"
-    if [ "$OFFLINE" = 0 ]; then
-        "$HOME/.local/bin/waybar-start" reload &>/dev/null &
-        disown
-    fi
+fi
+if [ "$OFFLINE" = 0 ]; then
+    # Сначала панель, потом ссылка на тему в Telegram/AyuGram: его предпросмотр открывается на весь
+    # экран, и панель, созданная при открытом предпросмотре, не рисуется, пока не перейдёшь в его окно.
+    { "$HOME/.local/bin/waybar-start" reload
+      python3 "$HOME/.config/hypr/scripts/themegen.py" offer "$THEME"; } &>/dev/null &
+    disown
 fi
 
 # --- 5. histui (структура темы + палитра рядом) ---

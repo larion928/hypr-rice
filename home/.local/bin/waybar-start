@@ -3,12 +3,12 @@
 #   waybar-start          (re)start waybar: login, Alt+Shift+O
 #   waybar-start reload   make the running waybar reread its config and style (changetheme);
 #                         starts it when it is not running
-# Sometimes the bar does not show: right after login waybar may start before the output is ready;
-# and theme changes that restarted waybar sometimes left its bar at alpha 0, invisible but holding
-# its space. Why is not known: Hyprland reloads, theme animations, themegen, the GTK theme and the
-# wallpaper were each ruled out on their own. changetheme asks for a reload instead of a restart;
-# with that it happened once, in the first test, and not since. Whatever the case, the bar is
-# checked, a failure is logged to ~/.cache/waybar-start.log, and waybar is restarted up to three times.
+# Sometimes the bar does not show. Right after login waybar may start before the output is ready.
+# And a bar created while AyuGram's full-screen theme preview is open stays at alpha 0 until that
+# window is focused: Hyprland does not draw it, so waybar waits for a frame callback that never comes
+# (seen in the Wayland log). changetheme therefore sends the Telegram link only after this script has
+# seen the bar. Whatever the case, the bar is checked, a failure is logged to
+# ~/.cache/waybar-start.log, and waybar is restarted up to three times.
 CONF="$HOME/.config/hypr-rice/waybar"
 
 # user.css (not part of the rice) goes on top of the theme. The combined file stays next to
