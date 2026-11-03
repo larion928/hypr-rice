@@ -1494,11 +1494,11 @@ ShellRoot {
     // above, or for every theme with the button here.
     component PanelSection: Item {
         id: panelEditor
-        property var drag: null         // the module being dragged: {module, side, index}; side "" from the set below
-        property string dropSide: ""    // where letting go would put it; "" is off the bar, which takes it away
-        property int dropIndex: 0
-        property real markerX: 0
+        property var drag: null      // the module being dragged: {module, side, index}; side "" from the set below
+        property var target: null    // where letting go puts it: {side, index, x}; null off the bar, which takes it away
         property string hovered: ""
+        readonly property var sideNames: ({ "modules-left": "слева", "modules-center": "по центру",
+                                            "modules-right": "справа" })
 
         function row(side) {
             return side === "modules-left" ? leftRow : side === "modules-center" ? centerRow : rightRow;
@@ -1507,6 +1507,25 @@ ShellRoot {
             const list = [];
             for (const child of panelEditor.row(side).children)
                 if (child.pillModule !== undefined) list.push(child);
+            return list;
+        }
+        // Every place a module can go, in the bar's coordinates: each gap of each group, a group's two
+        // ends, and the bar's middle while the centre group is empty. A drop takes the nearest one.
+        function slots() {
+            const list = [];
+            for (const [side] of themeEdit.sides) {
+                const pills = panelEditor.pills(side);
+                if (!pills.length) {
+                    const x = side === "modules-left" ? 16 : side === "modules-right" ? mockBar.width - 16 : mockBar.width / 2;
+                    list.push({ side: side, index: 0, x: x });
+                    continue;
+                }
+                const row = panelEditor.row(side);
+                for (let i = 0; i <= pills.length; i++) {
+                    const edge = i < pills.length ? pills[i].x - 3 : pills[i - 1].x + pills[i - 1].width + 3;
+                    list.push({ side: side, index: i, x: row.mapToItem(mockBar, edge, 0).x });
+                }
+            }
             return list;
         }
         function start(module, side, index, point) {
@@ -1518,36 +1537,32 @@ ShellRoot {
             ghost.x = point.x - ghost.width / 2;
             ghost.y = point.y - ghost.height / 2;
             const onBar = mockBar.mapFromItem(panelEditor, point.x, point.y);
-            if (onBar.x < 0 || onBar.x > mockBar.width || onBar.y < -24 || onBar.y > mockBar.height + 24) {
-                panelEditor.dropSide = "";
+            if (onBar.y < -30 || onBar.y > mockBar.height + 30) {
+                panelEditor.target = null;
                 return;
             }
-            const third = mockBar.width / 3;
-            const side = onBar.x < third ? "modules-left" : onBar.x < 2 * third ? "modules-center" : "modules-right";
-            const inRow = panelEditor.row(side).mapFromItem(mockBar, onBar.x, onBar.y);
-            const pills = panelEditor.pills(side);
-            let index = 0;
-            for (const pill of pills)
-                if (inRow.x > pill.x + pill.width / 2) index++;
-            const rowItem = panelEditor.row(side);
-            const edge = index < pills.length ? pills[index].x - 4 : (pills.length ? pills[pills.length - 1].x + pills[pills.length - 1].width + 2 : 0);
-            panelEditor.markerX = rowItem.mapToItem(mockBar, edge, 0).x;
-            panelEditor.dropSide = side;
-            panelEditor.dropIndex = index;
+            let nearest = null;
+            for (const slot of panelEditor.slots())
+                if (!nearest || Math.abs(slot.x - onBar.x) < Math.abs(nearest.x - onBar.x)) nearest = slot;
+            panelEditor.target = nearest;
         }
         function finish() {
             const drag = panelEditor.drag;
+            const target = panelEditor.target;
             panelEditor.drag = null;
-            if (!drag || (!drag.side && !panelEditor.dropSide)) return;
+            panelEditor.target = null;
+            if (!drag || (!drag.side && !target)) return;
             const layout = themeEdit.panelCopy();
             if (drag.side) layout[drag.side].splice(drag.index, 1);
-            if (panelEditor.dropSide) {
-                let index = panelEditor.dropIndex;
-                if (drag.side === panelEditor.dropSide && drag.index < index) index--;  // it was taken out above
-                layout[panelEditor.dropSide] = (layout[panelEditor.dropSide] || []);
-                layout[panelEditor.dropSide].splice(index, 0, drag.module);
+            if (target) {
+                let index = target.index;
+                if (drag.side === target.side && drag.index < index) index--;  // it was taken out above
+                layout[target.side] = (layout[target.side] || []);
+                layout[target.side].splice(index, 0, drag.module);
             }
-            themeEdit.change("waybar", layout);
+            // After this release handler: the dragged module's own delegate goes away with the change,
+            // and an item replaced while it still holds the mouse grab can stay drawn where it was.
+            Qt.callLater(() => themeEdit.change("waybar", layout));
         }
 
         Row {
@@ -1589,24 +1604,22 @@ ShellRoot {
             height: 54
             radius: Math.min(theme.ui.radius ?? 12, 16)
             color: Color.withAlpha(theme.c.bg, 0.95)
-            border.width: panelEditor.drag && panelEditor.dropSide ? 2 : 1
-            border.color: panelEditor.drag && panelEditor.dropSide ? (theme.c.accent || "white") : Color.withAlpha(theme.c.accent, 0.4)
+            border.width: panelEditor.target ? 2 : 1
+            border.color: panelEditor.target ? (theme.c.accent || "white") : Color.withAlpha(theme.c.accent, 0.4)
 
-            // The thirds a module dropped there goes to; shown while dragging.
-            Repeater {
-                model: 3
-                Rectangle {
-                    required property int index
-                    visible: panelEditor.drag !== null
-                    x: index * mockBar.width / 3; width: mockBar.width / 3; height: mockBar.height
-                    color: "transparent"
-                    border.color: Color.withAlpha(theme.c.muted, 0.25)
-                    Text {
-                        anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: -22 }
-                        text: ["слева", "по центру", "справа"][parent.index]
-                        font.family: theme.bodyFont; font.pixelSize: 12
-                        color: theme.c.muted || "grey"
-                    }
+            // The empty centre group, as a place to drop on while dragging.
+            Rectangle {
+                visible: panelEditor.drag !== null && (themeEdit.panel()["modules-center"] || []).length === 0
+                anchors.centerIn: parent
+                width: 110; height: parent.height - 14
+                radius: 8
+                color: Color.withAlpha(theme.c.accent, 0.08)
+                border.color: Color.withAlpha(theme.c.accent, 0.4)
+                Text {
+                    anchors.centerIn: parent
+                    text: "центр"
+                    font.family: theme.bodyFont; font.pixelSize: 12
+                    color: theme.c.muted || "grey"
                 }
             }
             Row {
@@ -1637,19 +1650,27 @@ ShellRoot {
                 }
             }
             Rectangle {
-                visible: panelEditor.drag !== null && panelEditor.dropSide !== ""
-                x: panelEditor.markerX; y: 6
+                id: dropMarker
+                visible: panelEditor.target !== null
+                x: panelEditor.target ? panelEditor.target.x - 1 : 0; y: 6
                 width: 3; height: parent.height - 12; radius: 1
                 color: theme.c.accent || "white"
+                Text {
+                    anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.top; bottomMargin: 10 }
+                    text: panelEditor.target ? panelEditor.sideNames[panelEditor.target.side] : ""
+                    font.family: theme.bodyFont; font.pixelSize: 12; font.bold: true
+                    color: theme.c.accent || "white"
+                }
             }
         }
         Text {
             id: hoveredName
             anchors { left: parent.left; top: mockBar.bottom; topMargin: 30 }
-            text: panelEditor.drag ? (panelEditor.dropSide ? "Отпусти, чтобы поставить сюда" : "Отпусти здесь, чтобы убрать с панели")
+            text: panelEditor.drag ? (panelEditor.target ? "Отпусти — встанет " + panelEditor.sideNames[panelEditor.target.side]
+                                                          : panelEditor.drag.side ? "Отпусти здесь, чтобы убрать с панели" : "Тащи на панель")
                   : panelEditor.hovered ? themeEdit.moduleName(panelEditor.hovered) : " "
             font.family: theme.bodyFont; font.pixelSize: 14
-            color: panelEditor.drag && !panelEditor.dropSide ? (theme.c.crit || "red") : (theme.c.fg || "white")
+            color: panelEditor.drag && panelEditor.drag.side && !panelEditor.target ? (theme.c.crit || "red") : (theme.c.fg || "white")
         }
 
         Text {

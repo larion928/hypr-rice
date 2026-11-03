@@ -101,13 +101,12 @@ def layout(theme):
 
 # How a module looks on the bar in the settings window: its own "format" with sample values, or this
 # for the modules that get their text from a script, have none, or are waybar's own.
-SAMPLE_VALUES = {"usage": "12", "temperatureC": "48", "capacity": "58", "volume": "70", "short": "ru", "": "41"}
+SAMPLE_VALUES = {"usage": "12", "temperatureC": "48", "capacity": "58", "volume": "70", "short": "ru", "": "41",
+                 "percent": "80", "percentage_used": "40"}
 SAMPLE_LOOKS = {
     "hyprland/workspaces": "1 2 3 4", "hyprland/window": "Заголовок окна", "clock": "13:37",
     "network": "󰖩", "custom/battery": "󰁹 58%", "custom/power": "󰾅", "custom/updates": "󰏗 3",
-    "custom/histui": "󰂚", "custom/claude": "✻ 42%", "tray": "󰀻 󰍹", "backlight": "󰃠 80%",
-    "bluetooth": "󰂯", "idle_inhibitor": "󰅶", "mpris": "󰎈 Песня", "disk": "󰋊 40%",
-    "power-profiles-daemon": "󰾅",
+    "custom/histui": "󰂚", "custom/claude": "✻ 42%", "tray": "󰀻 󰍹", "mpris": "󰎈 Песня",
 }
 
 

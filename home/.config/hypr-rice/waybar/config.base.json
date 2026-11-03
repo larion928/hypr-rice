@@ -190,5 +190,61 @@
         "tooltip": true,
         "on-click": "~/.config/hypr-rice/waybar/scripts/updates --install"
     },
-    "fixed-center": false
+    "fixed-center": false,
+    "tray": {
+        "spacing": 8,
+        "icon-size": 16
+    },
+    "backlight": {
+        "format": "{icon} {percent}%",
+        "format-icons": [
+            "󰃞",
+            "󰃟",
+            "󰃠"
+        ],
+        "on-scroll-up": "brightnessctl s 5%+",
+        "on-scroll-down": "brightnessctl s 5%-"
+    },
+    "bluetooth": {
+        "format": "󰂯",
+        "format-off": "󰂲",
+        "format-disabled": "󰂲",
+        "format-connected": "󰂱 {num_connections}",
+        "tooltip-format": "{controller_alias}: подключено {num_connections}",
+        "on-click": "blueman-manager"
+    },
+    "idle_inhibitor": {
+        "format": "{icon}",
+        "format-icons": {
+            "activated": "󰅶",
+            "deactivated": "󰾪"
+        },
+        "tooltip-format-activated": "Экран не гаснет и не блокируется",
+        "tooltip-format-deactivated": "Экран гаснет как обычно"
+    },
+    "mpris": {
+        "format": "{player_icon} {title}",
+        "format-paused": "{status_icon} {title}",
+        "player-icons": {
+            "default": "󰎈"
+        },
+        "status-icons": {
+            "paused": "󰏤"
+        },
+        "max-length": 40
+    },
+    "disk": {
+        "format": "󰋊 {percentage_used}%",
+        "path": "/",
+        "tooltip-format": "Диск /: занято {used} из {total}"
+    },
+    "power-profiles-daemon": {
+        "format": "{icon}",
+        "format-icons": {
+            "default": "󰾅",
+            "performance": "󰓅",
+            "balanced": "󰾅",
+            "power-saver": "󰾆"
+        }
+    }
 }
