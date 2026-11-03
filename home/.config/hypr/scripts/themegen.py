@@ -9,6 +9,8 @@
                                                  (Firefox profiles, Obsidian vaults); run at login
   themegen.py offer <theme>                      offer the theme to a running Telegram / AyuGram, which
                                                  opens its full-screen preview; changetheme runs it last
+  themegen.py wallpapers <theme>                 the wallpapers changetheme picks from, one per line
+                                                 (the theme's own and the user's, minus those switched off)
 
 Each program has its module in apptheme/.
 """
@@ -89,6 +91,8 @@ def main(argv):
         refresh()
     elif len(argv) >= 2 and argv[0] == "offer":
         telegram.offer(load(argv[1]))
+    elif len(argv) >= 2 and argv[0] == "wallpapers":
+        print(*load(argv[1]).wallpapers, sep="\n")
     else:
         print(__doc__.strip(), file=sys.stderr)
         return 2

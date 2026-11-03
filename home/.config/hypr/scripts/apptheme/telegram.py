@@ -106,10 +106,9 @@ def build(themes):
 
 def chat_background(theme):
     """The theme's first wallpaper, blurred and darkened, as JPEG bytes; None without wallpapers."""
-    wallpapers = sorted(file for file in theme.dir.iterdir() if file.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp"))
-    if not wallpapers:
+    if not theme.wallpapers:
         return None
-    image = Image.open(wallpapers[0]).convert("RGB")
+    image = Image.open(theme.wallpapers[0]).convert("RGB")
     image.thumbnail((1920, 1080))
     image = ImageEnhance.Brightness(image.filter(ImageFilter.GaussianBlur(14))).enhance(0.45)
     buffer = io.BytesIO()

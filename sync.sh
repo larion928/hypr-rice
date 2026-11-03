@@ -90,6 +90,7 @@ EXCLUDES=(
     --exclude=.config/hypr/theme.lua
     --exclude=.config/hypr/hyprlock.conf
     --exclude=.config/hypr/themes/whitecat-cursor.osk
+    --exclude='.config/hypr/themes/*/assets/battery-*.svg'  # themegen build draws them, in the user's colours
     --exclude=.config/fish/functions/neohtop-dev.fish
     --exclude=__pycache__
     --exclude='*.bak*'

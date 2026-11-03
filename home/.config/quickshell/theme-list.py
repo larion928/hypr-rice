@@ -1,30 +1,28 @@
 #!/usr/bin/env python3
 """theme-list.py OUT — write every theme to OUT as JSON for the theme picker and the settings
-window: name, folder, palette.json and ui.json (with the fonts the user picked for it), the fonts
-picked, a wallpaper thumbnail and whether it is current. Thumbnails are cached in
-~/.cache/theme-thumbs and rebuilt only when the wallpaper is newer."""
+window: name, folder, palette.json and ui.json with the user's edits in place, the edits themselves
+and the theme's own fonts and colours, its wallpapers, a thumbnail and whether it is current.
+Thumbnails are cached in ~/.cache/theme-thumbs and rebuilt only when the wallpaper is newer."""
+import hashlib
 import json
 import sys
 from pathlib import Path
 
 from PIL import Image
 
-# themegen's loader, so each theme comes with the fonts the user picked for it.
+# themegen's loader, so each theme comes with the user's edits.
 sys.path.insert(0, str(Path.home() / ".config/hypr/scripts"))
 from apptheme.theme import all_names, load
 
 HYPR = Path.home() / ".config/hypr"
 THUMBS = Path.home() / ".cache/theme-thumbs"
-WALLPAPER_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")
 
 
-def thumbnail(theme_dir):
-    walls = sorted(p for p in theme_dir.iterdir() if p.suffix.lower() in WALLPAPER_SUFFIXES)
-    if not walls:
-        return ""
-    thumb = THUMBS / f"{theme_dir.name}.jpg"
-    if not thumb.exists() or thumb.stat().st_mtime < walls[0].stat().st_mtime:
-        image = Image.open(walls[0]).convert("RGB")
+def thumbnail(wallpaper):
+    """A small copy of the wallpaper for the cards, cached under a name made from its path."""
+    thumb = THUMBS / (hashlib.sha1(str(wallpaper).encode()).hexdigest()[:16] + ".jpg")
+    if not thumb.exists() or thumb.stat().st_mtime < wallpaper.stat().st_mtime:
+        image = Image.open(wallpaper).convert("RGB")
         image.thumbnail((640, 360))
         image.save(thumb, quality=88)
     return str(thumb)
@@ -36,9 +34,13 @@ def main():
     current = current_file.read_text().strip() if current_file.exists() else ""
     themes = []
     for theme in map(load, all_names()):
-        themes.append({"name": theme.name, "dir": str(theme.dir), "thumb": thumbnail(theme.dir),
-                       "current": theme.name == current, "pal": theme.palette, "ui": theme.ui,
-                       "chosenFonts": theme.chosen_fonts, "ownFonts": theme.own_fonts})
+        added = [Path(path) for path in theme.edits.get("wallpapers", {}).get("added", []) if Path(path).is_file()]
+        themes.append({"name": theme.name, "dir": str(theme.dir), "current": theme.name == current,
+                       "thumb": thumbnail(theme.wallpapers[0]) if theme.wallpapers else "",
+                       "pal": theme.palette, "ui": theme.ui, "edits": theme.edits, "own": theme.own,
+                       "wallpapers": [{"path": str(path), "thumb": thumbnail(path), "added": path in added,
+                                       "on": path in theme.wallpapers}
+                                      for path in theme.own_wallpapers + added]})
     Path(sys.argv[1]).write_text(json.dumps(themes, ensure_ascii=False))
 
 

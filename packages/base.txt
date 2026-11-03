@@ -41,6 +41,7 @@ openssh
 base-devel
 rsync
 jq
+zenity          # file dialog for the theme settings (Alt+F2, Тема → Обои)
 pacman-contrib
 python
 python-pillow

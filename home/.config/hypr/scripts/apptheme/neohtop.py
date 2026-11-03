@@ -5,7 +5,8 @@ from .paths import HOME
 
 
 def colors_of(theme):
-    colors = theme.colors
+    # The theme's own colours, not the user's edits: the author publishes the build with these.
+    colors = theme.own["colors"]
     bg, bg2, fg, muted = colors["bg"], colors["bg2"], colors["fg"], colors["muted"]
     return {
         "base": bg, "mantle": mix(bg, "#000000", 0.15), "crust": mix(bg, "#000000", 0.3),

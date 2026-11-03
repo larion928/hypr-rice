@@ -215,27 +215,39 @@ test_release_file_is_checked() {
     [ -x "$HOME/.local/bin/tool" ] || fail "файл не исполняемый"
 }
 
-# Fonts picked for a theme in the settings reach the theme loader, kitty and waybar; the rest of
-# the theme's fonts stay its own.
-test_chosen_fonts_reach_the_programs() {
+# Edits made to a theme in the settings (fonts, colours, wallpapers) reach the theme loader, kitty
+# and waybar; what was not edited stays the theme's own.
+test_theme_edits_reach_the_programs() {
     local theme_dir="$HOME/.config/hypr/themes/claude"
-    mkdir -p "$theme_dir" "$HOME/.config/hypr-rice" "$HOME/bin"
+    mkdir -p "$theme_dir" "$HOME/.config/hypr-rice" "$HOME/bin" "$HOME/Pictures"
     cp "$REPO/home/.config/hypr/themes/claude/"{palette.json,ui.json} "$theme_dir/"
-    echo '{"claude": {"font": "Test Mono", "body": "Test Sans", "display": ""}}' > "$HOME/.config/hypr-rice/fonts.json"
+    touch "$theme_dir/a.png" "$theme_dir/b.png" "$HOME/Pictures/mine.jpg"
+    cat > "$HOME/.config/hypr-rice/theme-edits.json" <<EOF
+{"themes": {"claude": {"fonts": {"font": "Test Mono", "body": "Test Sans", "display": ""},
+                       "colors": {"accent": "#123456", "bg": "not a colour"},
+                       "wallpapers": {"added": ["$HOME/Pictures/mine.jpg", "$HOME/gone.png"],
+                                      "off": ["$theme_dir/a.png"]}}}}
+EOF
     printf '#!/bin/sh\n' > "$HOME/bin/pkill" && chmod +x "$HOME/bin/pkill"
-    PATH="$HOME/bin:$PATH" python3 - "$REPO/home/.config/hypr/scripts" <<'PY' || fail "генератор упал"
+    PATH="$HOME/bin:$PATH" python3 - "$REPO/home/.config/hypr/scripts" "$HOME" <<'PY' || fail "генератор упал"
 import sys
 sys.path.insert(0, sys.argv[1])
 from apptheme import kitty, waybar
 from apptheme.theme import load
+home = sys.argv[2]
 theme = load("claude")
 assert theme.font == "Test Mono", theme.font
 assert theme.body_font == "Test Sans", theme.body_font
 assert theme.display == "Source Serif 4", theme.display  # an empty choice keeps the theme's own
+assert theme.colors["accent"] == "#123456", theme.colors["accent"]
+assert theme.colors["bg"] == theme.own["colors"]["bg"], "a broken colour must be ignored"
+walls = [str(p) for p in theme.wallpapers]
+assert walls == [f"{home}/.config/hypr/themes/claude/b.png", f"{home}/Pictures/mine.jpg"], walls
 kitty.apply(theme)
 waybar.write_fonts(theme)
 PY
     grep -qx "font_family Test Mono" "$HOME/.config/hypr-rice/kitty/theme.conf" || fail "kitty не получил шрифт"
+    grep -qx "cursor #123456" "$HOME/.config/hypr-rice/kitty/theme.conf" || fail "kitty не получил цвет"
     grep -q '"Test Mono", "JetBrainsMono Nerd Font"' "$HOME/.config/hypr-rice/waybar/fonts.css" \
         || fail "waybar не получил шрифт"
 }

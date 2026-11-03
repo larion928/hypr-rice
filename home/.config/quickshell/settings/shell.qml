@@ -4,8 +4,8 @@
 //   Клавиши   — the editable binds keybind.lua registers ($XDG_RUNTIME_DIR/hypr-binds-registry.json),
 //               the main modifier and the user's own binds; saved to ~/.config/hypr/binds-user.lua.
 //   Тема      — the themes from $RICE_THEME_LIST (written by ../theme-list.py); a card opens that theme's
-//               settings: its fonts (~/.config/hypr-rice/fonts.json, read by themegen) and a button to
-//               switch to it. Quick switching is the theme picker's (Alt+Shift+T).
+//               settings: fonts, colours, wallpapers (~/.config/hypr-rice/theme-edits.json, read by
+//               themegen) and a button to switch to it. Quick switching is the theme picker's (Alt+Shift+T).
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -22,6 +22,7 @@ ShellRoot {
     readonly property string registryPath: Quickshell.env("XDG_RUNTIME_DIR") + "/hypr-binds-registry.json"
     property var themes: []
     property bool closing: false
+    property bool picking: false  // a file dialog is open: the window steps aside, it holds the keyboard
     property string page: Quickshell.env("SETTINGS_PAGE") || "monitors"
     readonly property int r: Math.min(theme.ui.radius ?? 14, 22)
 
@@ -42,6 +43,11 @@ ShellRoot {
     }
 
     // Writes a file, then optionally runs a command (all detached, in that order).
+    // text as one word for sh -c.
+    function quote(text) {
+        return "'" + String(text).replace(/'/g, "'\\''") + "'";
+    }
+
     function writeFile(path, text, after) {
         Quickshell.execDetached(["sh", "-c", 'printf "%s" "$1" > "$2" && [ -z "$3" ] || sh -c "$3"',
                                  "sh", text, path, after || ""]);
@@ -370,76 +376,183 @@ ShellRoot {
     }
     Timer { id: reloadTimer; interval: 900; onTriggered: bindsProc.running = true }
 
-    // ================= theme fonts =================
+    // ================= one theme's edits =================
 
-    // The fonts the user picked per theme, edited one theme at a time; "" keeps the theme's own.
-    // themegen reads the file on every theme change, so the current theme is applied again on save.
+    // What the user changes in a theme (fonts, colours, wallpapers), edited one theme at a time and
+    // kept in ~/.config/hypr-rice/theme-edits.json, which themegen reads on every theme change.
+    // An empty font or a missing colour keeps the theme's own.
     QtObject {
-        id: fonts
-        readonly property string path: root.home + "/.config/hypr-rice/fonts.json"
-        readonly property var slots: [["font", "Основной", "панель, терминал, моноширинный текст"],
-                                      ["display", "Заголовки", "названия, часы на экране блокировки"],
-                                      ["body", "Текст", "окна райса, браузеры, Discord"]]
-        property var all: ({})        // the whole file: {theme: {font, display, body}}
-        property var editing: null    // the card being edited, an entry of root.themes
-        property var edit: ({})       // its three choices
-        property string slot: "font"  // which of them the font list sets
-        property var installed: []
-        property string query: ""
-        readonly property var matching: fonts.installed.filter(name => name.toLowerCase().includes(fonts.query.toLowerCase()))
+        id: themeEdit
+        readonly property string path: root.home + "/.config/hypr-rice/theme-edits.json"
+        readonly property string wallpaperDir: root.home + "/.local/share/hypr-rice/wallpapers"
+        readonly property var sections: [["fonts", "Шрифты"], ["colors", "Цвета"], ["wallpapers", "Обои"]]
+        readonly property var fontSlots: [["font", "Основной", "панель, терминал, моноширинный текст"],
+                                          ["display", "Заголовки", "названия, часы на экране блокировки"],
+                                          ["body", "Текст", "окна райса, браузеры, Discord"]]
+        readonly property var colorNames: [["bg", "Фон"], ["bg2", "Фон панелей"], ["fg", "Текст"],
+                                           ["muted", "Приглушённый"], ["accent", "Акцент"],
+                                           ["accent2", "Акцент 2"], ["accent3", "Акцент 3"],
+                                           ["good", "Хорошо"], ["warn", "Внимание"], ["crit", "Ошибка"]]
+        property var everyTheme: ({})  // the whole file's "themes"
+        property var editing: null     // the card being edited, an entry of root.themes
+        property var edit: ({})        // {fonts, colors, wallpapers: {added, off}}
+        property string saved: ""      // edit as last saved, to see what changed
+        property string section: "fonts"
+        property string fontSlot: "font"
+        property string colorKey: "accent"
+        property var installedFonts: []
+        property string fontQuery: ""
+        readonly property var matchingFonts: themeEdit.installedFonts.filter(
+            name => name.toLowerCase().includes(themeEdit.fontQuery.toLowerCase()))
+        readonly property bool dirty: themeEdit.editing !== null && JSON.stringify(themeEdit.edit) !== themeEdit.saved
 
         function open(entry) {
-            fontsFile.reload();
-            try { fonts.all = JSON.parse(fontsFile.text()) || {}; } catch (e) { fonts.all = {}; }
-            const chosen = fonts.all[entry.name] || {};
-            fonts.edit = { font: chosen.font || "", display: chosen.display || "", body: chosen.body || "" };
-            fonts.slot = "font";
-            fonts.query = "";
-            fonts.editing = entry;
-            if (!fonts.installed.length) fontsProc.running = true;
+            themeEditFile.reload();
+            let file = {};
+            try { file = JSON.parse(themeEditFile.text()) || {}; } catch (e) {}
+            themeEdit.everyTheme = file.themes || {};
+            const mine = themeEdit.everyTheme[entry.name] || {};
+            const walls = mine.wallpapers || {};
+            themeEdit.edit = { fonts: Object.assign({ font: "", display: "", body: "" }, mine.fonts || {}),
+                               colors: Object.assign({}, mine.colors || {}),
+                               wallpapers: { added: (walls.added || []).slice(), off: (walls.off || []).slice() } };
+            themeEdit.saved = JSON.stringify(themeEdit.edit);
+            themeEdit.section = "fonts";
+            themeEdit.fontSlot = "font";
+            themeEdit.fontQuery = "";
+            themeEdit.editing = entry;
+            if (!themeEdit.installedFonts.length) fontsProc.running = true;
         }
 
-        function shown(key) {
-            return fonts.edit[key] || fonts.editing.ownFonts[key];
+        function change(part, value) {
+            themeEdit.edit = Object.assign({}, themeEdit.edit, { [part]: value });
         }
 
-        function choose(name) {
-            fonts.edit = Object.assign({}, fonts.edit, { [fonts.slot]: name });
+        // ---- fonts
+        function font(key) {
+            return themeEdit.edit.fonts[key] || themeEdit.editing.own.fonts[key];
+        }
+        function chooseFont(name) {
+            themeEdit.change("fonts", Object.assign({}, themeEdit.edit.fonts, { [themeEdit.fontSlot]: name }));
         }
 
-        // Saved; the current theme is applied again with its wallpaper, so the fonts show at once.
+        // ---- colours
+        function color(key) {
+            return themeEdit.edit.colors[key] || themeEdit.editing.own.colors[key];
+        }
+        function chooseColor(hex) {
+            themeEdit.change("colors", Object.assign({}, themeEdit.edit.colors, { [themeEdit.colorKey]: hex }));
+        }
+        function ownColor() {
+            const colors = Object.assign({}, themeEdit.edit.colors);
+            delete colors[themeEdit.colorKey];
+            themeEdit.change("colors", colors);
+        }
+
+        // ---- wallpapers: the theme's own, then the added ones; each one on or off
+        function wallpapers() {
+            const own = themeEdit.editing.wallpapers.filter(w => !w.added).map(w => w.path);
+            const thumbs = {};
+            for (const w of themeEdit.editing.wallpapers) thumbs[w.path] = w.thumb;
+            const added = themeEdit.edit.wallpapers.added;
+            return own.concat(added).map(path => ({ path: path, thumb: thumbs[path] || path,
+                                                    added: added.includes(path),
+                                                    on: !themeEdit.edit.wallpapers.off.includes(path) }));
+        }
+        function toggleWallpaper(path) {
+            const off = themeEdit.edit.wallpapers.off;
+            const next = off.includes(path) ? off.filter(p => p !== path) : off.concat([path]);
+            themeEdit.change("wallpapers", { added: themeEdit.edit.wallpapers.added, off: next });
+        }
+        function removeWallpaper(path) {
+            themeEdit.change("wallpapers", { added: themeEdit.edit.wallpapers.added.filter(p => p !== path),
+                                             off: themeEdit.edit.wallpapers.off.filter(p => p !== path) });
+        }
+        function addWallpaper(path) {
+            if (!path || themeEdit.edit.wallpapers.added.includes(path)) return;
+            themeEdit.change("wallpapers", { added: themeEdit.edit.wallpapers.added.concat([path]),
+                                             off: themeEdit.edit.wallpapers.off });
+        }
+        function pickWallpaper() {
+            root.picking = true;
+            wallpaperPicker.command = ["sh", "-c",
+                'f=$(zenity --file-selection --title="Обои для темы" --file-filter="Картинки | *.png *.jpg *.jpeg *.webp") '
+                + '&& mkdir -p "$1" && cp "$f" "$1/" && printf "%s" "$1/$(basename "$f")"',
+                "sh", themeEdit.wallpaperDir + "/" + themeEdit.editing.name];
+            wallpaperPicker.running = true;
+        }
+        // The current theme only: shown at once, and kept as its wallpaper.
+        function showWallpaper(path) {
+            Quickshell.execDetached(["sh", "-c", 'printf "%s\\n" "$1" > "$2" && changetheme --keep-wallpaper "$3"',
+                                     "sh", path, root.home + "/.config/hypr/current-wallpaper", themeEdit.editing.name]);
+        }
+
+        // ---- the section's "back to the theme"
+        function sectionEdited() {
+            const part = themeEdit.edit[themeEdit.section] || {};
+            if (themeEdit.section === "wallpapers") return part.added.length > 0 || part.off.length > 0;
+            return Object.values(part).some(value => !!value);
+        }
+        function resetSection() {
+            const empty = { fonts: { font: "", display: "", body: "" }, colors: {}, wallpapers: { added: [], off: [] } };
+            themeEdit.change(themeEdit.section, empty[themeEdit.section]);
+        }
+
+        // ---- saving
         function save() {
-            fonts.write(fonts.editing.current ? "changetheme --keep-wallpaper " + fonts.editing.name : "");
-            fonts.editing = null;
+            themeEdit.write(themeEdit.editing.current ? "changetheme --keep-wallpaper " + themeEdit.editing.name : "");
         }
-
         function switchTo() {
-            fonts.write("changetheme " + fonts.editing.name);
+            themeEdit.write("changetheme " + themeEdit.editing.name);
             root.close();
         }
-
-        function write(after) {
-            const picked = {};
-            for (const [key] of fonts.slots)
-                if (fonts.edit[key]) picked[key] = fonts.edit[key];
-            const next = Object.assign({}, fonts.all);
-            if (Object.keys(picked).length) next[fonts.editing.name] = picked;
-            else delete next[fonts.editing.name];
-            fonts.all = next;
-            root.writeFile(fonts.path, JSON.stringify(next, null, 2) + "\n", after);
-            root.themes = root.themes.map(t => t.name === fonts.editing.name ? Object.assign({}, t, { chosenFonts: picked }) : t);
+        // Writes the file, then runs: the removed wallpapers' copies go, a colour change rebuilds what
+        // themegen draws for every theme (battery icon, Telegram, Code - OSS), then `then`.
+        function write(then) {
+            const before = JSON.parse(themeEdit.saved);
+            const next = Object.assign({}, themeEdit.everyTheme);
+            const pruned = themeEdit.pruned(themeEdit.edit);
+            if (Object.keys(pruned).length) next[themeEdit.editing.name] = pruned;
+            else delete next[themeEdit.editing.name];
+            const steps = before.wallpapers.added.filter(p => !themeEdit.edit.wallpapers.added.includes(p))
+                .filter(p => p.startsWith(themeEdit.wallpaperDir + "/")).map(p => "rm -f " + root.quote(p));
+            if (JSON.stringify(before.colors) !== JSON.stringify(themeEdit.edit.colors))
+                steps.push("python3 ~/.config/hypr/scripts/themegen.py build >/dev/null 2>&1");
+            if (then) steps.push(then);
+            root.writeFile(themeEdit.path, JSON.stringify({ themes: next }, null, 2) + "\n", steps.join("; "));
+            themeEdit.everyTheme = next;
+            themeEdit.saved = JSON.stringify(themeEdit.edit);
+            root.themes = root.themes.map(t => t.name === themeEdit.editing.name ? Object.assign({}, t, { edits: pruned }) : t);
+        }
+        // Only what differs from the theme: no empty fonts, colours or lists.
+        function pruned(edit) {
+            const out = {};
+            const fonts = {};
+            for (const [key, value] of Object.entries(edit.fonts))
+                if (value) fonts[key] = value;
+            if (Object.keys(fonts).length) out.fonts = fonts;
+            if (Object.keys(edit.colors).length) out.colors = edit.colors;
+            const walls = {};
+            if (edit.wallpapers.added.length) walls.added = edit.wallpapers.added;
+            if (edit.wallpapers.off.length) walls.off = edit.wallpapers.off;
+            if (Object.keys(walls).length) out.wallpapers = walls;
+            return out;
         }
     }
-    FileView { id: fontsFile; path: fonts.path; blockLoading: true }
+    FileView { id: themeEditFile; path: themeEdit.path; blockLoading: true }
     Process {
         id: fontsProc
         command: ["sh", "-c", "fc-list : family | cut -d, -f1 | sort -u"]
-        stdout: StdioCollector { onStreamFinished: fonts.installed = this.text.split("\n").filter(name => name) }
+        stdout: StdioCollector { onStreamFinished: themeEdit.installedFonts = this.text.split("\n").filter(name => name) }
+    }
+    Process {
+        id: wallpaperPicker
+        stdout: StdioCollector { onStreamFinished: themeEdit.addWallpaper(this.text.trim()) }
+        onExited: root.picking = false
     }
 
-    // ================= window =================
-
     PanelWindow {
+        visible: !root.picking
         anchors { top: true; bottom: true; left: true; right: true }
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
@@ -456,7 +569,7 @@ ShellRoot {
                 e.accepted = true;
                 if (keys.capturing !== "") { keys.onKey(e); return; }
                 if (e.key !== Qt.Key_Escape) return;
-                if (fonts.editing) fonts.editing = null;
+                if (themeEdit.editing) themeEdit.editing = null;
                 else root.close();
             }
             Component.onCompleted: inAnim.start()
@@ -899,7 +1012,7 @@ ShellRoot {
                                     id: tma
                                     anchors.fill: parent
                                     hoverEnabled: true
-                                    onClicked: fonts.open(tcard.modelData)
+                                    onClicked: themeEdit.open(tcard.modelData)
                                 }
                             }
                         }
@@ -908,7 +1021,7 @@ ShellRoot {
                     // ---------------- Настройки одной темы ----------------
                     ThemeSettings {
                         anchors.fill: parent
-                        visible: root.page === "theme" && fonts.editing !== null
+                        visible: root.page === "theme" && themeEdit.editing !== null
                     }
                 }
 
@@ -976,25 +1089,73 @@ ShellRoot {
         MouseArea { id: chm; anchors.fill: parent; hoverEnabled: true; enabled: ch.enabled; onClicked: ch.clicked() }
     }
 
-    // Settings of the theme fonts.editing: its three fonts on the left, and on the right the installed
-    // fonts, each in its own face, which set the chosen one.
+    // One theme's settings (themeEdit.editing): a header with saving and switching, the section tabs
+    // and the section itself.
     component ThemeSettings: Rectangle {
         color: theme.c.bg || "black"
         MouseArea { anchors.fill: parent }
 
+        Row {
+            id: editHeader
+            anchors { left: parent.left; top: parent.top }
+            spacing: 14
+            Chip { text: "← Темы"; onClicked: themeEdit.editing = null }
+            SectionTitle {
+                anchors.verticalCenter: parent.verticalCenter
+                text: themeEdit.editing ? "Тема «" + themeEdit.editing.pal.label + "»" : ""
+            }
+        }
+        Row {
+            anchors { right: parent.right; top: parent.top }
+            spacing: 10
+            Chip { text: "Сбросить к теме"; enabled: themeEdit.editing !== null && themeEdit.sectionEdited(); onClicked: themeEdit.resetSection() }
+            Chip { visible: themeEdit.editing !== null && !themeEdit.editing.current; text: "Включить тему"; onClicked: themeEdit.switchTo() }
+            Chip { text: "Сохранить"; primary: true; enabled: themeEdit.dirty; onClicked: themeEdit.save() }
+        }
+        Row {
+            id: sectionTabs
+            anchors { left: parent.left; top: editHeader.bottom; topMargin: 16 }
+            spacing: 8
+            Repeater {
+                model: themeEdit.sections
+                TabButton {
+                    required property var modelData
+                    text: modelData[1]
+                    active: themeEdit.section === modelData[0]
+                    onClicked: themeEdit.section = modelData[0]
+                }
+            }
+        }
+        Text {
+            anchors { right: parent.right; verticalCenter: sectionTabs.verticalCenter }
+            text: !themeEdit.editing ? "" : themeEdit.editing.current ? "Тема включена: изменения применятся при сохранении"
+                                                                       : "Изменения применятся, когда включишь эту тему"
+            font.family: theme.bodyFont; font.pixelSize: 13
+            color: theme.c.muted || "grey"
+        }
+
+        Item {
+            anchors { left: parent.left; right: parent.right; top: sectionTabs.bottom; bottom: parent.bottom; topMargin: 20 }
+            FontsSection { anchors.fill: parent; visible: themeEdit.section === "fonts" }
+            ColorsSection { anchors.fill: parent; visible: themeEdit.section === "colors" }
+            WallpapersSection { anchors.fill: parent; visible: themeEdit.section === "wallpapers" }
+        }
+    }
+
+    // The three fonts on the left; on the right the installed fonts, each in its own face.
+    component FontsSection: Item {
         Column {
             id: slotColumn
-            anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+            anchors { left: parent.left; top: parent.top }
             width: 400
             spacing: 12
-            SectionTitle { text: fonts.editing ? "Тема «" + fonts.editing.pal.label + "»: шрифты" : "" }
             Repeater {
-                model: fonts.slots
+                model: themeEdit.fontSlots
                 Rectangle {
                     id: slotRow
                     required property var modelData
                     readonly property string key: modelData[0]
-                    readonly property bool active: fonts.slot === key
+                    readonly property bool active: themeEdit.fontSlot === key
                     width: slotColumn.width; height: 92
                     radius: root.r > 4 ? 10 : 0
                     color: active ? Color.withAlpha(theme.c.accent, 0.16) : Color.withAlpha(theme.c.bg2, 0.9)
@@ -1010,37 +1171,24 @@ ShellRoot {
                         Text {
                             width: parent.width
                             elide: Text.ElideRight
-                            text: fonts.editing ? fonts.shown(slotRow.key) : ""
+                            text: themeEdit.editing ? themeEdit.font(slotRow.key) : ""
                             font.family: text; font.pixelSize: 22
                             color: theme.c.fg || "white"
                         }
                         Text {
-                            text: fonts.editing && fonts.edit[slotRow.key] ? "свой выбор" : "как в теме"
+                            readonly property bool own: !themeEdit.editing || !themeEdit.edit.fonts[slotRow.key]
+                            text: own ? "как в теме" : "свой выбор"
                             font.family: theme.bodyFont; font.pixelSize: 12
-                            color: fonts.editing && fonts.edit[slotRow.key] ? (theme.c.accent || "white") : (theme.c.muted || "grey")
+                            color: own ? (theme.c.muted || "grey") : (theme.c.accent || "white")
                         }
                     }
-                    MouseArea { anchors.fill: parent; onClicked: fonts.slot = slotRow.key }
+                    MouseArea { anchors.fill: parent; onClicked: themeEdit.fontSlot = slotRow.key }
                 }
             }
-            Text {
-                width: slotColumn.width
-                wrapMode: Text.WordWrap
-                text: fonts.editing && fonts.editing.current ? "Тема сейчас включена: шрифты применятся сразу после сохранения."
-                                                         : "Шрифты применятся, когда включишь эту тему."
-                font.family: theme.bodyFont; font.pixelSize: 13
-                color: theme.c.muted || "grey"
-            }
-            Row {
-                spacing: 10
-                Chip { text: "Как в теме"; enabled: fonts.editing !== null && !!fonts.edit[fonts.slot]; onClicked: fonts.choose("") }
-                Chip { text: "Назад"; onClicked: fonts.editing = null }
-                Chip { text: "Сохранить"; primary: true; onClicked: fonts.save() }
-            }
             Chip {
-                visible: fonts.editing !== null && !fonts.editing.current
-                text: "Включить тему"
-                onClicked: fonts.switchTo()
+                text: "Как в теме"
+                enabled: themeEdit.editing !== null && !!themeEdit.edit.fonts[themeEdit.fontSlot]
+                onClicked: themeEdit.chooseFont("")
             }
         }
 
@@ -1048,21 +1196,22 @@ ShellRoot {
             id: fontSearch
             anchors { left: slotColumn.right; right: parent.right; top: parent.top; leftMargin: 24 }
             placeholder: "Поиск шрифта"
-            onTextChanged: fonts.query = text
+            onTextChanged: themeEdit.fontQuery = text
         }
         ListView {
             anchors { left: fontSearch.left; right: parent.right; top: fontSearch.bottom; bottom: parent.bottom; topMargin: 10 }
             clip: true
             spacing: 2
             boundsBehavior: Flickable.StopAtBounds
-            model: fonts.matching
+            model: themeEdit.matchingFonts
             delegate: Rectangle {
                 id: fontRow
                 required property string modelData
-                readonly property bool picked: fonts.editing !== null && fonts.shown(fonts.slot) === modelData
+                readonly property bool picked: themeEdit.editing !== null && themeEdit.font(themeEdit.fontSlot) === modelData
                 width: ListView.view.width; height: 44
                 radius: root.r > 4 ? 8 : 0
-                color: picked ? Color.withAlpha(theme.c.accent, 0.22) : (rowArea.containsMouse ? Color.withAlpha(theme.c.accent, 0.1) : "transparent")
+                color: picked ? Color.withAlpha(theme.c.accent, 0.22)
+                       : (rowArea.containsMouse ? Color.withAlpha(theme.c.accent, 0.1) : "transparent")
                 Text {
                     anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
                     text: fontRow.modelData
@@ -1075,7 +1224,258 @@ ShellRoot {
                     font.family: fontRow.modelData; font.pixelSize: 18
                     color: fontRow.picked ? (theme.c.accent || "white") : (theme.c.muted || "grey")
                 }
-                MouseArea { id: rowArea; anchors.fill: parent; hoverEnabled: true; onClicked: fonts.choose(fontRow.modelData) }
+                MouseArea { id: rowArea; anchors.fill: parent; hoverEnabled: true; onClicked: themeEdit.chooseFont(fontRow.modelData) }
+            }
+        }
+    }
+
+    // The ten palette colours on the left, the picker for the chosen one on the right, and a strip
+    // drawn in the edited colours to see them together.
+    component ColorsSection: Item {
+        Column {
+            id: colorColumn
+            anchors { left: parent.left; top: parent.top }
+            width: 400
+            spacing: 6
+            Repeater {
+                model: themeEdit.colorNames
+                Rectangle {
+                    id: colorRow
+                    required property var modelData
+                    readonly property string key: modelData[0]
+                    readonly property bool active: themeEdit.colorKey === key
+                    width: colorColumn.width; height: 44
+                    radius: root.r > 4 ? 8 : 0
+                    color: active ? Color.withAlpha(theme.c.accent, 0.16) : (colorRowArea.containsMouse ? Color.withAlpha(theme.c.accent, 0.08) : "transparent")
+                    border.color: active ? (theme.c.accent || "white") : "transparent"
+                    Rectangle {
+                        id: swatch
+                        anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
+                        width: 28; height: 28; radius: 6
+                        color: themeEdit.editing ? themeEdit.color(colorRow.key) : "transparent"
+                        border.color: Color.withAlpha(theme.c.fg, 0.4)
+                    }
+                    Text {
+                        anchors { left: swatch.right; leftMargin: 12; verticalCenter: parent.verticalCenter }
+                        text: colorRow.modelData[1]
+                        font.family: theme.bodyFont; font.pixelSize: 15
+                        color: theme.c.fg || "white"
+                    }
+                    Text {
+                        anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                        readonly property bool own: !themeEdit.editing || !themeEdit.edit.colors[colorRow.key]
+                        text: (themeEdit.editing ? themeEdit.color(colorRow.key) : "") + (own ? "" : "  · свой")
+                        font.family: theme.font; font.pixelSize: 13
+                        color: own ? (theme.c.muted || "grey") : (theme.c.accent || "white")
+                    }
+                    MouseArea { id: colorRowArea; anchors.fill: parent; hoverEnabled: true; onClicked: themeEdit.colorKey = colorRow.key }
+                }
+            }
+        }
+
+        ColorPicker {
+            id: picker
+            anchors { left: colorColumn.right; top: parent.top; leftMargin: 28 }
+            value: themeEdit.editing ? themeEdit.color(themeEdit.colorKey) : "#000000"
+            onPicked: hex => themeEdit.chooseColor(hex)
+        }
+        Chip {
+            anchors { left: picker.left; top: picker.bottom; topMargin: 12 }
+            text: "Как в теме"
+            enabled: themeEdit.editing !== null && !!themeEdit.edit.colors[themeEdit.colorKey]
+            onClicked: themeEdit.ownColor()
+        }
+
+        // A little bar in the edited colours.
+        Rectangle {
+            anchors { left: picker.left; right: parent.right; bottom: parent.bottom }
+            height: 64
+            radius: root.r > 4 ? 12 : 0
+            readonly property var c: {
+                const colors = {};
+                if (themeEdit.editing)
+                    for (const [key] of themeEdit.colorNames) colors[key] = themeEdit.color(key);
+                return colors;
+            }
+            color: c.bg || "black"
+            border.color: c.accent || "white"
+            Row {
+                anchors { left: parent.left; leftMargin: 18; verticalCenter: parent.verticalCenter }
+                spacing: 14
+                Rectangle { width: 30; height: 30; radius: 15; color: parent.parent.c.accent || "white"; anchors.verticalCenter: parent.verticalCenter }
+                Text { text: "Текст"; color: parent.parent.c.fg || "white"; font.family: theme.bodyFont; font.pixelSize: 16; anchors.verticalCenter: parent.verticalCenter }
+                Text { text: "приглушённый"; color: parent.parent.c.muted || "grey"; font.family: theme.bodyFont; font.pixelSize: 16; anchors.verticalCenter: parent.verticalCenter }
+                Rectangle {
+                    width: 120; height: 34; radius: 8; color: parent.parent.c.bg2 || "black"
+                    anchors.verticalCenter: parent.verticalCenter
+                    Text { anchors.centerIn: parent; text: "кнопка"; color: parent.parent.parent.c.accent2 || "white"; font.family: theme.bodyFont; font.pixelSize: 15 }
+                }
+                Text { text: "ок"; color: parent.parent.c.good || "green"; font.family: theme.bodyFont; font.pixelSize: 16; anchors.verticalCenter: parent.verticalCenter }
+                Text { text: "внимание"; color: parent.parent.c.warn || "yellow"; font.family: theme.bodyFont; font.pixelSize: 16; anchors.verticalCenter: parent.verticalCenter }
+                Text { text: "ошибка"; color: parent.parent.c.crit || "red"; font.family: theme.bodyFont; font.pixelSize: 16; anchors.verticalCenter: parent.verticalCenter }
+            }
+        }
+    }
+
+    // Saturation and value in the square, hue in the bar below, and the hex code. value comes in;
+    // picked(hex) goes out on every change the user makes.
+    component ColorPicker: Column {
+        id: cp
+        property string value: "#000000"
+        property real hue: 0
+        property real saturation: 0
+        property real brightness: 0
+        signal picked(string hex)
+        spacing: 12
+        onValueChanged: load(value)
+        Component.onCompleted: load(value)
+
+        function load(hex) {
+            const c = Qt.color(hex);
+            if (c.hsvHue >= 0) cp.hue = c.hsvHue;
+            cp.saturation = c.hsvSaturation;
+            cp.brightness = c.hsvValue;
+            hexField.text = hex;
+        }
+        function pick() {
+            const hex = Qt.hsva(cp.hue, cp.saturation, cp.brightness, 1).toString();
+            hexField.text = hex;
+            cp.picked(hex);
+        }
+
+        Rectangle {
+            id: square
+            width: 320; height: 220
+            radius: 6
+            color: Qt.hsva(cp.hue, 1, 1, 1)
+            Rectangle {
+                anchors.fill: parent; radius: parent.radius
+                gradient: Gradient { orientation: Gradient.Horizontal; GradientStop { position: 0; color: "white" } GradientStop { position: 1; color: "transparent" } }
+            }
+            Rectangle {
+                anchors.fill: parent; radius: parent.radius
+                gradient: Gradient { GradientStop { position: 0; color: "transparent" } GradientStop { position: 1; color: "black" } }
+            }
+            Rectangle {
+                x: cp.saturation * parent.width - 8; y: (1 - cp.brightness) * parent.height - 8
+                width: 16; height: 16; radius: 8
+                color: "transparent"; border.color: "white"; border.width: 2
+            }
+            MouseArea {
+                anchors.fill: parent
+                function set(mouse) {
+                    cp.saturation = Math.max(0, Math.min(1, mouse.x / width));
+                    cp.brightness = Math.max(0, Math.min(1, 1 - mouse.y / height));
+                    cp.pick();
+                }
+                onPressed: mouse => set(mouse)
+                onPositionChanged: mouse => set(mouse)
+            }
+        }
+        Rectangle {
+            width: square.width; height: 22
+            radius: 6
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0.0; color: "#ff0000" }
+                GradientStop { position: 0.17; color: "#ffff00" }
+                GradientStop { position: 0.33; color: "#00ff00" }
+                GradientStop { position: 0.5; color: "#00ffff" }
+                GradientStop { position: 0.67; color: "#0000ff" }
+                GradientStop { position: 0.83; color: "#ff00ff" }
+                GradientStop { position: 1.0; color: "#ff0000" }
+            }
+            Rectangle {
+                x: cp.hue * parent.width - 3; y: -3
+                width: 6; height: parent.height + 6; radius: 3
+                color: "white"; border.color: "black"
+            }
+            MouseArea {
+                anchors.fill: parent
+                function set(mouse) {
+                    cp.hue = Math.max(0, Math.min(0.999, mouse.x / width));
+                    cp.pick();
+                }
+                onPressed: mouse => set(mouse)
+                onPositionChanged: mouse => set(mouse)
+            }
+        }
+        Row {
+            spacing: 10
+            Rectangle { width: 34; height: 34; radius: 8; color: cp.value; border.color: Color.withAlpha(theme.c.fg, 0.4) }
+            Field {
+                id: hexField
+                width: 140
+                placeholder: "#rrggbb"
+                onAccepted: {
+                    if (/^#[0-9a-fA-F]{6}$/.test(text)) cp.picked(text.toLowerCase());
+                }
+            }
+        }
+    }
+
+    // The wallpapers changetheme picks from: click one to switch it on or off.
+    component WallpapersSection: Item {
+        Row {
+            id: wallpaperActions
+            spacing: 10
+            Chip { text: "Добавить обои"; onClicked: themeEdit.pickWallpaper() }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Нажми на картинку, чтобы включить или выключить её; при смене темы обои выбираются случайно из включённых."
+                font.family: theme.bodyFont; font.pixelSize: 13
+                color: theme.c.muted || "grey"
+            }
+        }
+        GridView {
+            anchors { left: parent.left; right: parent.right; top: wallpaperActions.bottom; bottom: parent.bottom; topMargin: 16 }
+            clip: true
+            cellWidth: 260; cellHeight: 196
+            boundsBehavior: Flickable.StopAtBounds
+            model: themeEdit.editing ? themeEdit.wallpapers() : []
+            delegate: Item {
+                id: wallTile
+                required property var modelData
+                width: 248; height: 184
+                Rectangle {
+                    anchors { left: parent.left; right: parent.right; top: parent.top }
+                    height: 140
+                    radius: root.r > 4 ? 10 : 0
+                    clip: true
+                    color: theme.c.bg2 || "black"
+                    border.width: 2
+                    border.color: wallTile.modelData.on ? (theme.c.accent || "white") : Color.withAlpha(theme.c.muted, 0.3)
+                    Image {
+                        anchors { fill: parent; margins: 2 }
+                        source: "file://" + wallTile.modelData.thumb
+                        sourceSize.width: 480
+                        fillMode: Image.PreserveAspectCrop
+                        asynchronous: true
+                        opacity: wallTile.modelData.on ? 1 : 0.3
+                    }
+                    Text {
+                        visible: !wallTile.modelData.on
+                        anchors.centerIn: parent
+                        text: "выключены"
+                        font.family: theme.bodyFont; font.pixelSize: 15; font.bold: true
+                        color: theme.c.fg || "white"
+                    }
+                    MouseArea { anchors.fill: parent; onClicked: themeEdit.toggleWallpaper(wallTile.modelData.path) }
+                }
+                Row {
+                    anchors { left: parent.left; bottom: parent.bottom }
+                    spacing: 6
+                    Chip {
+                        visible: themeEdit.editing !== null && themeEdit.editing.current && wallTile.modelData.on
+                        text: "Поставить сейчас"
+                        onClicked: themeEdit.showWallpaper(wallTile.modelData.path)
+                    }
+                    Chip {
+                        visible: wallTile.modelData.added
+                        text: "Убрать"
+                        onClicked: themeEdit.removeWallpaper(wallTile.modelData.path)
+                    }
+                }
             }
         }
     }
@@ -1090,6 +1490,7 @@ ShellRoot {
         id: fld
         property alias text: input.text
         property string placeholder
+        signal accepted()
         height: 34
         radius: root.r > 4 ? 9 : 0
         color: Color.withAlpha(theme.c.bg2, 0.9)
@@ -1103,6 +1504,7 @@ ShellRoot {
             selectionColor: Color.withAlpha(theme.c.accent, 0.4)
             clip: true
             Keys.onEscapePressed: scene.forceActiveFocus()
+            onAccepted: fld.accepted()
         }
         Text {
             anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
