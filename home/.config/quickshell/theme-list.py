@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """theme-list.py OUT — write every theme to OUT as JSON for the theme picker and the settings
 window: name, folder, palette.json and ui.json with the user's edits in place, the edits themselves
-and the theme's own fonts and colours, its wallpapers, a thumbnail and whether it is current.
+and the theme's own fonts and colours, its wallpapers, its waybar layout, a thumbnail and whether
+it is current.
 Thumbnails are cached in ~/.cache/theme-thumbs and rebuilt only when the wallpaper is newer."""
 import hashlib
 import json
@@ -12,6 +13,7 @@ from PIL import Image
 
 # themegen's loader, so each theme comes with the user's edits.
 sys.path.insert(0, str(Path.home() / ".config/hypr/scripts"))
+from apptheme import waybar
 from apptheme.theme import all_names, load
 
 HYPR = Path.home() / ".config/hypr"
@@ -40,7 +42,8 @@ def main():
                        "pal": theme.palette, "ui": theme.ui, "edits": theme.edits, "own": theme.own,
                        "wallpapers": [{"path": str(path), "thumb": thumbnail(path), "added": path in added,
                                        "on": path in theme.wallpapers}
-                                      for path in theme.own_wallpapers + added]})
+                                      for path in theme.own_wallpapers + added],
+                       "waybar": waybar.layout(theme)})
     Path(sys.argv[1]).write_text(json.dumps(themes, ensure_ascii=False))
 
 

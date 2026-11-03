@@ -12,8 +12,12 @@ from .paths import RICE_CONF, THEMES
 # part of the rice repo, so updates leave it alone:
 #   {"themes": {"coffee": {"fonts": {"font": "Iosevka", "display": "", "body": "Inter"},
 #                          "colors": {"accent": "#e0a050"},
-#                          "wallpapers": {"added": ["/home/me/Pictures/a.png"], "off": ["…/02.png"]}}}}
-# An empty font or a missing key keeps the theme's own.
+#                          "wallpapers": {"added": ["/home/me/Pictures/a.png"], "off": ["…/02.png"]},
+#                          "waybar": {"modules-left": […], "modules-center": […], "modules-right": […],
+#                                     "position": "bottom"}}},
+#    "everywhere": {"waybar": {…}}}
+# "everywhere" holds what was saved for all themes; a theme's own edit wins over it. An empty font or
+# a missing key keeps the theme's own.
 EDITS = RICE_CONF / "theme-edits.json"
 WALLPAPER_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")
 COLOR = re.compile(r"#[0-9a-fA-F]{6}")
@@ -29,7 +33,8 @@ class Theme:
     palette: dict  # palette.json with the user's fonts and colors in place
     ui: dict       # ui.json: shape and font choices, with the user's text font; {} without one
     dir: Path
-    edits: dict = field(default_factory=dict)  # this theme's part of EDITS
+    edits: dict = field(default_factory=dict)   # this theme's part of EDITS
+    shared: dict = field(default_factory=dict)  # EDITS "everywhere"
     own: dict = field(default_factory=dict)    # the theme's own fonts and colors, before the edits
 
     @property
@@ -75,7 +80,8 @@ def load(name):
     own = {"fonts": {"font": palette["font"], "display": palette["display"],
                      "body": resolve_body_font(ui, palette["font"], palette["display"])},
            "colors": palette["colors"]}
-    edits = read_edits().get(name, {})
+    every_edit = read_edits()
+    edits = every_edit.get("themes", {}).get(name, {})
     fonts = {key: value for key, value in edits.get("fonts", {}).items() if value}
     colors = {key: value for key, value in edits.get("colors", {}).items()
               if key in palette["colors"] and COLOR.fullmatch(str(value))}
@@ -84,16 +90,20 @@ def load(name):
     if "body" in fonts:
         ui = {**ui, "bodyFont": fonts["body"]}
     return Theme(name=palette["name"], label=palette["label"], font=palette["font"], display=palette["display"],
-                 colors=palette["colors"], palette=palette, ui=ui, dir=folder, edits=edits, own=own)
+                 colors=palette["colors"], palette=palette, ui=ui, dir=folder, edits=edits,
+                 shared=every_edit.get("everywhere", {}), own=own)
 
 
 def read_edits():
-    """Every theme's edits by theme name; {} without the file or with a broken one."""
+    """The whole EDITS file; {} without it or with a broken one."""
     if not EDITS.exists():
         return {}
     try:
-        return json.loads(EDITS.read_text()).get("themes", {})
-    except (ValueError, AttributeError) as error:
+        edits = json.loads(EDITS.read_text())
+        if not isinstance(edits, dict):
+            raise ValueError("not a JSON object")
+        return edits
+    except ValueError as error:
         print(f"{EDITS}: не читается ({error}), темы остаются без правок", file=sys.stderr)
         return {}
 

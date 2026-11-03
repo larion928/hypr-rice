@@ -252,6 +252,35 @@ PY
         || fail "waybar не получил шрифт"
 }
 
+# The waybar layout saved for every theme applies to all of them, a theme's own layout wins over
+# it; a module only one theme defines is dropped elsewhere, and a bar at the bottom keeps its gap
+# to the screen edge.
+test_waybar_layout_edits() {
+    local themes="$HOME/.config/hypr/themes"
+    mkdir -p "$themes" "$HOME/.config/hypr-rice/waybar"
+    cp -r "$REPO/home/.config/hypr/themes/"{claude,coffee} "$themes/"
+    cp "$REPO/home/.config/hypr-rice/waybar/config.base.json" "$HOME/.config/hypr-rice/waybar/"
+    cat > "$HOME/.config/hypr-rice/theme-edits.json" <<'EOF'
+{"everywhere": {"waybar": {"modules-left": ["clock", "custom/claude"], "modules-right": ["tray"],
+                           "position": "bottom"}},
+ "themes": {"claude": {"waybar": {"modules-left": ["custom/claude"], "modules-right": ["clock"]}}}}
+EOF
+    python3 - "$REPO/home/.config/hypr/scripts" <<'PY' || fail "раскладка собрана не так"
+import sys
+sys.path.insert(0, sys.argv[1])
+from apptheme import waybar
+from apptheme.theme import load
+coffee = waybar.config_for(load("coffee"))
+assert coffee["modules-left"] == ["clock"], coffee["modules-left"]   # custom/claude is claude's own
+assert coffee["modules-right"] == ["tray"], coffee["modules-right"]
+assert coffee["position"] == "bottom" and "margin-bottom" in coffee and "margin-top" not in coffee
+claude = waybar.config_for(load("claude"))
+assert claude["modules-left"] == ["custom/claude"], claude["modules-left"]
+assert claude["modules-right"] == ["clock"], claude["modules-right"]
+assert claude["position"] == "bottom", "the shared position stays where the theme sets none"
+PY
+}
+
 # themegen builds and applies every theme in a fake $HOME; tests/themegen_snapshot.sh records it all.
 test_themegen_applies_every_theme() {
     "$REPO/tests/themegen_snapshot.sh" "$HOME/snapshot" >/dev/null || fail "themegen упал, вывод выше"

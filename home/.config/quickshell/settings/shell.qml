@@ -385,7 +385,21 @@ ShellRoot {
         id: themeEdit
         readonly property string path: root.home + "/.config/hypr-rice/theme-edits.json"
         readonly property string wallpaperDir: root.home + "/.local/share/hypr-rice/wallpapers"
-        readonly property var sections: [["fonts", "Шрифты"], ["colors", "Цвета"], ["wallpapers", "Обои"]]
+        readonly property var sections: [["fonts", "Шрифты"], ["colors", "Цвета"], ["wallpapers", "Обои"],
+                                         ["waybar", "Панель"]]
+        readonly property var sides: [["modules-left", "Слева"], ["modules-center", "По центру"],
+                                      ["modules-right", "Справа"]]
+        readonly property var moduleNames: ({
+            "hyprland/workspaces": "Рабочие столы", "hyprland/window": "Заголовок окна",
+            "hyprland/language": "Раскладка", "pulseaudio": "Громкость", "cpu": "Процессор",
+            "memory": "Память", "temperature": "Температура", "custom/power": "Режим питания",
+            "custom/battery": "Батарея", "battery": "Батарея (стандартная)", "network": "Сеть",
+            "custom/updates": "Обновления", "clock": "Часы", "custom/histui": "Уведомления",
+            "custom/shots": "Скриншоты", "custom/settings": "Настройки", "custom/help": "Справка",
+            "custom/theme": "Выбор темы", "custom/exit": "Выключение", "custom/claude": "Лимиты Claude",
+            "tray": "Трей", "backlight": "Яркость", "bluetooth": "Bluetooth", "idle_inhibitor": "Не засыпать",
+            "mpris": "Плеер", "disk": "Диск", "power-profiles-daemon": "Профиль питания (системный)"
+        })
         readonly property var fontSlots: [["font", "Основной", "панель, терминал, моноширинный текст"],
                                           ["display", "Заголовки", "названия, часы на экране блокировки"],
                                           ["body", "Текст", "окна райса, браузеры, Discord"]]
@@ -394,12 +408,14 @@ ShellRoot {
                                            ["accent2", "Акцент 2"], ["accent3", "Акцент 3"],
                                            ["good", "Хорошо"], ["warn", "Внимание"], ["crit", "Ошибка"]]
         property var everyTheme: ({})  // the whole file's "themes"
+        property var everywhere: ({})  // the whole file's "everywhere": what was saved for all themes
         property var editing: null     // the card being edited, an entry of root.themes
         property var edit: ({})        // {fonts, colors, wallpapers: {added, off}}
         property string saved: ""      // edit as last saved, to see what changed
         property string section: "fonts"
         property string fontSlot: "font"
         property string colorKey: "accent"
+        property string panelSide: "modules-right"  // where «добавить» puts a module
         property var installedFonts: []
         property string fontQuery: ""
         readonly property var matchingFonts: themeEdit.installedFonts.filter(
@@ -411,11 +427,13 @@ ShellRoot {
             let file = {};
             try { file = JSON.parse(themeEditFile.text()) || {}; } catch (e) {}
             themeEdit.everyTheme = file.themes || {};
+            themeEdit.everywhere = file.everywhere || {};
             const mine = themeEdit.everyTheme[entry.name] || {};
             const walls = mine.wallpapers || {};
             themeEdit.edit = { fonts: Object.assign({ font: "", display: "", body: "" }, mine.fonts || {}),
                                colors: Object.assign({}, mine.colors || {}),
-                               wallpapers: { added: (walls.added || []).slice(), off: (walls.off || []).slice() } };
+                               wallpapers: { added: (walls.added || []).slice(), off: (walls.off || []).slice() },
+                               waybar: mine.waybar ? JSON.parse(JSON.stringify(mine.waybar)) : null };
             themeEdit.saved = JSON.stringify(themeEdit.edit);
             themeEdit.section = "fonts";
             themeEdit.fontSlot = "font";
@@ -490,14 +508,76 @@ ShellRoot {
                             + " && changetheme --keep-wallpaper " + themeEdit.editing.name);
         }
 
+        // ---- panel: this theme's own waybar layout, or null to follow the one saved for every theme
+        function panel() {
+            return themeEdit.edit.waybar || themeEdit.editing.waybar.withoutOwn;
+        }
+        function panelCopy() {
+            return JSON.parse(JSON.stringify(themeEdit.panel()));
+        }
+        function onPanel(module) {
+            return themeEdit.sides.some(([side]) => (themeEdit.panel()[side] || []).includes(module));
+        }
+        function moduleName(module) {
+            return themeEdit.moduleNames[module] || module;
+        }
+        function moveModule(side, index, step) {
+            const layout = themeEdit.panelCopy();
+            const list = layout[side];
+            const to = index + step;
+            if (to < 0 || to >= list.length) return;
+            [list[index], list[to]] = [list[to], list[index]];
+            themeEdit.change("waybar", layout);
+        }
+        function shiftModule(side, index, direction) {
+            const names = themeEdit.sides.map(([name]) => name);
+            const target = names[names.indexOf(side) + direction];
+            if (!target) return;
+            const layout = themeEdit.panelCopy();
+            const [module] = layout[side].splice(index, 1);
+            layout[target] = (layout[target] || []).concat([module]);
+            themeEdit.change("waybar", layout);
+        }
+        function removeModule(side, index) {
+            const layout = themeEdit.panelCopy();
+            layout[side].splice(index, 1);
+            themeEdit.change("waybar", layout);
+        }
+        function addModule(module) {
+            const layout = themeEdit.panelCopy();
+            layout[themeEdit.panelSide] = (layout[themeEdit.panelSide] || []).concat([module]);
+            themeEdit.change("waybar", layout);
+        }
+        function setPosition(position) {
+            themeEdit.change("waybar", Object.assign(themeEdit.panelCopy(), { position: position }));
+        }
+        // The layout on screen becomes the one for every theme; this theme follows it from now on.
+        function savePanelEverywhere() {
+            themeEdit.everywhere = Object.assign({}, themeEdit.everywhere, { waybar: themeEdit.panelCopy() });
+            themeEdit.change("waybar", null);
+            themeEdit.write(themeEdit.applyCurrent());
+        }
+        function dropSharedPanel() {
+            const everywhere = Object.assign({}, themeEdit.everywhere);
+            delete everywhere.waybar;
+            themeEdit.everywhere = everywhere;
+            themeEdit.write(themeEdit.applyCurrent());
+        }
+        // Whatever theme is on now, applied again: a layout for every theme concerns it too.
+        function applyCurrent() {
+            return 'changetheme --keep-wallpaper "$(cat ~/.config/hypr/current-theme)"';
+        }
+
         // ---- the section's "back to the theme"
         function sectionEdited() {
             const part = themeEdit.edit[themeEdit.section] || {};
             if (themeEdit.section === "wallpapers") return part.added.length > 0 || part.off.length > 0;
+            if (themeEdit.section === "waybar") return themeEdit.edit.waybar !== null;
             return Object.values(part).some(value => !!value);
         }
         function resetSection() {
-            const empty = { fonts: { font: "", display: "", body: "" }, colors: {}, wallpapers: { added: [], off: [] } };
+            const empty = { fonts: { font: "", display: "", body: "" }, colors: {}, wallpapers: { added: [], off: [] },
+                            waybar: null };
             themeEdit.change(themeEdit.section, empty[themeEdit.section]);
         }
 
@@ -522,10 +602,18 @@ ShellRoot {
             if (JSON.stringify(before.colors) !== JSON.stringify(themeEdit.edit.colors))
                 steps.push("python3 ~/.config/hypr/scripts/themegen.py build >/dev/null 2>&1");
             if (then) steps.push(then);
-            root.writeFile(themeEdit.path, JSON.stringify({ themes: next }, null, 2) + "\n", steps.join("; "));
+            const file = { themes: next };
+            if (Object.keys(themeEdit.everywhere).length) file.everywhere = themeEdit.everywhere;
+            root.writeFile(themeEdit.path, JSON.stringify(file, null, 2) + "\n", steps.join("; "));
             themeEdit.everyTheme = next;
             themeEdit.saved = JSON.stringify(themeEdit.edit);
-            root.themes = root.themes.map(t => t.name === themeEdit.editing.name ? Object.assign({}, t, { edits: pruned }) : t);
+            // What each theme follows when it has no layout of its own, now that the shared one may differ.
+            const shared = themeEdit.everywhere.waybar;
+            root.themes = root.themes.map(t => {
+                const waybar = Object.assign({}, t.waybar, { withoutOwn: shared || t.waybar.themesOwn });
+                return Object.assign({}, t, { waybar: waybar }, t.name === themeEdit.editing.name ? { edits: pruned } : {});
+            });
+            themeEdit.editing = root.themes.find(t => t.name === themeEdit.editing.name);
         }
         // Only what differs from the theme: no empty fonts, colours or lists.
         function pruned(edit) {
@@ -539,6 +627,7 @@ ShellRoot {
             if (edit.wallpapers.added.length) walls.added = edit.wallpapers.added;
             if (edit.wallpapers.off.length) walls.off = edit.wallpapers.off;
             if (Object.keys(walls).length) out.wallpapers = walls;
+            if (edit.waybar) out.waybar = edit.waybar;
             return out;
         }
     }
@@ -1142,6 +1231,7 @@ ShellRoot {
             FontsSection { anchors.fill: parent; visible: themeEdit.section === "fonts" }
             ColorsSection { anchors.fill: parent; visible: themeEdit.section === "colors" }
             WallpapersSection { anchors.fill: parent; visible: themeEdit.section === "wallpapers" }
+            PanelSection { anchors.fill: parent; visible: themeEdit.section === "waybar" }
         }
     }
 
@@ -1412,6 +1502,135 @@ ShellRoot {
                 placeholder: "#rrggbb"
                 onAccepted: {
                     if (/^#[0-9a-fA-F]{6}$/.test(text)) cp.picked(text.toLowerCase());
+                }
+            }
+        }
+    }
+
+    // The waybar layout: position, the three groups of modules, and the modules to add. Saved for this
+    // theme with «Сохранить» above, or for every theme with the button here.
+    component PanelSection: Item {
+        Row {
+            id: panelTop
+            spacing: 10
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Панель"
+                font.family: theme.bodyFont; font.pixelSize: 15
+                color: theme.c.fg || "white"
+            }
+            Chip { text: "Сверху"; active: themeEdit.editing !== null && themeEdit.panel().position !== "bottom"; onClicked: themeEdit.setPosition("top") }
+            Chip { text: "Снизу"; active: themeEdit.editing !== null && themeEdit.panel().position === "bottom"; onClicked: themeEdit.setPosition("bottom") }
+            Item { width: 20; height: 1 }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: !themeEdit.editing ? ""
+                      : themeEdit.edit.waybar ? "своя раскладка у этой темы"
+                      : themeEdit.everywhere.waybar ? "общая раскладка для всех тем" : "как в теме"
+                font.family: theme.bodyFont; font.pixelSize: 13
+                color: theme.c.accent || "white"
+            }
+        }
+        Row {
+            anchors { right: parent.right; verticalCenter: panelTop.verticalCenter }
+            spacing: 10
+            Chip {
+                visible: themeEdit.editing !== null && !!themeEdit.everywhere.waybar
+                text: "Убрать общую раскладку"
+                onClicked: themeEdit.dropSharedPanel()
+            }
+            Chip { text: "Сохранить для всех тем"; onClicked: themeEdit.savePanelEverywhere() }
+        }
+
+        Row {
+            id: sideColumns
+            anchors { left: parent.left; right: parent.right; top: panelTop.bottom; topMargin: 16 }
+            height: parent.height * 0.62
+            spacing: 14
+            Repeater {
+                model: themeEdit.sides
+                Rectangle {
+                    id: sideBox
+                    required property var modelData
+                    readonly property string side: modelData[0]
+                    width: (sideColumns.width - 28) / 3; height: sideColumns.height
+                    radius: root.r > 4 ? 10 : 0
+                    color: Color.withAlpha(theme.c.bg2, 0.9)
+                    border.color: themeEdit.panelSide === side ? (theme.c.accent || "white") : Color.withAlpha(theme.c.muted, 0.3)
+                    MouseArea { anchors.fill: parent; onClicked: themeEdit.panelSide = sideBox.side }
+                    Text {
+                        id: sideTitle
+                        x: 14; y: 10
+                        text: sideBox.modelData[1] + (themeEdit.panelSide === sideBox.side ? "  · сюда добавляются модули" : "")
+                        font.family: theme.bodyFont; font.pixelSize: 14; font.bold: true
+                        color: theme.c.fg || "white"
+                    }
+                    ListView {
+                        anchors { left: parent.left; right: parent.right; top: sideTitle.bottom; bottom: parent.bottom; margins: 8; topMargin: 8 }
+                        clip: true
+                        spacing: 4
+                        boundsBehavior: Flickable.StopAtBounds
+                        model: themeEdit.editing ? (themeEdit.panel()[sideBox.side] || []) : []
+                        delegate: Rectangle {
+                            id: moduleRow
+                            required property string modelData
+                            required property int index
+                            width: ListView.view.width; height: 38
+                            radius: root.r > 4 ? 7 : 0
+                            color: Color.withAlpha(theme.c.bg, 0.8)
+                            Text {
+                                anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter; right: moduleButtons.left }
+                                elide: Text.ElideRight
+                                text: themeEdit.moduleName(moduleRow.modelData)
+                                font.family: theme.bodyFont; font.pixelSize: 14
+                                color: theme.c.fg || "white"
+                            }
+                            Row {
+                                id: moduleButtons
+                                anchors { right: parent.right; rightMargin: 4; verticalCenter: parent.verticalCenter }
+                                spacing: 2
+                                Repeater {
+                                    model: [["↑", () => themeEdit.moveModule(sideBox.side, moduleRow.index, -1)],
+                                            ["↓", () => themeEdit.moveModule(sideBox.side, moduleRow.index, 1)],
+                                            ["←", () => themeEdit.shiftModule(sideBox.side, moduleRow.index, -1)],
+                                            ["→", () => themeEdit.shiftModule(sideBox.side, moduleRow.index, 1)],
+                                            ["✕", () => themeEdit.removeModule(sideBox.side, moduleRow.index)]]
+                                    Rectangle {
+                                        required property var modelData
+                                        width: 28; height: 28; radius: 6
+                                        color: arrowArea.containsMouse ? Color.withAlpha(theme.c.accent, 0.25) : "transparent"
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: parent.modelData[0]
+                                            font.family: theme.font; font.pixelSize: 15
+                                            color: theme.c.fg || "white"
+                                        }
+                                        MouseArea { id: arrowArea; anchors.fill: parent; hoverEnabled: true; onClicked: parent.modelData[1]() }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Text {
+            id: addTitle
+            anchors { left: parent.left; top: sideColumns.bottom; topMargin: 16 }
+            text: "Добавить модуль (в выделенную колонку):"
+            font.family: theme.bodyFont; font.pixelSize: 14
+            color: theme.c.muted || "grey"
+        }
+        Flow {
+            anchors { left: parent.left; right: parent.right; top: addTitle.bottom; bottom: parent.bottom; topMargin: 10 }
+            spacing: 8
+            Repeater {
+                model: themeEdit.editing ? themeEdit.editing.waybar.available.filter(module => !themeEdit.onPanel(module)) : []
+                Chip {
+                    required property string modelData
+                    text: "+ " + themeEdit.moduleName(modelData)
+                    onClicked: themeEdit.addModule(modelData)
                 }
             }
         }
