@@ -125,10 +125,15 @@ sed -i 's|^ExecStart=/usr/bin/histuid --theme .*|ExecStart=/usr/bin/histuid --th
 # as <file>-<first 12 characters of its sha256>; the repo keeps their checksums, which is what
 # rice checks a download against. A new name per version: users still on the previous one keep
 # getting the file their checksums expect.
+RELEASE_REPO=larion928/hypr-rice
+release_has() {  # release_has ASSET: the release "files" already carries ASSET
+    gh release view files -R "$RELEASE_REPO" --json assets --jq '.assets[].name' 2>/dev/null | grep -qxF "$1"
+}
+
 publish_release_files() {
-    local sums="$REPO/packages/release.sha256" path sha upload
+    local sums="$REPO/packages/release.sha256" path sha asset upload
     : > "$sums.new"
-    for path in $(grep -o 'release:[^ ]*' "$REPO/packages/apps.txt" | cut -d: -f2); do
+    for path in $(grep -v '^#' "$REPO/packages/apps.txt" | grep -o 'release:[^ ]*' | cut -d: -f2); do
         if [ ! -f "$HOME/$path" ]; then
             echo "нет на этой машине, оставляю прежний: $path"
             grep -F "  $path" "$sums" >> "$sums.new" || true
@@ -136,22 +141,24 @@ publish_release_files() {
         fi
         sha=$(sha256sum < "$HOME/$path" | cut -d' ' -f1)
         echo "$sha  $path" >> "$sums.new"
-        grep -qxF "$sha  $path" "$sums" 2>/dev/null && continue
+        asset="$(basename "$path")-${sha:0:12}"
+        release_has "$asset" && continue
         if [ "$DRY" = 1 ]; then
-            echo "(--dry-run: не выкладываю новую версию $path)"
+            echo "(--dry-run: не выкладываю $asset)"
             continue
         fi
-        gh release view files -R larion928/hypr-rice >/dev/null 2>&1 \
-            || gh release create files -R larion928/hypr-rice --latest=false --title "Собранные файлы" \
+        gh release view files -R "$RELEASE_REPO" >/dev/null 2>&1 \
+            || gh release create files -R "$RELEASE_REPO" --latest=false --title "Собранные файлы" \
                    --notes "Файлы, которые rice скачивает вместо хранения в git; контрольные суммы в packages/release.sha256."
         upload=$(mktemp -d)
-        cp "$HOME/$path" "$upload/$(basename "$path")-${sha:0:12}"
-        gh release upload files -R larion928/hypr-rice --clobber "$upload"/*
+        cp "$HOME/$path" "$upload/$asset"
+        gh release upload files -R "$RELEASE_REPO" "$upload/$asset"
         rm -rf "$upload"
-        echo "выложено: $path (${sha:0:12})"
+        echo "выложено: $asset"
     done
     mv "$sums.new" "$sums"
 }
+
 publish_release_files
 
 # Refuse to publish anything that looks like a secret.
