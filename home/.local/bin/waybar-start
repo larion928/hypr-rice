@@ -8,8 +8,7 @@
 # its space. Why is not known: Hyprland reloads, theme animations, themegen, the GTK theme and the
 # wallpaper were each ruled out on their own. changetheme asks for a reload instead of a restart;
 # with that it happened once, in the first test, and not since. Whatever the case, the bar is
-# checked, a failure is logged to
-# ~/.cache/waybar-start.log, and waybar is restarted up to three times.
+# checked, a failure is logged to ~/.cache/waybar-start.log, and waybar is restarted up to three times.
 CONF="$HOME/.config/hypr-rice/waybar"
 
 # user.css (not part of the rice) goes on top of the theme. The combined file stays next to
