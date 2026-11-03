@@ -6,8 +6,9 @@
 # Sometimes the bar does not show: right after login waybar may start before the output is ready;
 # and theme changes that restarted waybar sometimes left its bar at alpha 0, invisible but holding
 # its space. Why is not known: Hyprland reloads, theme animations, themegen, the GTK theme and the
-# wallpaper were each ruled out on their own. Since changetheme asks for a reload instead of a
-# restart it has not happened again. Whatever the case, the bar is checked, a failure is logged to
+# wallpaper were each ruled out on their own. changetheme asks for a reload instead of a restart;
+# with that it happened once, in the first test, and not since. Whatever the case, the bar is
+# checked, a failure is logged to
 # ~/.cache/waybar-start.log, and waybar is restarted up to three times.
 CONF="$HOME/.config/hypr-rice/waybar"
 
