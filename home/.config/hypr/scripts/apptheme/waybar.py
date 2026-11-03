@@ -1,4 +1,5 @@
-"""waybar: config.json from the shared modules, the theme's changes and the machine's own."""
+"""waybar: config.json from the shared modules, the theme's changes and the machine's own; fonts.css
+with the user's font for the theme."""
 import json
 
 from .files import write
@@ -13,6 +14,11 @@ def deep_merge(base, over):
 
 
 def apply(theme):
+    write_config(theme)
+    write_fonts(theme)
+
+
+def write_config(theme):
     # Shared modules live in config.base.json; a theme may override parts of it in waybar.json.
     base_path = RICE_CONF / "waybar/config.base.json"
     if not base_path.exists():
@@ -30,3 +36,12 @@ def apply(theme):
             both_tables = isinstance(options, dict) and isinstance(shared, dict)
             config[module] = {**shared, **options} if both_tables else options
     write(RICE_CONF / "waybar/config.json", json.dumps(config, indent=4, ensure_ascii=False) + "\n")
+
+
+def write_fonts(theme):
+    """fonts.css, which waybar-start puts after the theme's style.css: the user's main font for the
+    theme, with the Nerd Font behind it for the icons. Empty while the theme's own font is used."""
+    rule = ""
+    if "font" in theme.chosen_fonts:
+        rule = f'* {{ font-family: "{theme.font}", "JetBrainsMono Nerd Font", sans-serif; }}\n'
+    write(RICE_CONF / "waybar/fonts.css", rule)

@@ -11,11 +11,12 @@
 # ~/.cache/waybar-start.log, and waybar is restarted up to three times.
 CONF="$HOME/.config/hypr-rice/waybar"
 
-# user.css (not part of the rice) goes on top of the theme. The combined file stays next to
+# On top of the theme's style.css: fonts.css (the font picked for the theme in the settings, written
+# by themegen) and user.css (the user's own, not part of the rice). The combined file stays next to
 # style.css so its relative @import keeps working.
 style() {
-    if [ -f "$CONF/user.css" ]; then
-        cat "$CONF/style.css" "$CONF/user.css" > "$CONF/style.run.css"
+    if [ -s "$CONF/fonts.css" ] || [ -f "$CONF/user.css" ]; then
+        cat "$CONF/style.css" "$CONF/fonts.css" "$CONF/user.css" 2>/dev/null > "$CONF/style.run.css"
         echo "$CONF/style.run.css"
     else
         rm -f "$CONF/style.run.css"

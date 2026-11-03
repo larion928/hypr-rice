@@ -3,7 +3,9 @@
 //               15 s "keep?" countdown; kept settings go to ~/.config/hypr/monitors.lua.
 //   Клавиши   — the editable binds keybind.lua registers ($XDG_RUNTIME_DIR/hypr-binds-registry.json),
 //               the main modifier and the user's own binds; saved to ~/.config/hypr/binds-user.lua.
-//   Тема      — the themes from $RICE_THEME_LIST (written by ../theme-list.py), as in the theme picker.
+//   Тема      — the themes from $RICE_THEME_LIST (written by ../theme-list.py); a card opens that theme's
+//               settings: its fonts (~/.config/hypr-rice/fonts.json, read by themegen) and a button to
+//               switch to it. Quick switching is the theme picker's (Alt+Shift+T).
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -368,6 +370,73 @@ ShellRoot {
     }
     Timer { id: reloadTimer; interval: 900; onTriggered: bindsProc.running = true }
 
+    // ================= theme fonts =================
+
+    // The fonts the user picked per theme, edited one theme at a time; "" keeps the theme's own.
+    // themegen reads the file on every theme change, so the current theme is applied again on save.
+    QtObject {
+        id: fonts
+        readonly property string path: root.home + "/.config/hypr-rice/fonts.json"
+        readonly property var slots: [["font", "Основной", "панель, терминал, моноширинный текст"],
+                                      ["display", "Заголовки", "названия, часы на экране блокировки"],
+                                      ["body", "Текст", "окна райса, браузеры, Discord"]]
+        property var all: ({})        // the whole file: {theme: {font, display, body}}
+        property var editing: null    // the card being edited, an entry of root.themes
+        property var edit: ({})       // its three choices
+        property string slot: "font"  // which of them the font list sets
+        property var installed: []
+        property string query: ""
+        readonly property var matching: fonts.installed.filter(name => name.toLowerCase().includes(fonts.query.toLowerCase()))
+
+        function open(entry) {
+            fontsFile.reload();
+            try { fonts.all = JSON.parse(fontsFile.text()) || {}; } catch (e) { fonts.all = {}; }
+            const chosen = fonts.all[entry.name] || {};
+            fonts.edit = { font: chosen.font || "", display: chosen.display || "", body: chosen.body || "" };
+            fonts.slot = "font";
+            fonts.query = "";
+            fonts.editing = entry;
+            if (!fonts.installed.length) fontsProc.running = true;
+        }
+
+        function shown(key) {
+            return fonts.edit[key] || fonts.editing.ownFonts[key];
+        }
+
+        function choose(name) {
+            fonts.edit = Object.assign({}, fonts.edit, { [fonts.slot]: name });
+        }
+
+        // Saved; the current theme is applied again with its wallpaper, so the fonts show at once.
+        function save() {
+            fonts.write(fonts.editing.current ? "changetheme --keep-wallpaper " + fonts.editing.name : "");
+            fonts.editing = null;
+        }
+
+        function switchTo() {
+            fonts.write("changetheme " + fonts.editing.name);
+            root.close();
+        }
+
+        function write(after) {
+            const picked = {};
+            for (const [key] of fonts.slots)
+                if (fonts.edit[key]) picked[key] = fonts.edit[key];
+            const next = Object.assign({}, fonts.all);
+            if (Object.keys(picked).length) next[fonts.editing.name] = picked;
+            else delete next[fonts.editing.name];
+            fonts.all = next;
+            root.writeFile(fonts.path, JSON.stringify(next, null, 2) + "\n", after);
+            root.themes = root.themes.map(t => t.name === fonts.editing.name ? Object.assign({}, t, { chosenFonts: picked }) : t);
+        }
+    }
+    FileView { id: fontsFile; path: fonts.path; blockLoading: true }
+    Process {
+        id: fontsProc
+        command: ["sh", "-c", "fc-list : family | cut -d, -f1 | sort -u"]
+        stdout: StdioCollector { onStreamFinished: fonts.installed = this.text.split("\n").filter(name => name) }
+    }
+
     // ================= window =================
 
     PanelWindow {
@@ -386,7 +455,9 @@ ShellRoot {
             Keys.onPressed: e => {
                 e.accepted = true;
                 if (keys.capturing !== "") { keys.onKey(e); return; }
-                if (e.key === Qt.Key_Escape) root.close();
+                if (e.key !== Qt.Key_Escape) return;
+                if (fonts.editing) fonts.editing = null;
+                else root.close();
             }
             Component.onCompleted: inAnim.start()
             NumberAnimation { id: inAnim; target: scene; property: "opacity"; to: 1; duration: 200 }
@@ -828,10 +899,16 @@ ShellRoot {
                                     id: tma
                                     anchors.fill: parent
                                     hoverEnabled: true
-                                    onClicked: { Quickshell.execDetached(["changetheme", tcard.modelData.name]); root.close(); }
+                                    onClicked: fonts.open(tcard.modelData)
                                 }
                             }
                         }
+                    }
+
+                    // ---------------- Настройки одной темы ----------------
+                    ThemeSettings {
+                        anchors.fill: parent
+                        visible: root.page === "theme" && fonts.editing !== null
                     }
                 }
 
@@ -897,6 +974,110 @@ ShellRoot {
             color: ch.primary ? (theme.c.bg || "black") : ch.active ? (theme.c.accent || "white") : (theme.c.fg || "white")
         }
         MouseArea { id: chm; anchors.fill: parent; hoverEnabled: true; enabled: ch.enabled; onClicked: ch.clicked() }
+    }
+
+    // Settings of the theme fonts.editing: its three fonts on the left, and on the right the installed
+    // fonts, each in its own face, which set the chosen one.
+    component ThemeSettings: Rectangle {
+        color: theme.c.bg || "black"
+        MouseArea { anchors.fill: parent }
+
+        Column {
+            id: slotColumn
+            anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+            width: 400
+            spacing: 12
+            SectionTitle { text: fonts.editing ? "Тема «" + fonts.editing.pal.label + "»: шрифты" : "" }
+            Repeater {
+                model: fonts.slots
+                Rectangle {
+                    id: slotRow
+                    required property var modelData
+                    readonly property string key: modelData[0]
+                    readonly property bool active: fonts.slot === key
+                    width: slotColumn.width; height: 92
+                    radius: root.r > 4 ? 10 : 0
+                    color: active ? Color.withAlpha(theme.c.accent, 0.16) : Color.withAlpha(theme.c.bg2, 0.9)
+                    border.color: active ? (theme.c.accent || "white") : Color.withAlpha(theme.c.muted, 0.3)
+                    Column {
+                        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: 16 }
+                        spacing: 4
+                        Text {
+                            text: slotRow.modelData[1] + " · " + slotRow.modelData[2]
+                            font.family: theme.bodyFont; font.pixelSize: 13
+                            color: theme.c.muted || "grey"
+                        }
+                        Text {
+                            width: parent.width
+                            elide: Text.ElideRight
+                            text: fonts.editing ? fonts.shown(slotRow.key) : ""
+                            font.family: text; font.pixelSize: 22
+                            color: theme.c.fg || "white"
+                        }
+                        Text {
+                            text: fonts.editing && fonts.edit[slotRow.key] ? "свой выбор" : "как в теме"
+                            font.family: theme.bodyFont; font.pixelSize: 12
+                            color: fonts.editing && fonts.edit[slotRow.key] ? (theme.c.accent || "white") : (theme.c.muted || "grey")
+                        }
+                    }
+                    MouseArea { anchors.fill: parent; onClicked: fonts.slot = slotRow.key }
+                }
+            }
+            Text {
+                width: slotColumn.width
+                wrapMode: Text.WordWrap
+                text: fonts.editing && fonts.editing.current ? "Тема сейчас включена: шрифты применятся сразу после сохранения."
+                                                         : "Шрифты применятся, когда включишь эту тему."
+                font.family: theme.bodyFont; font.pixelSize: 13
+                color: theme.c.muted || "grey"
+            }
+            Row {
+                spacing: 10
+                Chip { text: "Как в теме"; enabled: fonts.editing !== null && !!fonts.edit[fonts.slot]; onClicked: fonts.choose("") }
+                Chip { text: "Назад"; onClicked: fonts.editing = null }
+                Chip { text: "Сохранить"; primary: true; onClicked: fonts.save() }
+            }
+            Chip {
+                visible: fonts.editing !== null && !fonts.editing.current
+                text: "Включить тему"
+                onClicked: fonts.switchTo()
+            }
+        }
+
+        Field {
+            id: fontSearch
+            anchors { left: slotColumn.right; right: parent.right; top: parent.top; leftMargin: 24 }
+            placeholder: "Поиск шрифта"
+            onTextChanged: fonts.query = text
+        }
+        ListView {
+            anchors { left: fontSearch.left; right: parent.right; top: fontSearch.bottom; bottom: parent.bottom; topMargin: 10 }
+            clip: true
+            spacing: 2
+            boundsBehavior: Flickable.StopAtBounds
+            model: fonts.matching
+            delegate: Rectangle {
+                id: fontRow
+                required property string modelData
+                readonly property bool picked: fonts.editing !== null && fonts.shown(fonts.slot) === modelData
+                width: ListView.view.width; height: 44
+                radius: root.r > 4 ? 8 : 0
+                color: picked ? Color.withAlpha(theme.c.accent, 0.22) : (rowArea.containsMouse ? Color.withAlpha(theme.c.accent, 0.1) : "transparent")
+                Text {
+                    anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+                    text: fontRow.modelData
+                    font.family: theme.bodyFont; font.pixelSize: 14
+                    color: theme.c.fg || "white"
+                }
+                Text {
+                    anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+                    text: "Аа Бб Вв 0123"
+                    font.family: fontRow.modelData; font.pixelSize: 18
+                    color: fontRow.picked ? (theme.c.accent || "white") : (theme.c.muted || "grey")
+                }
+                MouseArea { id: rowArea; anchors.fill: parent; hoverEnabled: true; onClicked: fonts.choose(fontRow.modelData) }
+            }
+        }
     }
 
     component SectionTitle: Text {

@@ -1,6 +1,7 @@
-// The current theme as the panels use it: the theme folder's palette.json and ui.json and the
-// fonts they name. Every panel folder reaches this one through its symlink "common", because
-// Quickshell refuses imports from outside a config's folder.
+// The current theme as the panels use it: palette.json and ui.json as themegen wrote them to
+// ~/.config/hypr (the theme's own, with the fonts the user picked for it in place), and the fonts they
+// name. Every panel folder reaches this one through its symlink "common", because Quickshell refuses
+// imports from outside a config's folder.
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -8,9 +9,10 @@ import Quickshell.Io
 Scope {
     id: theme
 
-    // Panels opened by panel.sh get the folder in $RICE_THEME_DIR; the OSD runs all session and
-    // points it at whichever theme is current.
+    // The theme's folder, for its pictures and sounds. Panels opened by panel.sh get it in
+    // $RICE_THEME_DIR; the OSD runs all session and points it at whichever theme is current.
     property string dir: Quickshell.env("RICE_THEME_DIR")
+    readonly property string generated: Quickshell.env("HOME") + "/.config/hypr"
     readonly property var pal: parse(palFile.text(), { colors: {} })
     readonly property var ui: parse(uiFile.text(), {})
     readonly property var c: pal.colors || {}
@@ -23,6 +25,7 @@ Scope {
         try { return JSON.parse(text); } catch (e) { return fallback; }
     }
 
-    FileView { id: palFile; path: theme.dir ? theme.dir + "/palette.json" : ""; blockLoading: true }
-    FileView { id: uiFile; path: theme.dir ? theme.dir + "/ui.json" : ""; blockLoading: true }
+    // Watched: the OSD stays open while the theme or its fonts change.
+    FileView { id: palFile; path: theme.generated + "/palette.json"; blockLoading: true; watchChanges: true; onFileChanged: reload() }
+    FileView { id: uiFile; path: theme.generated + "/ui.json"; blockLoading: true; watchChanges: true; onFileChanged: reload() }
 }

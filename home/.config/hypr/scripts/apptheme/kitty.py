@@ -22,6 +22,9 @@ def apply(theme):
              f"inactive_tab_foreground {colors['muted']}", f"inactive_tab_background {colors['bg2']}",
              f"tab_bar_background {bg}", f"mark1_background {colors['accent2']}"]
     lines += [f"color{i} {color}" for i, color in enumerate(ansi + bright)]
+    if "font" in theme.chosen_fonts:
+        # Otherwise kitty keeps the font of its own kitty.conf.
+        lines.append(f"font_family {theme.font}")
     write(RICE_CONF / "kitty/theme.conf", "\n".join(lines) + "\n")
     # kitty re-reads its config on SIGUSR1, so open windows pick the colours up at once.
     subprocess.run(["pkill", "-USR1", "-x", "kitty"], check=False)

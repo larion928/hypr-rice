@@ -15,7 +15,8 @@ return {{
     inactive = "{with_alpha(colors['muted'], 0.67)}",
 }}
 """)
-    # Read by the Quickshell screenshot overlay and anything else that wants the full palette.
+    # The current theme as the panels read it, with the user's fonts in place (the theme folder has its own).
     write(HYPR / "palette.json", json.dumps(theme.palette, indent=2) + "\n")
+    write(HYPR / "ui.json", json.dumps(theme.ui, indent=2, ensure_ascii=False) + "\n")
     write(HYPR / "current-theme", theme.name + "\n")
 

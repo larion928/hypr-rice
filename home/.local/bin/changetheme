@@ -14,6 +14,9 @@ changetheme — переключение темы Hyprland-окружения
   changetheme <имя_темы>             переключиться на тему
   changetheme --offline <имя_темы>   только записать конфиги, без живой сессии
                                      (так тему ставит установщик райса из TTY)
+  changetheme --keep-wallpaper <имя_темы>
+                                     применить заново с теми же обоями, если они из этой темы
+                                     (так настройки применяют выбранные для темы шрифты)
   changetheme -h, --help             эта справка
 
 ДОСТУПНЫЕ ТЕМЫ
@@ -85,11 +88,13 @@ finish() {
 }
 
 OFFLINE=0
+KEEP_WALLPAPER=0
 ARGS=()
 for arg in "$@"; do
   case "$arg" in
     -h|--help) print_help; exit 0 ;;
     --offline) OFFLINE=1 ;;
+    --keep-wallpaper) KEEP_WALLPAPER=1 ;;
     *) ARGS+=("$arg") ;;
   esac
 done
@@ -113,8 +118,12 @@ fi
 mapfile -t WALLPAPERS < <(find "$CONFIG_DIR" -maxdepth 1 -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" -o -name "*.webp" \))
 
 SELECTED_WALL=""
+CURRENT_WALL=$(cat "$HOME/.config/hypr/current-wallpaper" 2>/dev/null)
 if [ ${#WALLPAPERS[@]} -eq 0 ]; then
     echo "Предупреждение: В папке темы нет изображений."
+elif [ "$KEEP_WALLPAPER" = 1 ] && printf '%s\n' "${WALLPAPERS[@]}" | grep -qxF "$CURRENT_WALL"; then
+    SELECTED_WALL=$CURRENT_WALL
+    echo "Обои остаются: $SELECTED_WALL"
 else
     RANDOM_INDEX=$(( RANDOM % ${#WALLPAPERS[@]} ))
     SELECTED_WALL="${WALLPAPERS[$RANDOM_INDEX]}"

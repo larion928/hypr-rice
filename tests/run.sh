@@ -215,6 +215,31 @@ test_release_file_is_checked() {
     [ -x "$HOME/.local/bin/tool" ] || fail "файл не исполняемый"
 }
 
+# Fonts picked for a theme in the settings reach the theme loader, kitty and waybar; the rest of
+# the theme's fonts stay its own.
+test_chosen_fonts_reach_the_programs() {
+    local theme_dir="$HOME/.config/hypr/themes/claude"
+    mkdir -p "$theme_dir" "$HOME/.config/hypr-rice" "$HOME/bin"
+    cp "$REPO/home/.config/hypr/themes/claude/"{palette.json,ui.json} "$theme_dir/"
+    echo '{"claude": {"font": "Test Mono", "body": "Test Sans", "display": ""}}' > "$HOME/.config/hypr-rice/fonts.json"
+    printf '#!/bin/sh\n' > "$HOME/bin/pkill" && chmod +x "$HOME/bin/pkill"
+    PATH="$HOME/bin:$PATH" python3 - "$REPO/home/.config/hypr/scripts" <<'PY' || fail "генератор упал"
+import sys
+sys.path.insert(0, sys.argv[1])
+from apptheme import kitty, waybar
+from apptheme.theme import load
+theme = load("claude")
+assert theme.font == "Test Mono", theme.font
+assert theme.body_font == "Test Sans", theme.body_font
+assert theme.display == "Source Serif 4", theme.display  # an empty choice keeps the theme's own
+kitty.apply(theme)
+waybar.write_fonts(theme)
+PY
+    grep -qx "font_family Test Mono" "$HOME/.config/hypr-rice/kitty/theme.conf" || fail "kitty не получил шрифт"
+    grep -q '"Test Mono", "JetBrainsMono Nerd Font"' "$HOME/.config/hypr-rice/waybar/fonts.css" \
+        || fail "waybar не получил шрифт"
+}
+
 # themegen builds and applies every theme in a fake $HOME; tests/themegen_snapshot.sh records it all.
 test_themegen_applies_every_theme() {
     "$REPO/tests/themegen_snapshot.sh" "$HOME/snapshot" >/dev/null || fail "themegen упал, вывод выше"
