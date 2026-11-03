@@ -32,6 +32,7 @@ if ! command -v git >/dev/null; then
         || die "не удалось поставить git"
 fi
 
+# The same check as in rice; it cannot be borrowed from there, rice is not verified yet at this point.
 signed_by_author() {
     [ -f "$TRUST" ] || return 0
     git -C "$SRC" -c gpg.format=ssh -c gpg.ssh.allowedSignersFile="$TRUST" verify-commit "$1" >/dev/null 2>&1

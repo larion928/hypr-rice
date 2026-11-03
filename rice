@@ -264,17 +264,26 @@ load_apps() {
     done < <(list "$SRC/packages/apps.txt")
 }
 
-app_installed() {  # every package/file of the app is already present
+# Every package of app ID is installed (pacman, AUR, Flatpak, AppImage); its files are not checked.
+app_packages_installed() {
     local tok
     for tok in ${APP_SRC[$1]}; do
         case "$tok" in
+            file:*|hook:*|browser) ;;
             appimage:*) [ -x "$HOME/Applications/$1.AppImage" ] || return 1 ;;
-            file:*) [ -e "$HOME/${tok#file:}" ] || return 1 ;;
             flatpak:*) flatpak info "${tok#flatpak:}" >/dev/null 2>&1 || return 1 ;;
-            aur:*) pacman -Qq "${tok#aur:}" >/dev/null 2>&1 || return 1 ;;
-            hook:*|browser) ;;
-            *) pacman -Qq "$tok" >/dev/null 2>&1 || return 1 ;;
+            *) pacman -Qq "${tok#aur:}" >/dev/null 2>&1 || return 1 ;;
         esac
+    done
+}
+
+# App ID is fully present: its packages and the files the rice copies for it.
+app_installed() {
+    app_packages_installed "$1" || return 1
+    local tok
+    for tok in ${APP_SRC[$1]}; do
+        [[ $tok == file:* ]] || continue
+        [ -e "$HOME/${tok#file:}" ] || return 1
     done
 }
 
@@ -612,7 +621,7 @@ copy_rice_files() {  # copies home/ to ~, backing up what is replaced; MODE, DO_
     for id in "${APP_IDS[@]}"; do
         for tok in ${APP_SRC[$id]}; do
             [[ $tok == file:* ]] || continue
-            picked "$id" || app_installed_pkgs_only "$id" || rm -f "$HOME/${tok#file:}"
+            picked "$id" || app_packages_installed "$id" || rm -f "$HOME/${tok#file:}"
         done
     done
     # The manager itself, and a launcher entry for it.
@@ -636,18 +645,6 @@ copy_rice_files() {  # copies home/ to ~, backing up what is replaced; MODE, DO_
     fi
     xdg-user-dirs-update 2>/dev/null || true
     mkdir -p "$HOME/Pictures/screenshots"
-}
-
-app_installed_pkgs_only() {  # like app_installed but ignores file: entries (they were just copied)
-    local tok
-    for tok in ${APP_SRC[$1]}; do
-        case "$tok" in
-            file:*|hook:*|browser) ;;
-            appimage:*) [ -x "$HOME/Applications/$1.AppImage" ] || return 1 ;;
-            flatpak:*) flatpak info "${tok#flatpak:}" >/dev/null 2>&1 || return 1 ;;
-            *) pacman -Qq "${tok#aur:}" >/dev/null 2>&1 || return 1 ;;
-        esac
-    done
 }
 
 setup_system() {
@@ -922,6 +919,7 @@ cmd_remove() {
 }
 
 # Installs from before signed updates have no TRUST yet; it is written at the end of their next install.
+# install.sh has its own copy: it checks the download before running anything from it, this file included.
 signed_by_author() {  # signed_by_author REV
     [ -f "$TRUST" ] || return 0
     git -C "$SRC" -c gpg.format=ssh -c gpg.ssh.allowedSignersFile="$TRUST" verify-commit "$1" >/dev/null 2>&1

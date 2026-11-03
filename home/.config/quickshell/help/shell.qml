@@ -6,20 +6,17 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import "common"
+import "common/color.js" as Color
 
 ShellRoot {
     id: root
 
-    readonly property string themeDir: Quickshell.env("HELP_THEME_DIR")
-    property var pal: ({ colors: {} })
-    property var ui: ({})
+    Theme { id: theme }
+
     property var sections: []
     property bool closing: false
-    readonly property var c: pal.colors || {}
-    readonly property string titleFont: ui.titleFont === "display" ? (pal.display || "serif") : (pal.font || "monospace")
-    readonly property string bodyFont: !ui.bodyFont || ui.bodyFont === "font" ? (pal.font || "monospace")
-                                       : ui.bodyFont === "display" ? (pal.display || "serif") : ui.bodyFont
-    readonly property int r: Math.min(ui.radius ?? 14, 22)
+    readonly property int r: Math.min(theme.ui.radius ?? 14, 22)
     // keybind.lua writes the main modifier (changeable in the settings panel) here.
     property string mainModLabel: "Alt"
     FileView {
@@ -27,20 +24,12 @@ ShellRoot {
         onLoaded: { try { const m = JSON.parse(text()).mainMod; root.mainModLabel = m === "SUPER" ? "Super" : m === "CTRL" ? "Ctrl" : "Alt"; } catch (e) {} }
     }
 
-    FileView { id: palFile; path: root.themeDir + "/palette.json"; blockLoading: true }
-    FileView { id: uiFile; path: root.themeDir + "/ui.json"; blockLoading: true }
     FileView { id: bindsFile; path: Quickshell.env("HELP_BINDS"); blockLoading: true }
 
     Component.onCompleted: {
-        try { pal = JSON.parse(palFile.text()); } catch (e) {}
-        try { ui = JSON.parse(uiFile.text()); } catch (e) {}
         let binds = [];
         try { binds = JSON.parse(bindsFile.text()); } catch (e) {}
         sections = buildSections(binds);
-    }
-
-    function a(col, al) {
-        return "#" + ("0" + Math.round(al * 255).toString(16)).slice(-2) + String(col || "#888888").slice(1);
     }
 
     readonly property var keyNames: ({
@@ -121,7 +110,7 @@ ShellRoot {
     }
 
     IpcHandler {
-        target: "help"
+        target: "panel"
         function close(): void { root.close(); }
     }
 
@@ -147,7 +136,7 @@ ShellRoot {
                 ScriptAction { script: Qt.quit() }
             }
 
-            Rectangle { anchors.fill: parent; color: root.a(root.c.bg, 0.7) }
+            Rectangle { anchors.fill: parent; color: Color.withAlpha(theme.c.bg, 0.7) }
             MouseArea { anchors.fill: parent; onClicked: root.close() }
 
             Rectangle {
@@ -156,9 +145,9 @@ ShellRoot {
                 width: Math.min(parent.width - 80, 1560)
                 height: Math.min(parent.height - 80, 960)
                 radius: root.r
-                color: root.a(root.c.bg, 0.95)
-                border.width: root.ui.border ?? 1
-                border.color: root.a(root.c.accent, 0.5)
+                color: Color.withAlpha(theme.c.bg, 0.95)
+                border.width: theme.ui.border ?? 1
+                border.color: Color.withAlpha(theme.c.accent, 0.5)
                 MouseArea { anchors.fill: parent }   // clicks inside do not close
 
                 Row {
@@ -166,30 +155,30 @@ ShellRoot {
                     x: 32; y: 26
                     spacing: 14
                     Image {
-                        visible: !!root.ui.headerIcon
-                        source: root.ui.headerIcon ? "file://" + root.themeDir + "/" + root.ui.headerIcon : ""
+                        visible: !!theme.ui.headerIcon
+                        source: theme.ui.headerIcon ? "file://" + theme.dir + "/" + theme.ui.headerIcon : ""
                         width: 30; height: 30; sourceSize: Qt.size(60, 60)
                         anchors.verticalCenter: parent.verticalCenter
                     }
                     Text {
-                        visible: !root.ui.headerIcon
-                        text: root.ui.headerGlyph || "?"
-                        font.family: root.titleFont; font.pixelSize: 26; font.bold: true
-                        color: root.c.accent || "white"
+                        visible: !theme.ui.headerIcon
+                        text: theme.ui.headerGlyph || "?"
+                        font.family: theme.titleFont; font.pixelSize: 26; font.bold: true
+                        color: theme.c.accent || "white"
                         anchors.verticalCenter: parent.verticalCenter
                     }
                     Text {
-                        text: root.ui.upperTitle ? "КАК ТУТ ВСЁ УСТРОЕНО" : "Как тут всё устроено"
-                        font.family: root.titleFont; font.pixelSize: 32; font.italic: !!root.ui.italicTitle
-                        color: root.c.fg || "white"
+                        text: theme.ui.upperTitle ? "КАК ТУТ ВСЁ УСТРОЕНО" : "Как тут всё устроено"
+                        font.family: theme.titleFont; font.pixelSize: 32; font.italic: !!theme.ui.italicTitle
+                        color: theme.c.fg || "white"
                         anchors.verticalCenter: parent.verticalCenter
                     }
                 }
                 Text {
                     anchors { right: parent.right; rightMargin: 32; verticalCenter: header.verticalCenter }
                     text: root.mainModLabel + " — главная клавиша · Esc — закрыть"
-                    font.family: root.bodyFont; font.pixelSize: 14
-                    color: root.c.muted || "grey"
+                    font.family: theme.bodyFont; font.pixelSize: 14
+                    color: theme.c.muted || "grey"
                 }
 
                 Flickable {
@@ -212,8 +201,8 @@ ShellRoot {
                                 width: (flow.width - flow.spacing * 2) / 3
                                 height: col.implicitHeight + 32
                                 radius: Math.min(root.r, 16)
-                                color: root.a(root.c.bg2, 0.85)
-                                border.color: root.a(root.c.muted, 0.25)
+                                color: Color.withAlpha(theme.c.bg2, 0.85)
+                                border.color: Color.withAlpha(theme.c.muted, 0.25)
                                 opacity: 0
                                 Component.onCompleted: appear.start()
                                 SequentialAnimation {
@@ -228,9 +217,9 @@ ShellRoot {
                                     width: card.width - 36
                                     spacing: 9
                                     Text {
-                                        text: root.ui.upperTitle ? card.modelData.title.toUpperCase() : card.modelData.title
-                                        font.family: root.titleFont; font.pixelSize: 17; font.bold: true; font.italic: !!root.ui.italicTitle
-                                        color: root.c.accent2 || root.c.accent || "white"
+                                        text: theme.ui.upperTitle ? card.modelData.title.toUpperCase() : card.modelData.title
+                                        font.family: theme.titleFont; font.pixelSize: 17; font.bold: true; font.italic: !!theme.ui.italicTitle
+                                        color: theme.c.accent2 || theme.c.accent || "white"
                                     }
                                     Repeater {
                                         model: card.modelData.rows
@@ -243,8 +232,8 @@ ShellRoot {
                                                 width: Math.min(chipText.implicitWidth + 16, col.width * 0.48)
                                                 height: 26
                                                 radius: root.r > 4 ? 7 : 0
-                                                color: root.a(root.c.accent, 0.16)
-                                                border.color: root.a(root.c.accent, 0.45)
+                                                color: Color.withAlpha(theme.c.accent, 0.16)
+                                                border.color: Color.withAlpha(theme.c.accent, 0.45)
                                                 Text {
                                                     id: chipText
                                                     anchors.centerIn: parent
@@ -252,7 +241,7 @@ ShellRoot {
                                                     elide: Text.ElideRight
                                                     text: parent.parent.modelData.keys
                                                     font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 13
-                                                    color: root.c.accent || "white"
+                                                    color: theme.c.accent || "white"
                                                 }
                                             }
                                             Text {
@@ -260,8 +249,8 @@ ShellRoot {
                                                 anchors { left: parent.left; leftMargin: col.width * 0.5; right: parent.right; verticalCenter: chip.verticalCenter }
                                                 text: parent.modelData.text
                                                 wrapMode: Text.Wrap
-                                                font.family: root.bodyFont; font.pixelSize: 14
-                                                color: root.c.fg || "white"
+                                                font.family: theme.bodyFont; font.pixelSize: 14
+                                                color: theme.c.fg || "white"
                                             }
                                         }
                                     }

@@ -6,32 +6,21 @@ import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import "common"
+import "common/color.js" as Color
 
 ShellRoot {
     id: root
 
-    readonly property string themeDir: Quickshell.env("NET_THEME_DIR")
-    property var pal: ({ colors: {} })
-    property var ui: ({})
-    readonly property var c: pal.colors || {}
-    readonly property string titleFont: ui.titleFont === "display" ? (pal.display || "serif") : (pal.font || "monospace")
-    readonly property string bodyFont: !ui.bodyFont || ui.bodyFont === "font" ? (pal.font || "monospace")
-                                       : ui.bodyFont === "display" ? (pal.display || "serif") : ui.bodyFont
+    Theme { id: theme }
+
     readonly property string glyphFont: "JetBrainsMono Nerd Font"
-    readonly property int r: Math.min(ui.radius ?? 14, 18)
+    readonly property int r: Math.min(theme.ui.radius ?? 14, 18)
     property bool closing: false
 
-    FileView { id: palFile; path: root.themeDir + "/palette.json"; blockLoading: true }
-    FileView { id: uiFile; path: root.themeDir + "/ui.json"; blockLoading: true }
     Component.onCompleted: {
-        try { pal = JSON.parse(palFile.text()); } catch (e) {}
-        try { ui = JSON.parse(uiFile.text()); } catch (e) {}
         net.refresh();
         editorCheck.running = true;
-    }
-
-    function a(col, al) {
-        return "#" + ("0" + Math.round(al * 255).toString(16)).slice(-2) + String(col || "#888888").slice(1);
     }
 
     function close() {
@@ -41,7 +30,7 @@ ShellRoot {
     }
 
     IpcHandler {
-        target: "network"
+        target: "panel"
         function close(): void { root.close(); }
     }
 
@@ -268,7 +257,7 @@ ShellRoot {
                 ScriptAction { script: Qt.quit() }
             }
 
-            Rectangle { anchors.fill: parent; color: root.a(root.c.bg, 0.25) }
+            Rectangle { anchors.fill: parent; color: Color.withAlpha(theme.c.bg, 0.25) }
             MouseArea { anchors.fill: parent; onClicked: root.close() }
 
             Rectangle {
@@ -280,14 +269,14 @@ ShellRoot {
                                  + (bottom.implicitHeight > 0 ? 14 + bottom.implicitHeight : 0) + 18,
                                  parent.height - 80)
                 radius: root.r
-                color: root.a(root.c.bg, 0.96)
-                border.width: root.ui.border ?? 1
-                border.color: root.a(root.c.accent, root.ui.glow ? 0.9 : 0.4)
+                color: Color.withAlpha(theme.c.bg, 0.96)
+                border.width: theme.ui.border ?? 1
+                border.color: Color.withAlpha(theme.c.accent, theme.ui.glow ? 0.9 : 0.4)
                 layer.enabled: true
                 layer.effect: MultiEffect {
                     shadowEnabled: true
-                    shadowColor: root.ui.glow ? (root.c.accent || "black") : "#000000"
-                    shadowBlur: 0.8; shadowVerticalOffset: root.ui.glow ? 0 : 8; blurMax: 32
+                    shadowColor: theme.ui.glow ? (theme.c.accent || "black") : "#000000"
+                    shadowBlur: 0.8; shadowVerticalOffset: theme.ui.glow ? 0 : 8; blurMax: 32
                 }
                 MouseArea { anchors.fill: parent }   // clicks inside do not close
 
@@ -301,9 +290,9 @@ ShellRoot {
                         width: parent.width; height: 34
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: root.ui.upperTitle ? "СЕТЬ" : "Сеть"
-                            font.family: root.titleFont; font.pixelSize: 24; font.bold: true; font.italic: !!root.ui.italicTitle
-                            color: root.c.fg || "white"
+                            text: theme.ui.upperTitle ? "СЕТЬ" : "Сеть"
+                            font.family: theme.titleFont; font.pixelSize: 24; font.bold: true; font.italic: !!theme.ui.italicTitle
+                            color: theme.c.fg || "white"
                         }
                         Row {
                             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
@@ -326,14 +315,14 @@ ShellRoot {
                         visible: !!net.active
                         width: parent.width; height: 64
                         radius: root.r
-                        color: root.a(root.c.accent, 0.14)
-                        border.width: 1; border.color: root.a(root.c.accent, 0.5)
+                        color: Color.withAlpha(theme.c.accent, 0.14)
+                        border.width: 1; border.color: Color.withAlpha(theme.c.accent, 0.5)
                         Text {
                             id: activeIcon
                             anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
                             text: root.signalGlyph(net.active ? net.active.signal || 0 : 0)
                             font.family: root.glyphFont; font.pixelSize: 24
-                            color: root.c.accent || "white"
+                            color: theme.c.accent || "white"
                         }
                         Column {
                             anchors { left: activeIcon.right; leftMargin: 12; right: disconnectBtn.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
@@ -341,13 +330,13 @@ ShellRoot {
                             Text {
                                 width: parent.width; elide: Text.ElideRight
                                 text: net.active ? net.active.ssid || "" : ""
-                                font.family: root.bodyFont; font.pixelSize: 15; font.bold: true
-                                color: root.c.fg || "white"
+                                font.family: theme.bodyFont; font.pixelSize: 15; font.bold: true
+                                color: theme.c.fg || "white"
                             }
                             Text {
                                 text: "подключено" + (net.active && net.active.ip ? " · " + net.active.ip : "")
-                                font.family: root.bodyFont; font.pixelSize: 12
-                                color: root.c.muted || "grey"
+                                font.family: theme.bodyFont; font.pixelSize: 12
+                                color: theme.c.muted || "grey"
                             }
                         }
                         TextButton {
@@ -367,12 +356,12 @@ ShellRoot {
                             Text {
                                 text: modelData.type === "ethernet" ? "\u{f0200}" : "\u{f0582}"
                                 font.family: root.glyphFont; font.pixelSize: 16
-                                color: root.c.good || "lightgreen"
+                                color: theme.c.good || "lightgreen"
                             }
                             Text {
                                 text: (modelData.type === "ethernet" ? "Кабель: " : modelData.type === "tun" || modelData.type === "wireguard" || modelData.type === "vpn" ? "VPN: " : modelData.type + ": ") + modelData.name
-                                font.family: root.bodyFont; font.pixelSize: 13
-                                color: root.c.muted || "grey"
+                                font.family: theme.bodyFont; font.pixelSize: 13
+                                color: theme.c.muted || "grey"
                             }
                         }
                     }
@@ -380,16 +369,16 @@ ShellRoot {
                     Text {
                         visible: net.wifiOn
                         text: "Доступные сети" + (net.networks.length ? "  ·  " + net.networks.length : "")
-                        font.family: root.bodyFont; font.pixelSize: 12; font.capitalization: Font.AllUppercase
+                        font.family: theme.bodyFont; font.pixelSize: 12; font.capitalization: Font.AllUppercase
                         font.letterSpacing: 1
-                        color: root.c.muted || "grey"
+                        color: theme.c.muted || "grey"
                     }
                     Text {
                         visible: !net.wifiOn
                         width: parent.width; wrapMode: Text.Wrap
                         text: "Wi-Fi выключен. Включи переключателем сверху."
-                        font.family: root.bodyFont; font.pixelSize: 14
-                        color: root.c.muted || "grey"
+                        font.family: theme.bodyFont; font.pixelSize: 14
+                        color: theme.c.muted || "grey"
                     }
                 }
 
@@ -421,8 +410,8 @@ ShellRoot {
                         visible: !!net.message
                         width: parent.width; wrapMode: Text.Wrap
                         text: net.message
-                        font.family: root.bodyFont; font.pixelSize: 13
-                        color: net.messageIsError ? (root.c.crit || "red") : (root.c.accent2 || root.c.fg || "white")
+                        font.family: theme.bodyFont; font.pixelSize: 13
+                        color: net.messageIsError ? (theme.c.crit || "red") : (theme.c.accent2 || theme.c.fg || "white")
                     }
 
                     TextButton {
@@ -446,9 +435,9 @@ ShellRoot {
         width: parent ? parent.width : 0
         height: open ? 104 : 48
         radius: root.r
-        color: rowHover.hovered || open ? root.a(root.c.bg2, 0.95) : root.a(root.c.bg2, 0.55)
+        color: rowHover.hovered || open ? Color.withAlpha(theme.c.bg2, 0.95) : Color.withAlpha(theme.c.bg2, 0.55)
         border.width: open ? 1 : 0
-        border.color: root.a(root.c.accent, 0.5)
+        border.color: Color.withAlpha(theme.c.accent, 0.5)
         Behavior on height { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
         clip: true
 
@@ -477,7 +466,7 @@ ShellRoot {
             x: 14; y: 12
             text: root.signalGlyph(row.network.signal)
             font.family: root.glyphFont; font.pixelSize: 20
-            color: row.saved ? (root.c.accent || "white") : (root.c.fg || "white")
+            color: row.saved ? (theme.c.accent || "white") : (theme.c.fg || "white")
         }
         Text {
             id: lock
@@ -486,15 +475,15 @@ ShellRoot {
             y: 20
             text: "\u{f033e}"
             font.family: root.glyphFont; font.pixelSize: 11
-            color: root.c.muted || "grey"
+            color: theme.c.muted || "grey"
         }
         Text {
             anchors { left: icon.right; leftMargin: 16; right: tags.left; rightMargin: 8 }
             y: 14
             elide: Text.ElideRight
             text: row.network.ssid
-            font.family: root.bodyFont; font.pixelSize: 14
-            color: root.c.fg || "white"
+            font.family: theme.bodyFont; font.pixelSize: 14
+            color: theme.c.fg || "white"
         }
         Row {
             id: tags
@@ -503,7 +492,7 @@ ShellRoot {
             spacing: 6
             Chip { visible: row.network.band5; label: "5G" }
             Chip { visible: row.saved && !row.connecting; label: "сохранена" }
-            Chip { visible: row.connecting; label: "подключаю…"; tone: root.c.accent }
+            Chip { visible: row.connecting; label: "подключаю…"; tone: theme.c.accent }
             IconButton {
                 visible: row.saved && !row.connecting && rowHover.hovered
                 glyph: "\u{f0a7a}"
@@ -519,17 +508,17 @@ ShellRoot {
             x: 14; y: 54
             width: row.width - 28 - connectBtn.width - 10; height: 36
             radius: Math.min(root.r, 10)
-            color: root.a(root.c.bg, 0.9)
+            color: Color.withAlpha(theme.c.bg, 0.9)
             border.width: 1
-            border.color: pass.activeFocus ? (root.c.accent || "white") : root.a(root.c.muted, 0.4)
+            border.color: pass.activeFocus ? (theme.c.accent || "white") : Color.withAlpha(theme.c.muted, 0.4)
             TextInput {
                 id: pass
                 anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
                 verticalAlignment: TextInput.AlignVCenter
                 echoMode: TextInput.Password
-                font.family: root.bodyFont; font.pixelSize: 14
-                color: root.c.fg || "white"
-                selectionColor: root.a(root.c.accent, 0.4)
+                font.family: theme.bodyFont; font.pixelSize: 14
+                color: theme.c.fg || "white"
+                selectionColor: Color.withAlpha(theme.c.accent, 0.4)
                 clip: true
                 Keys.onReturnPressed: if (text.length >= 8) net.connect(row.network, text)
                 Keys.onEscapePressed: { net.expanded = ""; scene.forceActiveFocus(); }
@@ -538,7 +527,7 @@ ShellRoot {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "пароль"
                     font: parent.font
-                    color: root.c.muted || "grey"
+                    color: theme.c.muted || "grey"
                 }
             }
         }
@@ -555,15 +544,15 @@ ShellRoot {
 
     component Chip: Rectangle {
         property string label: ""
-        property color tone: root.c.muted || "grey"
+        property color tone: theme.c.muted || "grey"
         height: 22; width: chipText.implicitWidth + 14
         radius: 11
-        color: root.a(String(tone), 0.18)
+        color: Color.withAlpha(String(tone), 0.18)
         Text {
             id: chipText
             anchors.centerIn: parent
             text: parent.label
-            font.family: root.bodyFont; font.pixelSize: 11
+            font.family: theme.bodyFont; font.pixelSize: 11
             color: parent.tone
         }
     }
@@ -575,14 +564,14 @@ ShellRoot {
         height: 32; width: tbText.implicitWidth + 24
         radius: Math.min(root.r, 10)
         opacity: enabled ? 1 : 0.45
-        color: tbMouse.containsMouse && enabled ? root.a(root.c.accent, 0.3) : root.a(root.c.accent, 0.16)
-        border.width: 1; border.color: root.a(root.c.accent, 0.55)
+        color: tbMouse.containsMouse && enabled ? Color.withAlpha(theme.c.accent, 0.3) : Color.withAlpha(theme.c.accent, 0.16)
+        border.width: 1; border.color: Color.withAlpha(theme.c.accent, 0.55)
         Text {
             id: tbText
             anchors.centerIn: parent
             text: tb.label
-            font.family: root.bodyFont; font.pixelSize: 13
-            color: root.c.fg || "white"
+            font.family: theme.bodyFont; font.pixelSize: 13
+            color: theme.c.fg || "white"
         }
         MouseArea { id: tbMouse; anchors.fill: parent; hoverEnabled: true; onClicked: if (tb.enabled) tb.clicked() }
     }
@@ -596,12 +585,12 @@ ShellRoot {
         signal clicked()
         width: small ? 24 : 32; height: width
         radius: width / 2
-        color: ibMouse.containsMouse ? root.a(root.c.accent, 0.25) : "transparent"
+        color: ibMouse.containsMouse ? Color.withAlpha(theme.c.accent, 0.25) : "transparent"
         Text {
             anchors.centerIn: parent
             text: ib.glyph
             font.family: root.glyphFont; font.pixelSize: ib.small ? 14 : 18
-            color: ibMouse.containsMouse ? (root.c.accent || "white") : (root.c.fg || "white")
+            color: ibMouse.containsMouse ? (theme.c.accent || "white") : (theme.c.fg || "white")
             RotationAnimation on rotation { running: ib.spinning; from: 0; to: 360; duration: 900; loops: Animation.Infinite }
         }
         MouseArea { id: ibMouse; anchors.fill: parent; hoverEnabled: true; onClicked: ib.clicked() }
@@ -613,13 +602,13 @@ ShellRoot {
         signal toggled()
         width: 46; height: 26
         radius: 13
-        color: checked ? root.a(root.c.accent, 0.85) : root.a(root.c.muted, 0.35)
+        color: checked ? Color.withAlpha(theme.c.accent, 0.85) : Color.withAlpha(theme.c.muted, 0.35)
         Behavior on color { ColorAnimation { duration: 150 } }
         Rectangle {
             width: 20; height: 20; radius: 10
             y: 3
             x: sw.checked ? sw.width - width - 3 : 3
-            color: root.c.bg || "black"
+            color: theme.c.bg || "black"
             Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
         }
         MouseArea { anchors.fill: parent; onClicked: sw.toggled() }

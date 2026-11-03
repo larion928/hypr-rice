@@ -3,42 +3,32 @@
 //               15 s "keep?" countdown; kept settings go to ~/.config/hypr/monitors.lua.
 //   Клавиши   — the editable binds keybind.lua registers ($XDG_RUNTIME_DIR/hypr-binds-registry.json),
 //               the main modifier and the user's own binds; saved to ~/.config/hypr/binds-user.lua.
-//   Тема      — the themes, as in the theme picker.
+//   Тема      — the themes from $RICE_THEME_LIST (written by ../theme-list.py), as in the theme picker.
 import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import "common"
+import "common/color.js" as Color
 
 ShellRoot {
     id: root
 
+    Theme { id: theme }
+
     readonly property string home: Quickshell.env("HOME")
-    readonly property string themeDir: Quickshell.env("SETTINGS_THEME_DIR")
     readonly property string registryPath: Quickshell.env("XDG_RUNTIME_DIR") + "/hypr-binds-registry.json"
-    property var pal: ({ colors: {} })
-    property var ui: ({})
     property var themes: []
     property bool closing: false
     property string page: Quickshell.env("SETTINGS_PAGE") || "monitors"
-    readonly property var c: pal.colors || {}
-    readonly property string titleFont: ui.titleFont === "display" ? (pal.display || "serif") : (pal.font || "monospace")
-    readonly property string bodyFont: !ui.bodyFont || ui.bodyFont === "font" ? (pal.font || "monospace")
-                                       : ui.bodyFont === "display" ? (pal.display || "serif") : ui.bodyFont
-    readonly property int r: Math.min(ui.radius ?? 14, 22)
+    readonly property int r: Math.min(theme.ui.radius ?? 14, 22)
 
-    FileView { id: palFile; path: root.themeDir + "/palette.json"; blockLoading: true }
-    FileView { id: uiFile; path: root.themeDir + "/ui.json"; blockLoading: true }
+    FileView { id: themeListFile; path: Quickshell.env("RICE_THEME_LIST"); blockLoading: true }
 
     Component.onCompleted: {
-        try { pal = JSON.parse(palFile.text()); } catch (e) {}
-        try { ui = JSON.parse(uiFile.text()); } catch (e) {}
-        try { themes = JSON.parse(Quickshell.env("SETTINGS_THEMES") || "[]"); } catch (e) {}
+        try { themes = JSON.parse(themeListFile.text()); } catch (e) {}
         monProc.running = true;
         bindsProc.running = true;
-    }
-
-    function a(col, al) {
-        return "#" + ("0" + Math.round(al * 255).toString(16)).slice(-2) + String(col || "#888888").slice(1);
     }
 
     function close() {
@@ -56,9 +46,8 @@ ShellRoot {
     }
 
     IpcHandler {
-        target: "settings"
+        target: "panel"
         function close(): void { root.close(); }
-        function show(name: string): void { root.page = name; }
     }
 
     // ================= monitors: data =================
@@ -407,7 +396,7 @@ ShellRoot {
                 ScriptAction { script: Qt.quit() }
             }
 
-            Rectangle { anchors.fill: parent; color: root.a(root.c.bg, 0.7) }
+            Rectangle { anchors.fill: parent; color: Color.withAlpha(theme.c.bg, 0.7) }
             MouseArea { anchors.fill: parent; onClicked: root.close() }
 
             Rectangle {
@@ -416,9 +405,9 @@ ShellRoot {
                 width: Math.min(parent.width - 80, 1280)
                 height: Math.min(parent.height - 80, 860)
                 radius: root.r
-                color: root.a(root.c.bg, 0.96)
-                border.width: root.ui.border ?? 1
-                border.color: root.a(root.c.accent, 0.5)
+                color: Color.withAlpha(theme.c.bg, 0.96)
+                border.width: theme.ui.border ?? 1
+                border.color: Color.withAlpha(theme.c.accent, 0.5)
                 MouseArea { anchors.fill: parent; onClicked: scene.forceActiveFocus() }
 
                 Row {
@@ -428,13 +417,13 @@ ShellRoot {
                     Text {
                         text: "\u{f0493}"
                         font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 26
-                        color: root.c.accent || "white"
+                        color: theme.c.accent || "white"
                         anchors.verticalCenter: parent.verticalCenter
                     }
                     Text {
-                        text: root.ui.upperTitle ? "НАСТРОЙКИ" : "Настройки"
-                        font.family: root.titleFont; font.pixelSize: 30; font.italic: !!root.ui.italicTitle
-                        color: root.c.fg || "white"
+                        text: theme.ui.upperTitle ? "НАСТРОЙКИ" : "Настройки"
+                        font.family: theme.titleFont; font.pixelSize: 30; font.italic: !!theme.ui.italicTitle
+                        color: theme.c.fg || "white"
                         anchors.verticalCenter: parent.verticalCenter
                     }
                     Item { width: 24; height: 1 }
@@ -452,8 +441,8 @@ ShellRoot {
                 Text {
                     anchors { right: parent.right; rightMargin: 32; verticalCenter: header.verticalCenter }
                     text: "Esc — закрыть"
-                    font.family: root.bodyFont; font.pixelSize: 14
-                    color: root.c.muted || "grey"
+                    font.family: theme.bodyFont; font.pixelSize: 14
+                    color: theme.c.muted || "grey"
                 }
 
                 Item {
@@ -470,8 +459,8 @@ ShellRoot {
                             anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
                             width: parent.width * 0.56
                             radius: Math.min(root.r, 16)
-                            color: root.a(root.c.bg2, 0.8)
-                            border.color: root.a(root.c.muted, 0.25)
+                            color: Color.withAlpha(theme.c.bg2, 0.8)
+                            border.color: Color.withAlpha(theme.c.muted, 0.25)
 
                             readonly property var on: mon.edit.filter(m => !m.disabled)
                             readonly property real bw: Math.max(1, Math.max(...on.map(m => m.x + mon.lw(m)), 1))
@@ -483,8 +472,8 @@ ShellRoot {
                             Text {
                                 x: 18; y: 14
                                 text: "Расположение — перетащи экран мышкой"
-                                font.family: root.bodyFont; font.pixelSize: 14
-                                color: root.c.muted || "grey"
+                                font.family: theme.bodyFont; font.pixelSize: 14
+                                color: theme.c.muted || "grey"
                             }
 
                             Repeater {
@@ -499,24 +488,24 @@ ShellRoot {
                                     width: mon.lw(modelData) * layoutBox.fit
                                     height: mon.lh(modelData) * layoutBox.fit
                                     radius: 8
-                                    color: mon.sel === index ? root.a(root.c.accent, 0.3) : root.a(root.c.accent, 0.12)
+                                    color: mon.sel === index ? Color.withAlpha(theme.c.accent, 0.3) : Color.withAlpha(theme.c.accent, 0.12)
                                     border.width: mon.sel === index ? 2 : 1
-                                    border.color: root.c.accent || "white"
+                                    border.color: theme.c.accent || "white"
                                     Column {
                                         anchors.centerIn: parent
                                         spacing: 4
                                         Text {
                                             anchors.horizontalCenter: parent.horizontalCenter
                                             text: screenRect.modelData.name
-                                            font.family: root.titleFont; font.pixelSize: 18; font.bold: true
-                                            color: root.c.fg || "white"
+                                            font.family: theme.titleFont; font.pixelSize: 18; font.bold: true
+                                            color: theme.c.fg || "white"
                                         }
                                         Text {
                                             anchors.horizontalCenter: parent.horizontalCenter
                                             text: screenRect.modelData.w + "×" + screenRect.modelData.h + " · "
                                                   + Math.round(screenRect.modelData.rate) + " Гц · ×" + screenRect.modelData.scale
-                                            font.family: root.bodyFont; font.pixelSize: 13
-                                            color: root.c.muted || "grey"
+                                            font.family: theme.bodyFont; font.pixelSize: 13
+                                            color: theme.c.muted || "grey"
                                         }
                                     }
                                     MouseArea {
@@ -563,8 +552,8 @@ ShellRoot {
                                     width: parent.width
                                     text: details.m ? details.m.desc : ""
                                     wrapMode: Text.Wrap
-                                    font.family: root.bodyFont; font.pixelSize: 14
-                                    color: root.c.muted || "grey"
+                                    font.family: theme.bodyFont; font.pixelSize: 14
+                                    color: theme.c.muted || "grey"
                                 }
 
                                 SectionTitle { text: "Экран" }
@@ -630,8 +619,8 @@ ShellRoot {
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: mon.status
-                                font.family: root.bodyFont; font.pixelSize: 14
-                                color: root.c.accent2 || "white"
+                                font.family: theme.bodyFont; font.pixelSize: 14
+                                color: theme.c.accent2 || "white"
                             }
                             Chip { text: "Сбросить"; enabled: mon.changed(); onClicked: mon.edit = JSON.parse(JSON.stringify(mon.list)) }
                             Chip { text: "Применить"; primary: true; enabled: mon.changed(); onClicked: mon.apply() }
@@ -643,23 +632,23 @@ ShellRoot {
                             visible: mon.pending
                             width: 520; height: 190
                             radius: Math.min(root.r, 16)
-                            color: root.c.bg2 || "black"
+                            color: theme.c.bg2 || "black"
                             border.width: 2
-                            border.color: root.c.accent || "white"
+                            border.color: theme.c.accent || "white"
                             Column {
                                 anchors.centerIn: parent
                                 spacing: 18
                                 Text {
                                     anchors.horizontalCenter: parent.horizontalCenter
                                     text: "Оставить эти настройки?"
-                                    font.family: root.titleFont; font.pixelSize: 24
-                                    color: root.c.fg || "white"
+                                    font.family: theme.titleFont; font.pixelSize: 24
+                                    color: theme.c.fg || "white"
                                 }
                                 Text {
                                     anchors.horizontalCenter: parent.horizontalCenter
                                     text: "Вернётся как было через " + mon.countdown + " с"
-                                    font.family: root.bodyFont; font.pixelSize: 15
-                                    color: root.c.muted || "grey"
+                                    font.family: theme.bodyFont; font.pixelSize: 15
+                                    color: theme.c.muted || "grey"
                                 }
                                 Row {
                                     anchors.horizontalCenter: parent.horizontalCenter
@@ -682,8 +671,8 @@ ShellRoot {
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: "Главная клавиша:"
-                                font.family: root.bodyFont; font.pixelSize: 15
-                                color: root.c.fg || "white"
+                                font.family: theme.bodyFont; font.pixelSize: 15
+                                color: theme.c.fg || "white"
                             }
                             Chip { text: "Alt"; active: keys.mainMod === "ALT"; onClicked: keys.setMainMod("ALT") }
                             Chip { text: "Super (Win)"; active: keys.mainMod === "SUPER"; onClicked: keys.setMainMod("SUPER") }
@@ -778,8 +767,8 @@ ShellRoot {
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: keys.conflict ? "Уже занято: " + keys.conflict : keys.status
-                                font.family: root.bodyFont; font.pixelSize: 14
-                                color: keys.conflict ? (root.c.warn || "orange") : (root.c.accent2 || "white")
+                                font.family: theme.bodyFont; font.pixelSize: 14
+                                color: keys.conflict ? (theme.c.warn || "orange") : (theme.c.accent2 || "white")
                             }
                             Chip {
                                 visible: keys.pendingId !== ""
@@ -800,39 +789,37 @@ ShellRoot {
                             Rectangle {
                                 id: tcard
                                 required property var modelData
-                                readonly property bool current: root.themeDir.endsWith("/" + modelData.name)
                                 width: 280; height: 230
                                 radius: Math.min(root.r, 14)
-                                color: modelData.colors.bg
-                                border.width: tma.containsMouse || current ? 2 : 1
-                                border.color: modelData.colors.accent
+                                color: modelData.pal.colors.bg
+                                border.width: tma.containsMouse || modelData.current ? 2 : 1
+                                border.color: modelData.pal.colors.accent
                                 clip: true
                                 Image {
-                                    // Wallpaper thumbnails cached by the theme picker.
                                     x: 8; y: 8; width: parent.width - 16; height: 140
-                                    source: "file://" + root.home + "/.cache/theme-thumbs/" + tcard.modelData.name + ".jpg"
+                                    source: tcard.modelData.thumb ? "file://" + tcard.modelData.thumb : ""
                                     fillMode: Image.PreserveAspectCrop
                                     asynchronous: true
                                 }
                                 Text {
-                                    visible: tcard.current
+                                    visible: tcard.modelData.current
                                     anchors { right: parent.right; rightMargin: 14; bottom: parent.bottom; bottomMargin: 16 }
                                     text: "сейчас"
-                                    font.family: root.bodyFont; font.pixelSize: 13
-                                    color: tcard.modelData.colors.accent
+                                    font.family: theme.bodyFont; font.pixelSize: 13
+                                    color: tcard.modelData.pal.colors.accent
                                 }
                                 Column {
                                     x: 18; y: 160
                                     spacing: 10
                                     Text {
-                                        text: tcard.modelData.label
-                                        font.family: root.titleFont; font.pixelSize: 22
-                                        color: tcard.modelData.colors.fg
+                                        text: tcard.modelData.pal.label
+                                        font.family: theme.titleFont; font.pixelSize: 22
+                                        color: tcard.modelData.pal.colors.fg
                                     }
                                     Row {
                                         spacing: 6
                                         Repeater {
-                                            model: [tcard.modelData.colors.accent, tcard.modelData.colors.accent2, tcard.modelData.colors.fg]
+                                            model: [tcard.modelData.pal.colors.accent, tcard.modelData.pal.colors.accent2, tcard.modelData.pal.colors.fg]
                                             Rectangle { required property string modelData; width: 22; height: 22; radius: 11; color: modelData }
                                         }
                                     }
@@ -854,15 +841,15 @@ ShellRoot {
                     visible: keys.capturing !== ""
                     width: capText.implicitWidth + 48; height: 52
                     radius: 26
-                    color: root.c.bg2 || "black"
+                    color: theme.c.bg2 || "black"
                     border.width: 2
-                    border.color: root.c.accent || "white"
+                    border.color: theme.c.accent || "white"
                     Text {
                         id: capText
                         anchors.centerIn: parent
                         text: "Нажми новое сочетание · Esc — отмена"
-                        font.family: root.bodyFont; font.pixelSize: 16
-                        color: root.c.fg || "white"
+                        font.family: theme.bodyFont; font.pixelSize: 16
+                        color: theme.c.fg || "white"
                     }
                 }
             }
@@ -878,14 +865,14 @@ ShellRoot {
         signal clicked()
         width: tbText.implicitWidth + 30; height: 36
         radius: root.r > 4 ? 18 : 0
-        color: active ? root.a(root.c.accent, 0.25) : (tbm.containsMouse ? root.a(root.c.accent, 0.1) : "transparent")
-        border.color: active ? (root.c.accent || "white") : root.a(root.c.muted, 0.3)
+        color: active ? Color.withAlpha(theme.c.accent, 0.25) : (tbm.containsMouse ? Color.withAlpha(theme.c.accent, 0.1) : "transparent")
+        border.color: active ? (theme.c.accent || "white") : Color.withAlpha(theme.c.muted, 0.3)
         Text {
             id: tbText
             anchors.centerIn: parent
             text: tb.text
-            font.family: root.bodyFont; font.pixelSize: 15; font.bold: tb.active
-            color: tb.active ? (root.c.accent || "white") : (root.c.fg || "white")
+            font.family: theme.bodyFont; font.pixelSize: 15; font.bold: tb.active
+            color: tb.active ? (theme.c.accent || "white") : (theme.c.fg || "white")
         }
         MouseArea { id: tbm; anchors.fill: parent; hoverEnabled: true; onClicked: tb.clicked() }
     }
@@ -899,22 +886,22 @@ ShellRoot {
         opacity: enabled ? 1 : 0.4
         width: chText.implicitWidth + 26; height: 34
         radius: root.r > 4 ? 9 : 0
-        color: primary ? (root.c.accent || "white") : active ? root.a(root.c.accent, 0.28)
-               : (chm.containsMouse ? root.a(root.c.accent, 0.12) : root.a(root.c.bg2, 0.9))
-        border.color: active || primary ? (root.c.accent || "white") : root.a(root.c.muted, 0.35)
+        color: primary ? (theme.c.accent || "white") : active ? Color.withAlpha(theme.c.accent, 0.28)
+               : (chm.containsMouse ? Color.withAlpha(theme.c.accent, 0.12) : Color.withAlpha(theme.c.bg2, 0.9))
+        border.color: active || primary ? (theme.c.accent || "white") : Color.withAlpha(theme.c.muted, 0.35)
         Text {
             id: chText
             anchors.centerIn: parent
             text: ch.text
-            font.family: root.bodyFont; font.pixelSize: 14; font.bold: ch.active || ch.primary
-            color: ch.primary ? (root.c.bg || "black") : ch.active ? (root.c.accent || "white") : (root.c.fg || "white")
+            font.family: theme.bodyFont; font.pixelSize: 14; font.bold: ch.active || ch.primary
+            color: ch.primary ? (theme.c.bg || "black") : ch.active ? (theme.c.accent || "white") : (theme.c.fg || "white")
         }
         MouseArea { id: chm; anchors.fill: parent; hoverEnabled: true; enabled: ch.enabled; onClicked: ch.clicked() }
     }
 
     component SectionTitle: Text {
-        font.family: root.titleFont; font.pixelSize: 17; font.bold: true; font.italic: !!root.ui.italicTitle
-        color: root.c.accent2 || root.c.accent || "white"
+        font.family: theme.titleFont; font.pixelSize: 17; font.bold: true; font.italic: !!theme.ui.italicTitle
+        color: theme.c.accent2 || theme.c.accent || "white"
         topPadding: 6
     }
 
@@ -924,15 +911,15 @@ ShellRoot {
         property string placeholder
         height: 34
         radius: root.r > 4 ? 9 : 0
-        color: root.a(root.c.bg2, 0.9)
-        border.color: input.activeFocus ? (root.c.accent || "white") : root.a(root.c.muted, 0.35)
+        color: Color.withAlpha(theme.c.bg2, 0.9)
+        border.color: input.activeFocus ? (theme.c.accent || "white") : Color.withAlpha(theme.c.muted, 0.35)
         TextInput {
             id: input
             anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
             verticalAlignment: TextInput.AlignVCenter
-            font.family: root.bodyFont; font.pixelSize: 14
-            color: root.c.fg || "white"
-            selectionColor: root.a(root.c.accent, 0.4)
+            font.family: theme.bodyFont; font.pixelSize: 14
+            color: theme.c.fg || "white"
+            selectionColor: Color.withAlpha(theme.c.accent, 0.4)
             clip: true
             Keys.onEscapePressed: scene.forceActiveFocus()
         }
@@ -940,8 +927,8 @@ ShellRoot {
             anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
             visible: !input.text && !input.activeFocus
             text: fld.placeholder
-            font.family: root.bodyFont; font.pixelSize: 14
-            color: root.c.muted || "grey"
+            font.family: theme.bodyFont; font.pixelSize: 14
+            color: theme.c.muted || "grey"
         }
         MouseArea { anchors.fill: parent; onClicked: input.forceActiveFocus() }
     }
@@ -959,14 +946,14 @@ ShellRoot {
         signal remove()
         height: 44
         radius: root.r > 4 ? 10 : 0
-        color: capturing ? root.a(root.c.accent, 0.15) : root.a(root.c.bg2, 0.6)
-        border.color: capturing ? (root.c.accent || "white") : "transparent"
+        color: capturing ? Color.withAlpha(theme.c.accent, 0.15) : Color.withAlpha(theme.c.bg2, 0.6)
+        border.color: capturing ? (theme.c.accent || "white") : "transparent"
         Text {
             anchors { left: parent.left; leftMargin: 14; right: rowButtons.left; rightMargin: 12; verticalCenter: parent.verticalCenter }
             text: row.title
             elide: Text.ElideRight
-            font.family: root.bodyFont; font.pixelSize: 14
-            color: row.combo ? (root.c.fg || "white") : (root.c.muted || "grey")
+            font.family: theme.bodyFont; font.pixelSize: 14
+            color: row.combo ? (theme.c.fg || "white") : (theme.c.muted || "grey")
         }
         Row {
             id: rowButtons
@@ -976,14 +963,14 @@ ShellRoot {
                 anchors.verticalCenter: parent.verticalCenter
                 width: Math.max(110, comboText.implicitWidth + 20); height: 28
                 radius: root.r > 4 ? 7 : 0
-                color: root.a(root.c.accent, row.combo ? 0.16 : 0.05)
-                border.color: root.a(root.c.accent, row.isDefault ? 0.45 : 0.9)
+                color: Color.withAlpha(theme.c.accent, row.combo ? 0.16 : 0.05)
+                border.color: Color.withAlpha(theme.c.accent, row.isDefault ? 0.45 : 0.9)
                 Text {
                     id: comboText
                     anchors.centerIn: parent
                     text: row.capturing ? "…" : keys.label(row.combo)
                     font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 13
-                    color: row.combo ? (root.c.accent || "white") : (root.c.muted || "grey")
+                    color: row.combo ? (theme.c.accent || "white") : (theme.c.muted || "grey")
                 }
             }
             Chip { visible: !row.removable; text: "Изменить"; onClicked: row.edit() }

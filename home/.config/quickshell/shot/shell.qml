@@ -10,18 +10,19 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import "common"
 
 ShellRoot {
     id: root
 
+    Theme { id: theme }
+
     readonly property string mode: Quickshell.env("SHOT_MODE") || "region"
     readonly property string run: Quickshell.env("SHOT_RUN")
-    readonly property string themeDir: Quickshell.env("SHOT_THEME_DIR")
     readonly property string focusedName: Quickshell.env("SHOT_FOCUSED")
     readonly property string outFile: Quickshell.env("SHOT_OUT")
     readonly property string cropScript: Quickshell.env("SHOT_CROP")
 
-    property var pal: ({ colors: {} })
     property var monitors: ({})
     property var clients: []
 
@@ -30,12 +31,10 @@ ShellRoot {
     property rect sel: Qt.rect(0, 0, 0, 0)
     property string phase: "select" // select -> saving -> capture
 
-    FileView { id: palFile; path: root.themeDir + "/palette.json"; blockLoading: true }
     FileView { id: monitorsFile; path: root.run + "/monitors.json"; blockLoading: true }
     FileView { id: clientsFile; path: root.run + "/clients.json"; blockLoading: true }
 
     Component.onCompleted: {
-        try { pal = JSON.parse(palFile.text()); } catch (e) { console.warn("palette:", e); }
         const mons = {};
         for (const m of JSON.parse(monitorsFile.text()))
             mons[m.name] = m;
@@ -62,7 +61,7 @@ ShellRoot {
         selScreen = screenName;
         sel = rect;
         phase = "saving";
-        const shutter = themeDir + "/shutter.wav";
+        const shutter = theme.dir + "/shutter.wav";
         Quickshell.execDetached(["sh", "-c", `[ -f "$1" ] && exec pw-play "$1"`, "sh", shutter]);
         const scr = Quickshell.screens.find(s => s.name === screenName);
         cropProc.command = ["python3", cropScript, `${run}/${screenName}.png`,
@@ -112,7 +111,7 @@ ShellRoot {
 
             QtObject {
                 id: ctx
-                readonly property var pal: root.pal
+                readonly property var pal: theme.pal
                 readonly property string mode: root.mode
                 readonly property string phase: root.phase
                 readonly property string outFile: root.outFile
@@ -124,7 +123,7 @@ ShellRoot {
                 readonly property url frozen: "file://" + root.run + "/" + win.name + ".png"
                 readonly property real scale: frozenImage.sourceSize.width > 0
                     ? frozenImage.sourceSize.width / win.width : 1
-                readonly property string themeDir: root.themeDir
+                readonly property string themeDir: theme.dir
                 // Themes may fade the frozen frame out to reveal the live desktop.
                 property real frozenOpacity: 1
                 // Hides the whole overlay on screens that do not own the shot.
@@ -149,7 +148,7 @@ ShellRoot {
                 Loader {
                     id: themeLoader
                     anchors.fill: parent
-                    source: "file://" + root.themeDir + "/screenshot.qml"
+                    source: "file://" + theme.dir + "/screenshot.qml"
                     onLoaded: item.ctx = ctx
                 }
 

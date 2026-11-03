@@ -12,8 +12,8 @@ RUN="${XDG_RUNTIME_DIR:-/tmp}/shot"
 THEME=${SHOT_THEME:-$(cat "$HOME/.config/hypr/current-theme" 2>/dev/null || echo claude)}
 
 # One overlay at a time; checked before grim so a second press never captures the overlay.
-# (No lock file: wl-copy and friends started from the overlay would inherit its fd.)
-quickshell list -p "$HOME/.config/quickshell/shot" 2>/dev/null | grep -q "Process ID" && exit 0
+source "$HOME/.config/quickshell/panel.sh"
+if panel_is_open shot; then exit 0; fi
 
 mkdir -p "$OUTDIR"
 rm -rf "$RUN"
@@ -31,7 +31,7 @@ wait
 
 export SHOT_MODE="$MODE"
 export SHOT_RUN="$RUN"
-export SHOT_THEME_DIR="$HOME/.config/hypr/themes/$THEME"
+export RICE_THEME_DIR="$HOME/.config/hypr/themes/$THEME"
 export SHOT_FOCUSED=$(jq -r '.[] | select(.focused) | .name' "$RUN/monitors.json")
 export SHOT_OUT="$OUTDIR/screenshot_$(date +%Y%m%d_%H%M%S).png"
 export SHOT_CROP="$HOME/.config/quickshell/shot/crop.py"

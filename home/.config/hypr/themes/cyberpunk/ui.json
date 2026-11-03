@@ -12,5 +12,6 @@
   "folders": "violet",
   "powerStyle": "cards",
   "telegramSlug": "lS15NZBAOstomJD9",
-  "glow": true
+  "glow": true,
+  "batteryStep": 0.09
 }

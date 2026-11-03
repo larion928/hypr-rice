@@ -1,5 +1,5 @@
 // Theme switcher, toggled by ~/.local/bin/theme-picker (Alt+Shift+T, waybar palette button).
-// The script writes $PICKER_DATA: every theme's palette.json + ui.json and a wallpaper thumbnail.
+// $RICE_THEME_LIST (written by ../theme-list.py): every theme's palette.json, ui.json and wallpaper thumbnail.
 // Each card is drawn in its own theme's colours and fonts; Enter runs changetheme.
 import QtQuick
 import QtQuick.Effects
@@ -7,6 +7,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Widgets
+import "common/color.js" as Color
 
 ShellRoot {
     id: root
@@ -19,16 +20,12 @@ ShellRoot {
     readonly property int columns: themes.length > 5 ? 4 : Math.max(1, themes.length)
     readonly property bool compact: themes.length > 5
 
-    FileView { id: dataFile; path: Quickshell.env("PICKER_DATA"); blockLoading: true }
+    FileView { id: dataFile; path: Quickshell.env("RICE_THEME_LIST"); blockLoading: true }
 
     Component.onCompleted: {
         try { themes = JSON.parse(dataFile.text()); } catch (e) { console.warn("picker data:", e); }
         const i = themes.findIndex(t => t.current);
         index = i >= 0 ? i : 0;
-    }
-
-    function a(col, al) {
-        return "#" + ("0" + Math.round(al * 255).toString(16)).slice(-2) + String(col || "#888888").slice(1);
     }
 
     function move(d) {
@@ -51,7 +48,7 @@ ShellRoot {
     }
 
     IpcHandler {
-        target: "picker"
+        target: "panel"
         function close(): void { root.close(); }
     }
 
@@ -94,7 +91,7 @@ ShellRoot {
 
             Rectangle {
                 anchors.fill: parent
-                color: root.a(root.cur.pal.colors.bg, 0.62)
+                color: Color.withAlpha(root.cur.pal.colors.bg, 0.62)
             }
 
             MouseArea {
@@ -149,7 +146,7 @@ ShellRoot {
                             radius: cardRoot.r
                             color: cardRoot.c.bg
                             border.width: cardRoot.selected ? 2 : 1
-                            border.color: cardRoot.selected ? cardRoot.c.accent : root.a(cardRoot.c.muted, 0.4)
+                            border.color: cardRoot.selected ? cardRoot.c.accent : Color.withAlpha(cardRoot.c.muted, 0.4)
                             scale: cardRoot.selected ? 1.06 : 0.97
                             opacity: cardRoot.selected ? 1 : 0.62
                             Behavior on scale { NumberAnimation { duration: 220; easing.type: Easing.OutBack } }
@@ -209,7 +206,7 @@ ShellRoot {
                                 visible: cardRoot.t.current
                                 anchors { right: parent.right; rightMargin: 16; verticalCenter: title.verticalCenter }
                                 width: curText.implicitWidth + 16; height: 22; radius: Math.min(cardRoot.r, 11)
-                                color: root.a(cardRoot.c.accent, 0.22)
+                                color: Color.withAlpha(cardRoot.c.accent, 0.22)
                                 Text {
                                     id: curText
                                     anchors.centerIn: parent
@@ -230,7 +227,7 @@ ShellRoot {
                                         width: 24; height: 24
                                         radius: cardRoot.r > 4 ? 12 : 2
                                         color: cardRoot.c[modelData]
-                                        border.color: root.a(cardRoot.c.fg, 0.15)
+                                        border.color: Color.withAlpha(cardRoot.c.fg, 0.15)
                                     }
                                 }
                             }

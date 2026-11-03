@@ -7,17 +7,13 @@ import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Hyprland
 import Quickshell.Widgets
+import "common"
+import "common/color.js" as Color
 
 ShellRoot {
     id: root
 
-    readonly property string themeDir: Quickshell.env("NOTIF_THEME_DIR")
-    property var pal: ({ colors: {} })
-    property var opt: ({})
-    readonly property var c: pal.colors || {}
-    readonly property string titleFont: opt.titleFont === "display" ? (pal.display || "serif") : (pal.font || "monospace")
-    readonly property string bodyFont: !opt.bodyFont || opt.bodyFont === "font" ? (pal.font || "monospace")
-                                       : opt.bodyFont === "display" ? (pal.display || "serif") : opt.bodyFont
+    Theme { id: theme }
 
     property var items: []
     property string query: ""
@@ -25,17 +21,8 @@ ShellRoot {
     property bool closing: false
     property bool confirmClear: false
 
-    FileView { id: palFile; path: root.themeDir + "/palette.json"; blockLoading: true }
-    FileView { id: optFile; path: root.themeDir + "/ui.json"; blockLoading: true }
-
     Component.onCompleted: {
-        try { pal = JSON.parse(palFile.text()); } catch (e) { console.warn("palette:", e); }
-        try { opt = JSON.parse(optFile.text()); } catch (e) { opt = {}; }
         refresh();
-    }
-
-    function a(col, al) {
-        return "#" + ("0" + Math.round(al * 255).toString(16)).slice(-2) + String(col || "#888888").slice(1);
     }
 
     // Notification bodies may carry basic markup; show them as plain text.
@@ -177,10 +164,10 @@ ShellRoot {
             height: parent.height
             x: width
             opacity: 0
-            radius: root.opt.radius ?? 14
-            color: root.a(root.c.bg, 0.94)
-            border.width: root.opt.border ?? 1
-            border.color: root.a(root.c.accent, 0.55)
+            radius: theme.ui.radius ?? 14
+            color: Color.withAlpha(theme.c.bg, 0.94)
+            border.width: theme.ui.border ?? 1
+            border.color: Color.withAlpha(theme.c.accent, 0.55)
             clip: true
             focus: true
             Keys.onEscapePressed: root.close()
@@ -189,14 +176,14 @@ ShellRoot {
 
             ParallelAnimation {
                 id: slideIn
-                NumberAnimation { target: sheet; property: "x"; from: sheet.width; to: 0; duration: root.opt.slideMs ?? 260; easing.type: Easing.OutCubic }
-                NumberAnimation { target: sheet; property: "opacity"; from: 0; to: 1; duration: (root.opt.slideMs ?? 260) * 0.7 }
+                NumberAnimation { target: sheet; property: "x"; from: sheet.width; to: 0; duration: theme.ui.slideMs ?? 260; easing.type: Easing.OutCubic }
+                NumberAnimation { target: sheet; property: "opacity"; from: 0; to: 1; duration: (theme.ui.slideMs ?? 260) * 0.7 }
             }
             SequentialAnimation {
                 id: slideOut
                 ParallelAnimation {
-                    NumberAnimation { target: sheet; property: "x"; to: sheet.width; duration: (root.opt.slideMs ?? 260) * 0.8; easing.type: Easing.InCubic }
-                    NumberAnimation { target: sheet; property: "opacity"; to: 0; duration: (root.opt.slideMs ?? 260) * 0.8 }
+                    NumberAnimation { target: sheet; property: "x"; to: sheet.width; duration: (theme.ui.slideMs ?? 260) * 0.8; easing.type: Easing.InCubic }
+                    NumberAnimation { target: sheet; property: "opacity"; to: 0; duration: (theme.ui.slideMs ?? 260) * 0.8 }
                 }
                 ScriptAction { script: Qt.quit() }
             }
@@ -214,35 +201,35 @@ ShellRoot {
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 10
                         Image {
-                            visible: !!root.opt.headerIcon
-                            source: root.opt.headerIcon ? "file://" + root.themeDir + "/" + root.opt.headerIcon : ""
+                            visible: !!theme.ui.headerIcon
+                            source: theme.ui.headerIcon ? "file://" + theme.dir + "/" + theme.ui.headerIcon : ""
                             width: 22; height: 22; sourceSize: Qt.size(44, 44)
                             anchors.verticalCenter: parent.verticalCenter
                         }
                         Text {
-                            visible: !root.opt.headerIcon
-                            text: root.opt.headerGlyph || "•"
-                            font.family: root.titleFont; font.pixelSize: 20; font.bold: true
-                            color: root.c.accent || "white"
+                            visible: !theme.ui.headerIcon
+                            text: theme.ui.headerGlyph || "•"
+                            font.family: theme.titleFont; font.pixelSize: 20; font.bold: true
+                            color: theme.c.accent || "white"
                             anchors.verticalCenter: parent.verticalCenter
                         }
                         Text {
-                            text: root.opt.upperTitle ? String(root.opt.title || "").toUpperCase() : (root.opt.title || "Уведомления")
-                            font.family: root.titleFont; font.pixelSize: 21; font.italic: !!root.opt.italicTitle
-                            color: root.c.fg || "white"
+                            text: theme.ui.upperTitle ? String(theme.ui.title || "").toUpperCase() : (theme.ui.title || "Уведомления")
+                            font.family: theme.titleFont; font.pixelSize: 21; font.italic: !!theme.ui.italicTitle
+                            color: theme.c.fg || "white"
                             anchors.verticalCenter: parent.verticalCenter
                         }
                         Rectangle {
                             visible: root.unread > 0
                             anchors.verticalCenter: parent.verticalCenter
                             width: unreadText.implicitWidth + 14; height: 20; radius: 10
-                            color: root.a(root.c.accent, 0.25)
+                            color: Color.withAlpha(theme.c.accent, 0.25)
                             Text {
                                 id: unreadText
                                 anchors.centerIn: parent
                                 text: root.unread
-                                font.family: root.bodyFont; font.pixelSize: 12; font.bold: true
-                                color: root.c.accent || "white"
+                                font.family: theme.bodyFont; font.pixelSize: 12; font.bold: true
+                                color: theme.c.accent || "white"
                             }
                         }
                     }
@@ -264,23 +251,23 @@ ShellRoot {
                 Rectangle {
                     width: parent.width
                     height: 38
-                    radius: Math.min(root.opt.cardRadius ?? 10, 19)
-                    color: root.a(root.c.bg2, 0.9)
-                    border.color: search.activeFocus ? (root.c.accent || "white") : root.a(root.c.muted, 0.35)
+                    radius: Math.min(theme.ui.cardRadius ?? 10, 19)
+                    color: Color.withAlpha(theme.c.bg2, 0.9)
+                    border.color: search.activeFocus ? (theme.c.accent || "white") : Color.withAlpha(theme.c.muted, 0.35)
                     Text {
                         anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
                         visible: !search.text
                         text: "  Поиск по уведомлениям"
-                        font.family: root.bodyFont; font.pixelSize: 14
-                        color: root.c.muted || "grey"
+                        font.family: theme.bodyFont; font.pixelSize: 14
+                        color: theme.c.muted || "grey"
                     }
                     TextInput {
                         id: search
                         anchors { fill: parent; leftMargin: 14; rightMargin: 14 }
                         verticalAlignment: TextInput.AlignVCenter
-                        font.family: root.bodyFont; font.pixelSize: 14
-                        color: root.c.fg || "white"
-                        selectionColor: root.a(root.c.accent, 0.4)
+                        font.family: theme.bodyFont; font.pixelSize: 14
+                        color: theme.c.fg || "white"
+                        selectionColor: Color.withAlpha(theme.c.accent, 0.4)
                         clip: true
                         onTextChanged: root.query = text
                         Keys.onEscapePressed: text ? text = "" : root.close()
@@ -310,8 +297,8 @@ ShellRoot {
                         visible: row.isDay
                         y: 4
                         text: row.modelData.label || ""
-                        font.family: root.titleFont; font.pixelSize: 14; font.bold: true; font.italic: !!root.opt.italicTitle
-                        color: root.c.accent2 || root.c.accent || "white"
+                        font.family: theme.titleFont; font.pixelSize: 14; font.bold: true; font.italic: !!theme.ui.italicTitle
+                        color: theme.c.accent2 || theme.c.accent || "white"
                     }
 
                     Rectangle {
@@ -319,13 +306,13 @@ ShellRoot {
                         visible: !row.isDay
                         width: parent.width
                         height: visible ? content.implicitHeight + 24 : 0
-                        radius: root.opt.cardRadius ?? 10
+                        radius: theme.ui.cardRadius ?? 10
                         readonly property bool read: !!row.n.histui_dismissed_at
                         readonly property bool critical: row.n.urgency === 2
                         property bool expanded: false
-                        color: hover.hovered ? root.a(root.c.bg2, 1) : root.a(root.c.bg2, read ? 0.55 : 0.85)
+                        color: hover.hovered ? Color.withAlpha(theme.c.bg2, 1) : Color.withAlpha(theme.c.bg2, read ? 0.55 : 0.85)
                         border.width: 1
-                        border.color: critical ? root.a(root.c.crit, 0.8) : root.a(root.c.accent, read ? 0.12 : 0.35)
+                        border.color: critical ? Color.withAlpha(theme.c.crit, 0.8) : Color.withAlpha(theme.c.accent, read ? 0.12 : 0.35)
                         opacity: 0
 
                         Component.onCompleted: if (visible) appear.start()
@@ -336,7 +323,7 @@ ShellRoot {
                             visible: !card.read
                             x: 0; y: 10
                             width: 3; height: card.height - 20; radius: 2
-                            color: card.critical ? (root.c.crit || "red") : (root.c.accent || "white")
+                            color: card.critical ? (theme.c.crit || "red") : (theme.c.accent || "white")
                         }
 
                         HoverHandler { id: hover }
@@ -372,12 +359,12 @@ ShellRoot {
                                         visible: !appIcon.visible
                                         text: "\uf0f3"
                                         font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 14
-                                        color: root.c.accent || "white"
+                                        color: theme.c.accent || "white"
                                     }
                                     Text {
                                         text: row.n.app_name || ""
-                                        font.family: root.bodyFont; font.pixelSize: 12
-                                        color: root.c.muted || "grey"
+                                        font.family: theme.bodyFont; font.pixelSize: 12
+                                        color: theme.c.muted || "grey"
                                     }
                                 }
                                 Row {
@@ -391,8 +378,8 @@ ShellRoot {
                                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                                     visible: !hover.hovered
                                     text: root.timeLabel(row.n.timestamp || 0)
-                                    font.family: root.bodyFont; font.pixelSize: 12
-                                    color: root.c.muted || "grey"
+                                    font.family: theme.bodyFont; font.pixelSize: 12
+                                    color: theme.c.muted || "grey"
                                 }
                             }
                             Text {
@@ -403,8 +390,8 @@ ShellRoot {
                                 wrapMode: Text.Wrap
                                 maximumLineCount: card.expanded ? 6 : 2
                                 elide: Text.ElideRight
-                                font.family: root.titleFont; font.pixelSize: 15; font.bold: true
-                                color: card.critical ? (root.c.crit || "white") : (root.c.fg || "white")
+                                font.family: theme.titleFont; font.pixelSize: 15; font.bold: true
+                                color: card.critical ? (theme.c.crit || "white") : (theme.c.fg || "white")
                             }
                             Text {
                                 width: parent.width
@@ -414,8 +401,8 @@ ShellRoot {
                                 wrapMode: Text.Wrap
                                 maximumLineCount: card.expanded ? 40 : 3
                                 elide: Text.ElideRight
-                                font.family: root.bodyFont; font.pixelSize: 13
-                                color: root.a(root.c.fg, card.read ? 0.6 : 0.85)
+                                font.family: theme.bodyFont; font.pixelSize: 13
+                                color: Color.withAlpha(theme.c.fg, card.read ? 0.6 : 0.85)
                             }
                         }
                     }
@@ -427,15 +414,15 @@ ShellRoot {
                     spacing: 8
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        text: root.opt.headerGlyph || ""
-                        font.family: root.titleFont; font.pixelSize: 40
-                        color: root.a(root.c.muted, 0.6)
+                        text: theme.ui.headerGlyph || ""
+                        font.family: theme.titleFont; font.pixelSize: 40
+                        color: Color.withAlpha(theme.c.muted, 0.6)
                     }
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: root.query ? "Ничего не найдено" : "Уведомлений нет"
-                        font.family: root.titleFont; font.pixelSize: 16; font.italic: !!root.opt.italicTitle
-                        color: root.c.muted || "grey"
+                        font.family: theme.titleFont; font.pixelSize: 16; font.italic: !!theme.ui.italicTitle
+                        color: theme.c.muted || "grey"
                     }
                 }
             }
@@ -448,24 +435,24 @@ ShellRoot {
                 Text {
                     anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                     text: root.items.length + " в истории"
-                    font.family: root.bodyFont; font.pixelSize: 12
-                    color: root.c.muted || "grey"
+                    font.family: theme.bodyFont; font.pixelSize: 12
+                    color: theme.c.muted || "grey"
                 }
 
                 Rectangle {
                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                     width: clearText.implicitWidth + 24; height: 32
-                    radius: Math.min(root.opt.cardRadius ?? 10, 16)
-                    color: root.confirmClear ? root.a(root.c.crit, 0.85) : clearHover.hovered ? root.a(root.c.crit, 0.25) : "transparent"
-                    border.color: root.a(root.c.crit, 0.6)
+                    radius: Math.min(theme.ui.cardRadius ?? 10, 16)
+                    color: root.confirmClear ? Color.withAlpha(theme.c.crit, 0.85) : clearHover.hovered ? Color.withAlpha(theme.c.crit, 0.25) : "transparent"
+                    border.color: Color.withAlpha(theme.c.crit, 0.6)
                     HoverHandler { id: clearHover }
                     TapHandler { onTapped: root.clearAll() }
                     Text {
                         id: clearText
                         anchors.centerIn: parent
                         text: root.confirmClear ? "Точно? Нажми ещё раз" : "Очистить всё"
-                        font.family: root.bodyFont; font.pixelSize: 13
-                        color: root.confirmClear ? (root.c.bg || "black") : (root.c.crit || "red")
+                        font.family: theme.bodyFont; font.pixelSize: 13
+                        color: root.confirmClear ? (theme.c.bg || "black") : (theme.c.crit || "red")
                     }
                 }
             }
@@ -481,15 +468,15 @@ ShellRoot {
         property bool small: false
         signal clicked()
         width: small ? 24 : 32; height: width
-        radius: Math.min(root.opt.cardRadius ?? 8, width / 2)
-        color: active ? root.a(root.c.accent, 0.3) : btnHover.hovered ? root.a(danger ? root.c.crit : root.c.accent, 0.2) : "transparent"
+        radius: Math.min(theme.ui.cardRadius ?? 8, width / 2)
+        color: active ? Color.withAlpha(theme.c.accent, 0.3) : btnHover.hovered ? Color.withAlpha(danger ? theme.c.crit : theme.c.accent, 0.2) : "transparent"
         HoverHandler { id: btnHover }
         TapHandler { onTapped: btn.clicked() }
         Text {
             anchors.centerIn: parent
             text: btn.glyph
             font.family: "JetBrainsMono Nerd Font"; font.pixelSize: btn.small ? 12 : 15
-            color: btn.danger && btnHover.hovered ? (root.c.crit || "red") : btn.active ? (root.c.accent || "white") : (root.c.fg || "white")
+            color: btn.danger && btnHover.hovered ? (theme.c.crit || "red") : btn.active ? (theme.c.accent || "white") : (theme.c.fg || "white")
         }
     }
 }

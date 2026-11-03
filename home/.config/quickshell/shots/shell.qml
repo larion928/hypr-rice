@@ -7,34 +7,20 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Widgets
+import "common"
+import "common/color.js" as Color
 
 ShellRoot {
     id: root
 
-    readonly property string themeDir: Quickshell.env("SHOTS_THEME_DIR")
+    Theme { id: theme }
+
     readonly property string dir: Quickshell.env("SHOTS_DIR")
-    property var pal: ({ colors: {} })
-    property var ui: ({})
-    readonly property var c: pal.colors || {}
-    readonly property string titleFont: ui.titleFont === "display" ? (pal.display || "serif") : (pal.font || "monospace")
-    readonly property string bodyFont: !ui.bodyFont || ui.bodyFont === "font" ? (pal.font || "monospace")
-                                       : ui.bodyFont === "display" ? (pal.display || "serif") : ui.bodyFont
-    readonly property int r: Math.min(ui.radius ?? 14, 22)
+    readonly property int r: Math.min(theme.ui.radius ?? 14, 22)
 
     property int preview: -1        // index shown large, -1 = grid
     property string armed: ""       // file waiting for a second delete press
     property bool closing: false
-
-    FileView { id: palFile; path: root.themeDir + "/palette.json"; blockLoading: true }
-    FileView { id: uiFile; path: root.themeDir + "/ui.json"; blockLoading: true }
-    Component.onCompleted: {
-        try { pal = JSON.parse(palFile.text()); } catch (e) {}
-        try { ui = JSON.parse(uiFile.text()); } catch (e) {}
-    }
-
-    function a(col, al) {
-        return "#" + ("0" + Math.round(al * 255).toString(16)).slice(-2) + String(col || "#888888").slice(1);
-    }
 
     FolderListModel {
         id: files
@@ -84,7 +70,7 @@ ShellRoot {
     Timer { id: disarm; interval: 3000; onTriggered: root.armed = "" }
 
     IpcHandler {
-        target: "shots"
+        target: "panel"
         function close(): void { root.close(); }
     }
 
@@ -130,7 +116,7 @@ ShellRoot {
                 }
             }
 
-            Rectangle { anchors.fill: parent; color: root.a(root.c.bg, 0.7) }
+            Rectangle { anchors.fill: parent; color: Color.withAlpha(theme.c.bg, 0.7) }
             MouseArea { anchors.fill: parent; onClicked: root.close() }
 
             Rectangle {
@@ -139,9 +125,9 @@ ShellRoot {
                 width: Math.min(parent.width - 80, 1500)
                 height: Math.min(parent.height - 80, 920)
                 radius: root.r
-                color: root.a(root.c.bg, 0.95)
-                border.width: root.ui.border ?? 1
-                border.color: root.a(root.c.accent, 0.5)
+                color: Color.withAlpha(theme.c.bg, 0.95)
+                border.width: theme.ui.border ?? 1
+                border.color: Color.withAlpha(theme.c.accent, 0.5)
                 clip: true
                 MouseArea { anchors.fill: parent }
 
@@ -151,28 +137,28 @@ ShellRoot {
                     x: 28; y: 22
                     spacing: 12
                     Image {
-                        visible: !!root.ui.headerIcon
-                        source: root.ui.headerIcon ? "file://" + root.themeDir + "/" + root.ui.headerIcon : ""
+                        visible: !!theme.ui.headerIcon
+                        source: theme.ui.headerIcon ? "file://" + theme.dir + "/" + theme.ui.headerIcon : ""
                         width: 26; height: 26; sourceSize: Qt.size(52, 52)
                         anchors.verticalCenter: parent.verticalCenter
                     }
                     Text {
-                        visible: !root.ui.headerIcon
-                        text: root.ui.headerGlyph || ""
-                        font.family: root.titleFont; font.pixelSize: 24; font.bold: true
-                        color: root.c.accent || "white"
+                        visible: !theme.ui.headerIcon
+                        text: theme.ui.headerGlyph || ""
+                        font.family: theme.titleFont; font.pixelSize: 24; font.bold: true
+                        color: theme.c.accent || "white"
                         anchors.verticalCenter: parent.verticalCenter
                     }
                     Text {
-                        text: root.ui.upperTitle ? "СКРИНШОТЫ" : "Скриншоты"
-                        font.family: root.titleFont; font.pixelSize: 28; font.italic: !!root.ui.italicTitle
-                        color: root.c.fg || "white"
+                        text: theme.ui.upperTitle ? "СКРИНШОТЫ" : "Скриншоты"
+                        font.family: theme.titleFont; font.pixelSize: 28; font.italic: !!theme.ui.italicTitle
+                        color: theme.c.fg || "white"
                         anchors.verticalCenter: parent.verticalCenter
                     }
                     Text {
                         text: files.count
-                        font.family: root.bodyFont; font.pixelSize: 15
-                        color: root.c.muted || "grey"
+                        font.family: theme.bodyFont; font.pixelSize: 15
+                        color: theme.c.muted || "grey"
                         anchors.verticalCenter: parent.verticalCenter
                     }
                 }
@@ -211,9 +197,9 @@ ShellRoot {
                             width: parent.width - 16
                             height: width * 9 / 16
                             radius: Math.min(root.r, 12)
-                            color: root.c.bg2 || "#222"
+                            color: theme.c.bg2 || "#222"
                             border.width: cell.current || hover.hovered ? 2 : 1
-                            border.color: cell.current || hover.hovered ? (root.c.accent || "white") : root.a(root.c.muted, 0.3)
+                            border.color: cell.current || hover.hovered ? (theme.c.accent || "white") : Color.withAlpha(theme.c.muted, 0.3)
                             Image {
                                 anchors.fill: parent
                                 source: "file://" + cell.filePath
@@ -234,8 +220,8 @@ ShellRoot {
                         Text {
                             anchors { left: thumbBox.left; top: thumbBox.bottom; topMargin: 6 }
                             text: root.stamp(cell.fileName)
-                            font.family: root.bodyFont; font.pixelSize: 12
-                            color: cell.current ? (root.c.accent || "white") : (root.c.muted || "grey")
+                            font.family: theme.bodyFont; font.pixelSize: 12
+                            color: cell.current ? (theme.c.accent || "white") : (theme.c.muted || "grey")
                         }
                         HoverHandler { id: hover; onHoveredChanged: if (hovered) grid.currentIndex = cell.index }
                         TapHandler { onTapped: root.preview = cell.index }
@@ -245,8 +231,8 @@ ShellRoot {
                         anchors.centerIn: parent
                         visible: files.count === 0
                         text: "Скриншотов пока нет — Print, чтобы сделать"
-                        font.family: root.titleFont; font.pixelSize: 18; font.italic: !!root.ui.italicTitle
-                        color: root.c.muted || "grey"
+                        font.family: theme.titleFont; font.pixelSize: 18; font.italic: !!theme.ui.italicTitle
+                        color: theme.c.muted || "grey"
                     }
                 }
 
@@ -280,22 +266,22 @@ ShellRoot {
                     text: root.preview >= 0
                           ? root.stamp(files.get(root.preview, "fileName") || "") + "   ·   ← → листать · C копировать · Enter открыть · Del в корзину · Esc назад"
                           : "клик — просмотр · C копировать · Del в корзину · Esc закрыть"
-                    font.family: root.bodyFont; font.pixelSize: 13
-                    color: root.c.muted || "grey"
+                    font.family: theme.bodyFont; font.pixelSize: 13
+                    color: theme.c.muted || "grey"
                 }
 
                 Rectangle {
                     id: toast
                     anchors { horizontalCenter: parent.horizontalCenter; bottom: hint.top; bottomMargin: 12 }
                     width: toastText.implicitWidth + 28; height: 34; radius: 17
-                    color: root.a(root.c.accent, 0.9)
+                    color: Color.withAlpha(theme.c.accent, 0.9)
                     opacity: 0
                     Text {
                         id: toastText
                         anchors.centerIn: parent
                         text: flash.text
-                        font.family: root.bodyFont; font.pixelSize: 14
-                        color: root.c.bg || "black"
+                        font.family: theme.bodyFont; font.pixelSize: 14
+                        color: theme.c.bg || "black"
                     }
                     SequentialAnimation {
                         id: flash
@@ -319,8 +305,8 @@ ShellRoot {
         width: label ? row.implicitWidth + 24 : (small ? 28 : 36)
         height: small ? 28 : 36
         radius: Math.min(root.r, height / 2)
-        color: btnHover.hovered ? root.a(danger ? root.c.crit : root.c.accent, 0.3) : root.a(root.c.bg2, 0.9)
-        border.color: root.a(danger ? root.c.crit : root.c.accent, 0.4)
+        color: btnHover.hovered ? Color.withAlpha(danger ? theme.c.crit : theme.c.accent, 0.3) : Color.withAlpha(theme.c.bg2, 0.9)
+        border.color: Color.withAlpha(danger ? theme.c.crit : theme.c.accent, 0.4)
         HoverHandler { id: btnHover }
         TapHandler { onTapped: btn.clicked() }
         Row {
@@ -330,14 +316,14 @@ ShellRoot {
             Text {
                 text: btn.glyph
                 font.family: "JetBrainsMono Nerd Font"; font.pixelSize: btn.small ? 13 : 15
-                color: btn.danger ? (root.c.crit || "red") : (root.c.fg || "white")
+                color: btn.danger ? (theme.c.crit || "red") : (theme.c.fg || "white")
                 anchors.verticalCenter: parent.verticalCenter
             }
             Text {
                 visible: !!btn.label
                 text: btn.label
-                font.family: root.bodyFont; font.pixelSize: 13
-                color: root.c.fg || "white"
+                font.family: theme.bodyFont; font.pixelSize: 13
+                color: theme.c.fg || "white"
                 anchors.verticalCenter: parent.verticalCenter
             }
         }

@@ -21,7 +21,7 @@ HYPR = Path.home() / ".config/hypr"
 FRAME = Path.home() / ".cache/waybar-battery-frame"
 WAVE_PID = Path.home() / ".cache/waybar-battery-wave.pid"
 SIGNAL = 8  # "signal" of custom/battery in config.base.json
-STEP = {"cyberpunk": 0.09, "hacker": 0.16}  # seconds per frame; default below
+DEFAULT_STEP = 0.18  # seconds per frame when the theme's ui.json sets no "batteryStep"
 
 
 def read(p, default=""):
@@ -81,7 +81,7 @@ def wave():
     else:
         # Alternate every extra frame with the idle one: 1 0 1 0 … or 1 0 2 0 …
         seq = [f for i in range(1, frames) for f in (i, 0)] * (4 if frames == 2 else 2)
-    step = float(ui.get("batteryStep", STEP.get(theme, 0.18)))
+    step = float(ui.get("batteryStep", DEFAULT_STEP))
     for f in seq:
         FRAME.write_text(f"{f} {time.time()}")
         refresh()

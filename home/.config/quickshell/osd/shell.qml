@@ -7,29 +7,24 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Services.Pipewire
+import "common"
+import "common/color.js" as Color
 
 ShellRoot {
     id: root
 
+    Theme { id: theme; dir: root.themeName ? root.hypr + "/themes/" + root.themeName : "" }
+
     readonly property string hypr: Quickshell.env("HOME") + "/.config/hypr"
     property string themeName: ""
-    property var pal: ({ colors: {} })
-    property var ui: ({})
-    readonly property var c: pal.colors || {}
-    readonly property string style: ui.osdStyle || "pill"
-    readonly property string titleFont: ui.titleFont === "display" ? (pal.display || "serif") : (pal.font || "monospace")
-    readonly property string bodyFont: pal.font || "monospace"
-    readonly property int r: Math.min(ui.radius ?? 14, 22)
+    readonly property string style: theme.ui.osdStyle || "pill"
+    readonly property int r: Math.min(theme.ui.radius ?? 14, 22)
 
     property string kind: "volume"   // what is being shown
     property real value: 0           // 0..1
     property bool muted: false
     property bool shown: false
     property bool ready: false       // ignore the initial values reported at startup
-
-    function a(col, al) {
-        return "#" + ("0" + Math.round(al * 255).toString(16)).slice(-2) + String(col || "#888888").slice(1);
-    }
 
     function show(k, v, m) {
         if (!ready) return;
@@ -50,18 +45,6 @@ ShellRoot {
         watchChanges: true
         onFileChanged: reload()
         onLoaded: root.loadTheme(text().trim())
-    }
-    // Parse in onLoaded: right after a path change text() still returns the previous file,
-    // which made the OSD lag one theme behind.
-    FileView {
-        id: palFile
-        path: root.themeName ? root.hypr + "/themes/" + root.themeName + "/palette.json" : ""
-        onLoaded: { try { root.pal = JSON.parse(text()); } catch (e) {} }
-    }
-    FileView {
-        id: uiFile
-        path: root.themeName ? root.hypr + "/themes/" + root.themeName + "/ui.json" : ""
-        onLoaded: { try { root.ui = JSON.parse(text()); } catch (e) { root.ui = {}; } }
     }
 
     function loadTheme(name) {
@@ -126,8 +109,8 @@ ShellRoot {
                 visible: root.style === "pill"
                 anchors.fill: parent
                 radius: Math.min(root.r, height / 2)
-                color: root.a(root.c.bg, 0.92)
-                border.color: root.a(root.c.accent, 0.5)
+                color: Color.withAlpha(theme.c.bg, 0.92)
+                border.color: Color.withAlpha(theme.c.accent, 0.5)
                 Row {
                     anchors { fill: parent; leftMargin: 22; rightMargin: 22 }
                     spacing: 16
@@ -135,23 +118,23 @@ ShellRoot {
                         anchors.verticalCenter: parent.verticalCenter
                         text: root.icon
                         font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 24
-                        color: root.muted ? (root.c.muted || "grey") : (root.c.accent || "white")
+                        color: root.muted ? (theme.c.muted || "grey") : (theme.c.accent || "white")
                     }
                     Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
                         width: parent.width - 120; height: 8; radius: 4
-                        color: root.a(root.c.muted, 0.3)
+                        color: Color.withAlpha(theme.c.muted, 0.3)
                         Rectangle {
                             width: parent.width * root.value; height: parent.height; radius: 4
-                            color: root.muted ? (root.c.muted || "grey") : (root.c.accent || "white")
+                            color: root.muted ? (theme.c.muted || "grey") : (theme.c.accent || "white")
                             Behavior on width { NumberAnimation { duration: 120 } }
                         }
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: root.pct
-                        font.family: root.titleFont; font.pixelSize: 20; font.italic: !!root.ui.italicTitle
-                        color: root.c.fg || "white"
+                        font.family: theme.titleFont; font.pixelSize: 20; font.italic: !!theme.ui.italicTitle
+                        color: theme.c.fg || "white"
                     }
                 }
             }
@@ -160,8 +143,8 @@ ShellRoot {
             Rectangle {
                 visible: root.style === "ascii"
                 anchors.fill: parent
-                color: root.a("#000000", 0.9)
-                border.color: root.c.accent || "green"
+                color: Color.withAlpha("#000000", 0.9)
+                border.color: theme.c.accent || "green"
                 Text {
                     anchors.centerIn: parent
                     readonly property int cells: 20
@@ -169,8 +152,8 @@ ShellRoot {
                     text: (root.kind === "brightness" ? "bri " : root.muted ? "mute" : "vol ")
                           + " [" + "#".repeat(full) + "-".repeat(cells - full) + "] "
                           + String(root.pct).padStart(3, " ") + "%"
-                    font.family: root.bodyFont; font.pixelSize: 18
-                    color: root.muted ? (root.c.muted || "grey") : (root.c.accent || "green")
+                    font.family: theme.font; font.pixelSize: 18
+                    color: root.muted ? (theme.c.muted || "grey") : (theme.c.accent || "green")
                 }
             }
 
@@ -178,9 +161,9 @@ ShellRoot {
             Rectangle {
                 visible: root.style === "neon"
                 anchors.fill: parent
-                color: root.a(root.c.bg, 0.92)
+                color: Color.withAlpha(theme.c.bg, 0.92)
                 border.width: 2
-                border.color: root.c.accent || "magenta"
+                border.color: theme.c.accent || "magenta"
                 Row {
                     anchors { fill: parent; leftMargin: 18; rightMargin: 18 }
                     spacing: 12
@@ -188,7 +171,7 @@ ShellRoot {
                         anchors.verticalCenter: parent.verticalCenter
                         text: root.icon
                         font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 24
-                        color: root.c.accent2 || "cyan"
+                        color: theme.c.accent2 || "cyan"
                     }
                     Row {
                         anchors.verticalCenter: parent.verticalCenter
@@ -199,8 +182,8 @@ ShellRoot {
                                 required property int index
                                 readonly property bool on: index < Math.round(root.value * 20)
                                 width: 9; height: 22
-                                color: on ? (index >= 16 ? (root.c.accent || "magenta") : (root.c.accent2 || "cyan"))
-                                          : root.a(root.c.muted, 0.25)
+                                color: on ? (index >= 16 ? (theme.c.accent || "magenta") : (theme.c.accent2 || "cyan"))
+                                          : Color.withAlpha(theme.c.muted, 0.25)
                                 opacity: root.muted && on ? 0.4 : 1
                             }
                         }
@@ -208,8 +191,8 @@ ShellRoot {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: String(root.pct).padStart(3, " ")
-                        font.family: root.bodyFont; font.pixelSize: 18; font.bold: true
-                        color: root.c.accent || "magenta"
+                        font.family: theme.font; font.pixelSize: 18; font.bold: true
+                        color: theme.c.accent || "magenta"
                     }
                 }
             }
@@ -221,17 +204,17 @@ ShellRoot {
                 Text {
                     anchors { horizontalCenter: parent.horizontalCenter; bottom: line.top; bottomMargin: 10 }
                     text: root.label.toLowerCase() + "  " + root.pct
-                    font.family: root.bodyFont; font.pixelSize: 13
-                    color: root.c.muted || "grey"
+                    font.family: theme.font; font.pixelSize: 13
+                    color: theme.c.muted || "grey"
                 }
                 Rectangle {
                     id: line
                     anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 18 }
                     width: 260; height: 2
-                    color: root.a(root.c.muted, 0.35)
+                    color: Color.withAlpha(theme.c.muted, 0.35)
                     Rectangle {
                         width: parent.width * root.value; height: parent.height
-                        color: root.muted ? (root.c.muted || "grey") : (root.c.fg || "white")
+                        color: root.muted ? (theme.c.muted || "grey") : (theme.c.fg || "white")
                         Behavior on width { NumberAnimation { duration: 120 } }
                     }
                 }
@@ -242,21 +225,21 @@ ShellRoot {
                 visible: root.style === "retro"
                 anchors.fill: parent
                 radius: 6
-                color: root.a(root.c.bg, 0.95)
+                color: Color.withAlpha(theme.c.bg, 0.95)
                 border.width: 2
-                border.color: root.c.accent3 || "brown"
+                border.color: theme.c.accent3 || "brown"
                 Row {
                     anchors { fill: parent; leftMargin: 14; rightMargin: 16 }
                     spacing: 12
                     Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
                         width: 44; height: 44; radius: 4
-                        color: root.muted ? (root.c.muted || "grey") : (root.c.accent || "orange")
+                        color: root.muted ? (theme.c.muted || "grey") : (theme.c.accent || "orange")
                         Text {
                             anchors.centerIn: parent
                             text: root.icon
                             font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 22
-                            color: root.c.bg || "black"
+                            color: theme.c.bg || "black"
                         }
                     }
                     Row {
@@ -268,16 +251,16 @@ ShellRoot {
                                 required property int index
                                 readonly property bool on: index < Math.round(root.value * 10)
                                 width: 14; height: 26; radius: 2
-                                color: on ? (root.muted ? (root.c.muted || "grey") : (root.c.accent2 || "wheat"))
-                                          : root.a(root.c.accent3, 0.25)
+                                color: on ? (root.muted ? (theme.c.muted || "grey") : (theme.c.accent2 || "wheat"))
+                                          : Color.withAlpha(theme.c.accent3, 0.25)
                             }
                         }
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: String(root.pct).padStart(3, " ") + "%"
-                        font.family: root.titleFont; font.pixelSize: 18; font.bold: true
-                        color: root.c.fg || "white"
+                        font.family: theme.titleFont; font.pixelSize: 18; font.bold: true
+                        color: theme.c.fg || "white"
                     }
                 }
             }
@@ -288,9 +271,9 @@ ShellRoot {
                 visible: root.style === "wave"
                 anchors.fill: parent
                 radius: height / 2
-                color: root.a(root.c.bg, 0.9)
+                color: Color.withAlpha(theme.c.bg, 0.9)
                 border.width: 1.5
-                border.color: root.a(root.c.accent, 0.6)
+                border.color: Color.withAlpha(theme.c.accent, 0.6)
                 property real phase: 0
                 NumberAnimation on phase {
                     running: waveBox.visible && win.visible
@@ -319,8 +302,8 @@ ShellRoot {
                         // Water fills from the left; its right edge is the wavy surface.
                         const edge = width * level;
                         const grad = g.createLinearGradient(0, 0, width, 0);
-                        grad.addColorStop(0, root.a(root.c.accent3, 0.85));
-                        grad.addColorStop(1, root.a(root.muted ? root.c.muted : root.c.accent, 0.85));
+                        grad.addColorStop(0, Color.withAlpha(theme.c.accent3, 0.85));
+                        grad.addColorStop(1, Color.withAlpha(root.muted ? theme.c.muted : theme.c.accent, 0.85));
                         g.fillStyle = grad;
                         g.beginPath();
                         g.moveTo(0, 0);
@@ -338,20 +321,20 @@ ShellRoot {
                         anchors.verticalCenter: parent.verticalCenter
                         text: root.icon
                         font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 24
-                        color: root.c.fg || "white"
+                        color: theme.c.fg || "white"
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         width: parent.width - 120
                         text: root.label
-                        font.family: root.titleFont; font.pixelSize: 17; font.bold: true
-                        color: root.c.fg || "white"
+                        font.family: theme.titleFont; font.pixelSize: 17; font.bold: true
+                        color: theme.c.fg || "white"
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: root.pct
-                        font.family: root.titleFont; font.pixelSize: 22; font.bold: true
-                        color: root.c.fg || "white"
+                        font.family: theme.titleFont; font.pixelSize: 22; font.bold: true
+                        color: theme.c.fg || "white"
                     }
                 }
             }

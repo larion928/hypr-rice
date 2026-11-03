@@ -7,19 +7,16 @@ import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Hyprland
 import Quickshell.Widgets
+import "common"
+import "common/color.js" as Color
 
 ShellRoot {
     id: root
 
-    readonly property string themeDir: Quickshell.env("LAUNCHER_THEME_DIR")
+    Theme { id: theme }
+
     readonly property string usagePath: Quickshell.env("HOME") + "/.local/state/launcher/usage.json"
-    property var pal: ({ colors: {} })
-    property var ui: ({})
-    readonly property var c: pal.colors || {}
-    readonly property string titleFont: ui.titleFont === "display" ? (pal.display || "serif") : (pal.font || "monospace")
-    readonly property string bodyFont: !ui.bodyFont || ui.bodyFont === "font" ? (pal.font || "monospace")
-                                       : ui.bodyFont === "display" ? (pal.display || "serif") : ui.bodyFont
-    readonly property int r: Math.min(ui.radius ?? 14, 22)
+    readonly property int r: Math.min(theme.ui.radius ?? 14, 22)
 
     property var usage: ({})
     property string query: ""
@@ -27,18 +24,10 @@ ShellRoot {
     property string armed: ""   // id of a dangerous command waiting for a second Enter
     property bool closing: false
 
-    FileView { id: palFile; path: root.themeDir + "/palette.json"; blockLoading: true }
-    FileView { id: uiFile; path: root.themeDir + "/ui.json"; blockLoading: true }
     FileView { id: usageFile; path: root.usagePath; blockLoading: true }
 
     Component.onCompleted: {
-        try { pal = JSON.parse(palFile.text()); } catch (e) {}
-        try { ui = JSON.parse(uiFile.text()); } catch (e) {}
         try { usage = JSON.parse(usageFile.text()) || {}; } catch (e) { usage = {}; }
-    }
-
-    function a(col, al) {
-        return "#" + ("0" + Math.round(al * 255).toString(16)).slice(-2) + String(col || "#888888").slice(1);
     }
 
     // ---------- commands ----------
@@ -181,7 +170,7 @@ ShellRoot {
     }
 
     IpcHandler {
-        target: "launcher"
+        target: "panel"
         function close(): void { root.close(); }
     }
 
@@ -205,9 +194,9 @@ ShellRoot {
             id: box
             anchors.fill: parent
             radius: root.r
-            color: root.a(root.c.bg, 0.93)
-            border.width: root.ui.border ?? 1
-            border.color: root.a(root.c.accent, 0.55)
+            color: Color.withAlpha(theme.c.bg, 0.93)
+            border.width: theme.ui.border ?? 1
+            border.color: Color.withAlpha(theme.c.accent, 0.55)
             opacity: 0
             scale: 0.96
             clip: true
@@ -215,8 +204,8 @@ ShellRoot {
             Component.onCompleted: inAnim.start()
             ParallelAnimation {
                 id: inAnim
-                NumberAnimation { target: box; property: "opacity"; to: 1; duration: (root.ui.slideMs ?? 260) * 0.6 }
-                NumberAnimation { target: box; property: "scale"; to: 1; duration: (root.ui.slideMs ?? 260) * 0.8; easing.type: Easing.OutCubic }
+                NumberAnimation { target: box; property: "opacity"; to: 1; duration: (theme.ui.slideMs ?? 260) * 0.6 }
+                NumberAnimation { target: box; property: "scale"; to: 1; duration: (theme.ui.slideMs ?? 260) * 0.8; easing.type: Easing.OutCubic }
             }
             SequentialAnimation {
                 id: outAnim
@@ -233,38 +222,38 @@ ShellRoot {
                 anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 }
                 height: 52
                 radius: Math.min(root.r, 26)
-                color: root.a(root.c.bg2, 0.95)
-                border.color: root.a(root.c.accent, 0.45)
+                color: Color.withAlpha(theme.c.bg2, 0.95)
+                border.color: Color.withAlpha(theme.c.accent, 0.45)
 
                 Image {
                     id: fieldIcon
-                    visible: !!root.ui.headerIcon
+                    visible: !!theme.ui.headerIcon
                     anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
-                    source: root.ui.headerIcon ? "file://" + root.themeDir + "/" + root.ui.headerIcon : ""
+                    source: theme.ui.headerIcon ? "file://" + theme.dir + "/" + theme.ui.headerIcon : ""
                     width: 22; height: 22; sourceSize: Qt.size(44, 44)
                 }
                 Text {
                     id: fieldGlyph
-                    visible: !root.ui.headerIcon
+                    visible: !theme.ui.headerIcon
                     anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
-                    text: root.ui.headerGlyph || ""
-                    font.family: root.titleFont; font.pixelSize: 20; font.bold: true
-                    color: root.c.accent || "white"
+                    text: theme.ui.headerGlyph || ""
+                    font.family: theme.titleFont; font.pixelSize: 20; font.bold: true
+                    color: theme.c.accent || "white"
                 }
                 Text {
                     anchors { left: input.left; verticalCenter: parent.verticalCenter }
                     visible: !input.text
                     text: "Приложение или команда…"
-                    font.family: root.bodyFont; font.pixelSize: 18; font.italic: !!root.ui.italicTitle
-                    color: root.c.muted || "grey"
+                    font.family: theme.bodyFont; font.pixelSize: 18; font.italic: !!theme.ui.italicTitle
+                    color: theme.c.muted || "grey"
                 }
                 TextInput {
                     id: input
                     anchors { left: parent.left; leftMargin: 50; right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
                     focus: true
-                    font.family: root.bodyFont; font.pixelSize: 18
-                    color: root.c.fg || "white"
-                    selectionColor: root.a(root.c.accent, 0.4)
+                    font.family: theme.bodyFont; font.pixelSize: 18
+                    color: theme.c.fg || "white"
+                    selectionColor: Color.withAlpha(theme.c.accent, 0.4)
                     clip: true
                     onTextChanged: root.query = text
                     Keys.onPressed: e => {
@@ -284,8 +273,8 @@ ShellRoot {
                 id: sectionLabel
                 anchors { left: parent.left; leftMargin: 24; top: field.bottom; topMargin: 14 }
                 text: root.query ? "Результаты" : "Часто запускаемые"
-                font.family: root.titleFont; font.pixelSize: 13; font.bold: true; font.italic: !!root.ui.italicTitle
-                color: root.c.accent2 || root.c.accent || "white"
+                font.family: theme.titleFont; font.pixelSize: 13; font.bold: true; font.italic: !!theme.ui.italicTitle
+                color: theme.c.accent2 || theme.c.accent || "white"
             }
 
             ListView {
@@ -301,8 +290,8 @@ ShellRoot {
                 highlight: Rectangle {
                     width: list.width
                     radius: Math.min(root.r, 12)
-                    color: root.a(root.c.accent, 0.22)
-                    border.color: root.a(root.c.accent, 0.55)
+                    color: Color.withAlpha(theme.c.accent, 0.22)
+                    border.color: Color.withAlpha(theme.c.accent, 0.55)
                 }
 
                 delegate: Item {
@@ -331,7 +320,7 @@ ShellRoot {
                                 visible: !appIcon.visible
                                 text: row.modelData.glyph || ""
                                 font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 20
-                                color: row.modelData.danger ? (root.c.crit || "red") : (root.c.accent || "white")
+                                color: row.modelData.danger ? (theme.c.crit || "red") : (theme.c.accent || "white")
                             }
                         }
                         Column {
@@ -339,16 +328,16 @@ ShellRoot {
                             spacing: 2
                             Text {
                                 text: row.modelData.name
-                                font.family: root.titleFont; font.pixelSize: 16
-                                color: row.modelData.danger ? (root.c.crit || "red") : (root.c.fg || "white")
+                                font.family: theme.titleFont; font.pixelSize: 16
+                                color: row.modelData.danger ? (theme.c.crit || "red") : (theme.c.fg || "white")
                             }
                             Text {
                                 visible: text.length > 0
                                 width: list.width - 140
                                 elide: Text.ElideRight
                                 text: row.armed ? "Нажми Enter ещё раз, чтобы подтвердить" : row.modelData.desc
-                                font.family: root.bodyFont; font.pixelSize: 12
-                                color: row.armed ? (root.c.warn || "yellow") : (root.c.muted || "grey")
+                                font.family: theme.bodyFont; font.pixelSize: 12
+                                color: row.armed ? (theme.c.warn || "yellow") : (theme.c.muted || "grey")
                             }
                         }
                     }
@@ -365,8 +354,8 @@ ShellRoot {
                     anchors.centerIn: parent
                     visible: list.count === 0
                     text: "Ничего не нашлось"
-                    font.family: root.titleFont; font.pixelSize: 16; font.italic: !!root.ui.italicTitle
-                    color: root.c.muted || "grey"
+                    font.family: theme.titleFont; font.pixelSize: 16; font.italic: !!theme.ui.italicTitle
+                    color: theme.c.muted || "grey"
                 }
             }
         }

@@ -50,6 +50,7 @@ test_first_install_backs_up_foreign_rice() {
     [ "$(rice_backups | wc -l)" -eq 1 ] || fail "ожидался один бэкап, есть: $(rice_backups)"
     [ "$(cat "$(rice_backups)/waybar/config")" = foreign ] || fail "чужой waybar не попал в бэкап"
     [ -f "$HOME/.config/hypr/hyprland.lua" ] || fail "файлы райса не скопированы"
+    [ -f "$HOME/.config/quickshell/help/common/Theme.qml" ] || fail "панели не видят общий Theme.qml через ссылку common"
 }
 
 # Reinstalling or updating an installed rice leaves the user's own directories alone and makes
@@ -100,6 +101,7 @@ test_uninstall_without_backup() {
 
     [ ! -e "$HOME/.config/hypr/hyprland.lua" ] || fail "остался hyprland.lua"
     [ ! -e "$HOME/.local/bin/rice" ] || fail "остался rice"
+    [ -z "$(find "$HOME/.config/quickshell" -type l 2>/dev/null)" ] || fail "остались ссылки common в панелях"
 }
 
 # A fake pacman whose runs print the given lines to stderr and fail, one argument per run;
@@ -142,6 +144,19 @@ test_pac_retries_network_error() {
 
     [ "$(cat "$HOME/pacman-runs")" -eq 3 ] || fail "попыток: $(cat "$HOME/pacman-runs"), ожидалось три"
     grep -q 'yandex' "$MIRRORLIST" || fail "запасные зеркала не подключены"
+}
+
+# An app counts as installed only with its files too; its packages alone are checked separately
+# (an update keeps the files of a program that is installed).
+test_app_installed_needs_files() {
+    load_rice
+    pacman() { return 0; }
+    APP_SRC[demo]="demo-pkg aur:demo-aur file:.local/bin/demo"
+    app_packages_installed demo || fail "пакеты стоят, но app_packages_installed говорит нет"
+    app_installed demo && fail "файла нет, но app_installed говорит да"
+    mkdir -p "$HOME/.local/bin"
+    touch "$HOME/.local/bin/demo"
+    app_installed demo || fail "всё на месте, но app_installed говорит нет"
 }
 
 battery() { POWER_SUPPLY_DIR="$HOME/power_supply" python3 "$REPO/home/.config/hypr-rice/waybar/scripts/battery"; }
