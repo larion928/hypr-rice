@@ -481,10 +481,13 @@ ShellRoot {
                 "sh", themeEdit.wallpaperDir + "/" + themeEdit.editing.name];
             wallpaperPicker.running = true;
         }
-        // The current theme only: shown at once, and kept as its wallpaper.
+        // The current theme only: the edits are saved (a just-added wallpaper has to be in the list
+        // changetheme picks from), the picture is shown, and the theme applied again with it, so the
+        // lock screen, login screen and browsers get it too.
         function showWallpaper(path) {
-            Quickshell.execDetached(["sh", "-c", 'printf "%s\\n" "$1" > "$2" && changetheme --keep-wallpaper "$3"',
-                                     "sh", path, root.home + "/.config/hypr/current-wallpaper", themeEdit.editing.name]);
+            themeEdit.write("printf '%s\\n' " + root.quote(path) + " > " + root.quote(root.home + "/.config/hypr/current-wallpaper")
+                            + " && awww img " + root.quote(path)
+                            + " && changetheme --keep-wallpaper " + themeEdit.editing.name);
         }
 
         // ---- the section's "back to the theme"
