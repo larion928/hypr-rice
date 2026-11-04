@@ -31,6 +31,9 @@ if [ "${1:-}" = --run ]; then
         yay -S --needed --noconfirm --answerdiff None --answerclean None --sudo "$private/sudo" \
             --mflags "--config $private/makepkg.conf" "$package" 2>&1
     fi
+    # "@@done" below means everything is over, the password gone too.
+    forget_password
+    trap - EXIT
     if pacman -Q "$package" >/dev/null 2>&1; then
         echo "Готово: $package установлен."
         notify-send -a hypr-rice "Установлено: $package" "Тема появилась в настройках (Alt+F2 → Тема → Значки)" 2>/dev/null
