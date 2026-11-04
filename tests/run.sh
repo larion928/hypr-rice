@@ -169,10 +169,9 @@ test_catalog_choices() {
     APP_IDS=(firefox zen)
     declare -gA APP_GROUP=([firefox]=Браузеры [zen]=Браузеры) APP_NAME=([firefox]=Firefox [zen]="Zen Browser")
     declare -gA APP_SRC=([firefox]="firefox browser" [zen]="aur:zen-browser-bin browser")
-    pacman() { [ "$1" = -Qq ] && [ "$2" = zen-browser-bin ]; }
+    pacman() { [ "$1" = -Qq ] && echo zen-browser-bin; }
     [ "$(catalog_choices install)" = "Браузеры · Firefox=firefox" ] || fail "к установке предложено: $(catalog_choices install)"
     [ "$(catalog_choices remove)" = "Браузеры · Zen Browser=zen" ] || fail "к удалению предложено: $(catalog_choices remove)"
-    [ "$(installed_app_names)" = "Zen Browser" ] || fail "установленными названы: $(installed_app_names)"
 }
 
 # A package that does not exist is not a network problem: one try, mirrors untouched.
@@ -200,7 +199,7 @@ test_pac_retries_network_error() {
 # (an update keeps the files of a program that is installed).
 test_app_installed_needs_files() {
     load_rice
-    pacman() { return 0; }
+    pacman() { [ "$1" = -Qq ] && printf '%s\n' demo-pkg demo-aur; }
     APP_SRC[demo]="demo-pkg aur:demo-aur file:.local/bin/demo"
     app_packages_installed demo || fail "пакеты стоят, но app_packages_installed говорит нет"
     app_installed demo && fail "файла нет, но app_installed говорит да"

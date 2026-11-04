@@ -266,6 +266,22 @@ load_apps() {
     done < <(list "$SRC/packages/apps.txt")
 }
 
+# Installed packages and Flatpak apps, read once and kept until something is installed or removed:
+# asking pacman package by package took seconds for the whole catalog.
+declare -gA INSTALLED=()
+INSTALLED_READ=0
+is_installed() {  # is_installed PACKAGE, or flatpak:ID
+    if [ "$INSTALLED_READ" = 0 ]; then
+        INSTALLED=()
+        local name
+        while read -r name; do INSTALLED[$name]=1; done < <(pacman -Qq 2>/dev/null)
+        while read -r name; do INSTALLED[flatpak:$name]=1; done < <(flatpak list --app --columns=application 2>/dev/null)
+        INSTALLED_READ=1
+    fi
+    [ -n "${INSTALLED[$1]:-}" ]
+}
+forget_installed() { INSTALLED_READ=0; }
+
 # Every package of app ID is installed (pacman, AUR, Flatpak, AppImage); its files are not checked.
 app_packages_installed() {
     local tok
@@ -273,8 +289,8 @@ app_packages_installed() {
         case "$tok" in
             file:*|release:*|hook:*|browser) ;;
             appimage:*) [ -x "$HOME/Applications/$1.AppImage" ] || return 1 ;;
-            flatpak:*) flatpak info "${tok#flatpak:}" >/dev/null 2>&1 || return 1 ;;
-            *) pacman -Qq "${tok#aur:}" >/dev/null 2>&1 || return 1 ;;
+            flatpak:*) is_installed "$tok" || return 1 ;;
+            *) is_installed "${tok#aur:}" || return 1 ;;
         esac
     done
 }
@@ -306,14 +322,7 @@ catalog_choices() {
     done
 }
 
-installed_app_names() {
-    local id
-    for id in "${APP_IDS[@]}"; do
-        if app_installed "$id"; then echo "${APP_NAME[$id]}"; fi
-    done
-}
-
-# pick_apps MODE: "install" (what to add; the installed ones are only listed above the menu)
+# pick_apps MODE: "install" (only what is not installed yet is offered)
 #                 "remove"  (only installed programs are offered)
 pick_apps() {
     local mode=${1:-install} id label opts=() out
@@ -329,14 +338,6 @@ pick_apps() {
     fi
     have_tty || { info "нет терминала, программы не выбираю"; return; }
     mapfile -t opts < <(catalog_choices "$mode")
-    if [ "$mode" = install ]; then
-        local installed=() joined
-        mapfile -t installed < <(installed_app_names)
-        if [ ${#installed[@]} -gt 0 ]; then
-            joined=$(printf '%s, ' "${installed[@]}")
-            info "Уже установлены: ${joined%, }"
-        fi
-    fi
     if [ ${#opts[@]} -eq 0 ]; then
         if [ "$mode" = remove ]; then info "из каталога ничего не установлено"; else info "всё из каталога уже установлено"; fi
         return
@@ -492,6 +493,7 @@ install_apps() {  # installs PICKED
         f=$(app_desktop_file "${browsers[0]}" || true)
         [ -n "$f" ] && xdg-settings set default-web-browser "$f" 2>/dev/null && ok "браузер по умолчанию: ${APP_NAME[${browsers[0]}]}"
     fi
+    forget_installed
     ok "программ: ${#PICKED[@]}"
 }
 
@@ -563,6 +565,7 @@ remove_apps() {  # removes PICKED (packages, flatpaks, AppImages)
     # Shared libraries (fuse2, nss, ...) stay unless nothing else needs them: -Rs takes care.
     [ ${#pk[@]} -eq 0 ] || sudo pacman -Rs --noconfirm "${pk[@]}" || warn "часть пакетов не удалилась (их требуют другие)"
     [ ${#flat[@]} -eq 0 ] || flatpak uninstall --user -y --noninteractive "${flat[@]}" >/dev/null || true
+    forget_installed
     ok "удалено: ${#PICKED[@]}"
 }
 
@@ -1054,6 +1057,7 @@ install_missing_packages() {
     elif aur_install "${aur[@]}"; then
         ok "все пакеты райса на месте"
     fi
+    forget_installed
     mark_rice_packages_explicit
 }
 
