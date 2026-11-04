@@ -928,9 +928,14 @@ noita = games.add({"kind": "steam", "target": "881100", "name": "Noita"})
 
 games.launch(again["id"])
 games.launch(noita["id"])
-time.sleep(0.5)
-started = (home / "started").read_text().splitlines()
-assert started == [f"{home}/.local/bin/proton-run {home}/games/Some_Game.exe", "steam steam://rungameid/881100"], started
+# Both start detached, so they may finish in either order and take a while on a busy machine.
+started_file = home / "started"
+for _ in range(50):
+    if started_file.exists() and len(started_file.read_text().splitlines()) == 2:
+        break
+    time.sleep(0.1)
+started = sorted(started_file.read_text().splitlines())
+assert started == sorted([f"{home}/.local/bin/proton-run {home}/games/Some_Game.exe", "steam steam://rungameid/881100"]), started
 assert games.listing()[0]["id"] in (again["id"], noita["id"]) and games.game(noita["id"])["played"] > 0
 
 (home / "games/native-game").unlink()
