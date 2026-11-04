@@ -1057,6 +1057,23 @@ test_proton_run_gamemode() {
     [ "$(cat "$HOME/wrapped")" = gamemoderun ] || fail "игра запущена не через gamemoderun"
 }
 
+# With GameMode on, games run under gamemoderun, the Steam client never: under it Steam's browser part
+# does not start (error 0x3018).
+test_games_gamemode_not_for_steam() {
+    mkdir -p "$HOME/bin" "$HOME/.config/hypr-rice"
+    printf '#!/bin/sh\n' > "$HOME/bin/gamemoderun"
+    chmod +x "$HOME/bin/gamemoderun"
+    touch "$HOME/.config/hypr-rice/gamemode"
+    PATH="$HOME/bin:$PATH" python3 - "$REPO/home/.config/hypr/scripts" <<'PY' || fail "gamemoderun не там"
+import sys
+sys.path.insert(0, sys.argv[1])
+import games
+assert games.command_for({"kind": "app", "target": "steam"}) == ["gtk-launch", "steam"]
+assert games.command_for({"kind": "app", "target": "osu"}) == ["gamemoderun", "gtk-launch", "osu"]
+assert games.command_for({"kind": "steam", "target": "881100"}) == ["steam", "steam://rungameid/881100"]
+PY
+}
+
 tests=("$@")
 [ ${#tests[@]} -gt 0 ] || mapfile -t tests < <(declare -F | awk '{print $3}' | grep '^test_')
 for name in "${tests[@]}"; do

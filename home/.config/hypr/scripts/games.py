@@ -42,6 +42,10 @@ STEAM = HOME / ".local/share/Steam"
 # Switched on in rice → Игры: оптимизация: games run under gamemoderun. A Windows game gets it from
 # proton-run, a Steam game only from its launch options in Steam (Steam starts it, not this script).
 GAMEMODE_MARK = HOME / ".config/hypr-rice/gamemode"
+# The Steam client added as a program is a launcher, not a game: under gamemoderun every one of its
+# helpers loads gamemode's library too, and its browser part (steamwebhelper, in Steam's own container)
+# then does not start: error 0x3018. Its games get GameMode from their launch options in Steam.
+NOT_UNDER_GAMEMODE = ("steam", "com.valvesoftware.Steam")
 WINDOWS_SUFFIXES = (".exe", ".msi", ".bat", ".lnk")
 # Steam lists its own tools among the games.
 STEAM_TOOLS = re.compile(r"^(Proton|Steam Linux Runtime|Steamworks Common|Steam Runtime)")
@@ -381,7 +385,8 @@ def command_for(entry):
     if entry["kind"] == "steam":
         return ["steam", f"steam://rungameid/{target}"]
     if entry["kind"] == "app":
-        return [*gamemode(), "gtk-launch", target]
+        prefix = [] if target in NOT_UNDER_GAMEMODE else gamemode()
+        return [*prefix, "gtk-launch", target]
     Path(target).chmod(Path(target).stat().st_mode | 0o111)
     return [*gamemode(), target]
 
