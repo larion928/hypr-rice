@@ -16,29 +16,36 @@ ANIMATION = re.compile(r"^hl\.animation\(\{.*\}\)$", re.M)
 
 
 def own(theme):
-    """What the theme's hypr.lua sets (or Hyprland's default), for «как в теме» in the window."""
+    """What the theme's hypr.lua sets (or Hyprland's default), for «как в теме» in the window. The
+    last value in the file counts, as in Hyprland: a theme with edits written in sets some twice."""
     source = (theme.dir / "hypr.lua").read_text()
     values = dict(DEFAULTS)
     for key in ("gaps_in", "gaps_out", "border_size", "rounding"):
-        found = re.search(rf"\b{key}\s*=\s*(\d+)", source)
+        found = re.findall(rf"\b{key}\s*=\s*(\d+)", source)
         if found:
-            values[key] = int(found.group(1))
-    blur = re.search(r"blur\s*=\s*\{([^}]*)\}", source)
-    if blur:
-        values["blur"] = "enabled = false" not in blur.group(1)
-        size = re.search(r"\bsize\s*=\s*(\d+)", blur.group(1))
+            values[key] = int(found[-1])
+    for blur in re.findall(r"blur\s*=\s*\{([^}]*)\}", source):
+        if "enabled" in blur:
+            values["blur"] = "enabled = false" not in blur
+        size = re.search(r"\bsize\s*=\s*(\d+)", blur)
         if size:
             values["blur_size"] = int(size.group(1))
     for key in ("active_opacity", "inactive_opacity"):
-        found = re.search(rf"\b{key}\s*=\s*([\d.]+)", source)
+        found = re.findall(rf"\b{key}\s*=\s*([\d.]+)", source)
         if found:
-            values[key] = float(found.group(1))
+            values[key] = float(found[-1])
     return values
 
 
 def apply(theme):
-    edits = theme.edits.get("windows", {})
     lines = [f"-- Правки окон темы «{theme.name}» из настроек (Alt+F2 → Тема → Окна). {GENERATED}"]
+    write(EDITS_LUA, "\n".join(lines + edit_lines(theme)) + "\n")
+
+
+def edit_lines(theme):
+    """The Lua lines that put the theme's window edits over its hypr.lua; [] without edits."""
+    edits = theme.edits.get("windows", {})
+    lines = []
     general = {key: edits[key] for key in ("gaps_in", "gaps_out", "border_size") if key in edits}
     decoration = {key: edits[key] for key in ("rounding", "active_opacity", "inactive_opacity") if key in edits}
     blur = {}
@@ -56,7 +63,7 @@ def apply(theme):
         lines.append("hl.config({ animations = { enabled = false } })")
     elif animations in SPEED_FACTORS:
         lines += scaled_animations(theme, SPEED_FACTORS[animations])
-    write(EDITS_LUA, "\n".join(lines) + "\n")
+    return lines
 
 
 def scaled_animations(theme, factor):

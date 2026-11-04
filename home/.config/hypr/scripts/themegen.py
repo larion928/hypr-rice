@@ -17,17 +17,26 @@
                                                  the icon picker in the settings window
   themegen.py icon-themes                        installed icon themes with sample icons and the ones to
                                                  install, as JSON, for the settings window
+  themegen.py new <label> --from <theme>         a theme of the user's own (~/.config/hypr-rice/themes):
+                                                 a copy of <theme> with its edits written in; prints its name
+  themegen.py import <file.zip>                  a theme from an archive made by export; prints its name
+  themegen.py export <theme> <file.zip>          the theme with its edits written in, for someone else
+  themegen.py delete <theme>                     removes a theme of the user's own
+  themegen.py promote <theme>                    makes a theme of the user's own part of the rice
+                                                 (~/.config/hypr/themes, which sync.sh publishes)
 
 Each program has its module in apptheme/.
 """
+import contextlib
 import json
 import os
 import sys
+import zipfile
 from pathlib import Path
 
 from apptheme import (bar_preview, battery, chromium, css_palette, drift, firefox, glyphs, gtk, hypr, hyprlock,
-                      icon_theme, icon_themes, kitty, neohtop, obsidian, system, telegram, vesktop, vscode, waybar,
-                      windows)
+                      icon_theme, icon_themes, kitty, neohtop, obsidian, system, telegram, user_themes, vesktop,
+                      vscode, waybar, windows)
 from apptheme.paths import HYPR
 from apptheme.theme import all_names, load
 
@@ -55,6 +64,7 @@ def apply(name, wallpaper=None):
 
 
 def build():
+    user_themes.link()  # an update may have brought a theme of the same name, or the links are new
     themes = [load(name) for name in all_names()]
     drift.build(themes)
     print("vscode:", vscode.build(themes))
@@ -109,9 +119,40 @@ def main(argv):
         print(json.dumps(glyphs.all_icons(), ensure_ascii=False))
     elif len(argv) >= 2 and argv[0] == "bar-preview":
         print(json.dumps(bar_preview.preview(load(argv[1])), ensure_ascii=False))
+    elif argv[:1] in (["new"], ["import"], ["export"], ["delete"], ["promote"]):
+        return manage_themes(argv)
     else:
         print(__doc__.strip(), file=sys.stderr)
         return 2
+    return 0
+
+
+def manage_themes(argv):
+    """The user's own themes: new, import, export, delete, promote. 1 with the reason on stderr when
+    the theme or the archive does not fit."""
+    command, rest = argv[0], argv[1:]
+    try:
+        if command == "new" and len(rest) == 3 and rest[1] == "--from":
+            print(user_themes.create(rest[0], rest[2]))
+        elif command == "import" and len(rest) == 1:
+            print(user_themes.import_archive(rest[0]))
+        elif command == "export" and len(rest) == 2:
+            user_themes.export(rest[0], rest[1])
+            return 0
+        elif command == "delete" and len(rest) == 1:
+            user_themes.delete(rest[0])
+        elif command == "promote" and len(rest) == 1:
+            user_themes.promote(rest[0])
+        else:
+            print(__doc__.strip(), file=sys.stderr)
+            return 2
+    except (ValueError, OSError, zipfile.BadZipFile) as error:
+        print(error, file=sys.stderr)
+        return 1
+    # The theme list changed: drift, Code - OSS, Telegram and the battery icons follow it. Its report
+    # goes to stderr: stdout carries only the new theme's name.
+    with contextlib.redirect_stdout(sys.stderr):
+        build()
     return 0
 
 

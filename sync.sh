@@ -100,6 +100,13 @@ EXCLUDES=(
 )
 
 cd "$HOME"
+# The user's own themes are links into ~/.config/hypr-rice/themes: they stay on this machine
+# (themegen.py promote NAME makes one part of the rice).
+for theme in .config/hypr/themes/*; do
+    if [ -L "$theme" ]; then
+        EXCLUDES+=(--exclude="$theme")
+    fi
+done
 missing=()
 present=()
 for p in "${PATHS[@]}"; do

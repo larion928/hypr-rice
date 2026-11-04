@@ -129,5 +129,12 @@ def read_edits():
         return {}
 
 
+def forget_edits(name):
+    """Drops what the settings window saved for the theme name (deleted, or its edits written in)."""
+    every_edit = read_edits()
+    if every_edit.get("themes", {}).pop(name, None) is not None:
+        EDITS.write_text(json.dumps(every_edit, indent=2, ensure_ascii=False) + "\n")
+
+
 def all_names():
     return sorted(p.parent.name for p in THEMES.glob("*/palette.json"))

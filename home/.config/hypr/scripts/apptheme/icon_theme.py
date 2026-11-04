@@ -12,11 +12,16 @@ SETTINGS_FILES = (HOME / ".config/gtk-3.0/settings.ini", HOME / ".config/gtk-4.0
 
 
 def current(theme):
-    return theme.edits.get("iconTheme") or DEFAULT
+    return chosen(theme) or DEFAULT
+
+
+def chosen(theme):
+    """Picked in the settings, or written into the theme's ui.json (a theme made in the settings)."""
+    return theme.edits.get("iconTheme") or theme.ui.get("iconTheme")
 
 
 def apply(theme):
-    wanted = theme.edits.get("iconTheme")
+    wanted = chosen(theme)
     if wanted:
         set_icon_theme(wanted)
         SET_BY_RICE.parent.mkdir(parents=True, exist_ok=True)

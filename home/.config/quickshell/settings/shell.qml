@@ -624,8 +624,12 @@ ShellRoot {
             const characters = Array.from(themeEdit.preview(module));
             return characters.length && characters[0].codePointAt(0) >= 0xE000 ? characters[0] : "";
         }
+        // The theme's own: written into its ui.json (a theme made in this window), or the rice's.
+        function themesIconTheme() {
+            return (themeEdit.editing && themeEdit.editing.ui.iconTheme) || themeEdit.defaultIconTheme;
+        }
         function iconThemeNow() {
-            return themeEdit.edit.iconTheme || themeEdit.defaultIconTheme;
+            return themeEdit.edit.iconTheme || themeEdit.themesIconTheme();
         }
         // ---- installing an icon theme: the window asks for the sudo password; the install itself runs
         // in the background (rice-install-package), so this window may close. Its log is shown here.
@@ -2213,7 +2217,7 @@ ShellRoot {
         }
         Text {
             anchors { left: iconThemeTitle.right; leftMargin: 12; verticalCenter: iconThemeTitle.verticalCenter }
-            text: themeEdit.editing && !themeEdit.edit.iconTheme ? "как в теме: " + themeEdit.defaultIconTheme : ""
+            text: themeEdit.editing && !themeEdit.edit.iconTheme ? "как в теме: " + themeEdit.themesIconTheme() : ""
             font.family: theme.bodyFont; font.pixelSize: 13
             color: theme.c.muted || "grey"
         }
@@ -2239,7 +2243,7 @@ ShellRoot {
                     anchors.fill: parent
                     hoverEnabled: true
                     enabled: themeRow.installed
-                    onClicked: themeEdit.change("iconTheme", themeRow.modelData.name === themeEdit.defaultIconTheme ? "" : themeRow.modelData.name)
+                    onClicked: themeEdit.change("iconTheme", themeRow.modelData.name === themeEdit.themesIconTheme() ? "" : themeRow.modelData.name)
                 }
                 Text {
                     id: themeName
