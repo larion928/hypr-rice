@@ -23,6 +23,8 @@
                                                  prints the names installed, as JSON
   themegen.py cursor-remove <name>               removes a cursor theme the user added
   themegen.py frame-length <file>                how long a GIF (frames) or a video (seconds) is, as JSON
+  themegen.py frame-prepare <file>               what the frame picker reads (a GIF made into an mp4), as JSON
+  themegen.py frame-forget <file>                removes a GIF's mp4 made by frame-prepare
   themegen.py frame <file> <at> <out.png> [width]  that moment of it as a PNG (a preview when width is given)
   themegen.py new <label> --from <theme>         a theme of the user's own (~/.config/hypr-rice/themes):
                                                  a copy of <theme> with its edits written in; prints its name
@@ -139,7 +141,7 @@ def main(argv):
         print(json.dumps(bar_preview.preview(load(argv[1])), ensure_ascii=False))
     elif argv[:1] == ["removed-themes"]:
         print(json.dumps(removed_themes.listing(), ensure_ascii=False))
-    elif argv[:1] in (["cursor-add"], ["cursor-remove"], ["frame-length"], ["frame"]):
+    elif argv[:1] in (["cursor-add"], ["cursor-remove"], ["frame-length"], ["frame-prepare"], ["frame-forget"], ["frame"]):
         return files_from_user(argv)
     elif argv[:1] in (["new"], ["import"], ["export"], ["delete"], ["restore"], ["factory"], ["promote"]):
         return manage_themes(argv)
@@ -193,6 +195,10 @@ def files_from_user(argv):
             cursor_install.remove(rest[0])
         elif command == "frame-length" and len(rest) == 1:
             print(json.dumps(frames.length(rest[0])))
+        elif command == "frame-prepare" and len(rest) == 1:
+            print(json.dumps(frames.prepare(rest[0]), ensure_ascii=False))
+        elif command == "frame-forget" and len(rest) == 1:
+            frames.forget(rest[0])
         elif command == "frame" and len(rest) in (3, 4):
             frames.frame(rest[0], float(rest[1]), rest[2], int(rest[3]) if len(rest) == 4 else 0)
         else:

@@ -55,7 +55,7 @@ ShellRoot {
     // Esc: out of the icon picker, then out of a theme's settings, then the window closes.
     function back() {
         if (userFiles.frameSource) {
-            userFiles.frameSource = "";
+            userFiles.closeFrames();
             return;
         }
         if (ownThemes.dialog) {
@@ -1035,8 +1035,10 @@ ShellRoot {
         property string message: ""      // what the last step did, or why it did not
         property bool failed: false
         property string pickFor: ""      // "cursor" or "frames": what the file dialog is for
-        // The frame picker: the file, its length, the moment shown and its preview.
+        // The frame picker: the file, what is read of it (a GIF made into an mp4), its length, the
+        // moment shown and its preview.
         property string frameSource: ""
+        property string frameInput: ""
         property var frameLength: null   // {kind: gif, frames} or {kind: video, seconds}
         property real frameAt: 0
         property string framePreview: ""
@@ -1099,15 +1101,26 @@ ShellRoot {
         // ---- a wallpaper from a moment of a GIF or a video
         function openFrames(path) {
             userFiles.frameSource = path;
+            userFiles.frameInput = "";
             userFiles.frameLength = null;
             userFiles.framePreview = "";
-            userFiles.say("Открываю…");
-            userFiles.run(["frame-length", path], (lines, ok) => {
+            userFiles.say(path.toLowerCase().endsWith(".gif") ? "Перевожу GIF в видео для быстрой перемотки…" : "Открываю…");
+            userFiles.run(["frame-prepare", path], (lines, ok) => {
                 if (!ok) return;
-                userFiles.frameLength = JSON.parse(lines[lines.length - 1]);
+                const prepared = JSON.parse(lines[lines.length - 1]);
+                userFiles.frameInput = prepared.source;
+                userFiles.frameLength = prepared;
                 userFiles.say("");
                 userFiles.showFrame(0);
             });
+        }
+        // Closes the picker: its preview and a GIF's mp4 go.
+        function closeFrames() {
+            userFiles.forgetPreview();
+            if (userFiles.frameInput && userFiles.frameInput !== userFiles.frameSource)
+                Quickshell.execDetached(["python3", root.home + "/.config/hypr/scripts/themegen.py", "frame-forget", userFiles.frameInput]);
+            userFiles.frameInput = "";
+            userFiles.frameSource = "";
         }
         function frameEnd() {
             const length = userFiles.frameLength;
@@ -1127,7 +1140,7 @@ ShellRoot {
             if (userFilesProc.running) { framePreviewTimer.restart(); return; }
             userFiles.previewNumber += 1;
             const out = userFiles.runtime + "/frame-preview-" + userFiles.previewNumber + ".png";
-            userFiles.run(["frame", userFiles.frameSource, String(userFiles.frameAt), out, "960"], (lines, ok) => {
+            userFiles.run(["frame", userFiles.frameInput, String(userFiles.frameAt), out, "960"], (lines, ok) => {
                 if (!ok) return;
                 userFiles.forgetPreview();
                 userFiles.framePreview = out;
@@ -1142,11 +1155,10 @@ ShellRoot {
             const out = themeEdit.wallpaperDir + "/" + themeEdit.editing.name + "/" + name + "-"
                         + String(userFiles.frameAt.toFixed(1)).replace(".", "_") + ".png";
             userFiles.say("Сохраняю кадр…");
-            userFiles.run(["frame", userFiles.frameSource, String(userFiles.frameAt), out], (lines, ok) => {
+            userFiles.run(["frame", userFiles.frameInput, String(userFiles.frameAt), out], (lines, ok) => {
                 if (!ok) return;
                 themeEdit.addWallpaper(out);
-                userFiles.forgetPreview();
-                userFiles.frameSource = "";
+                userFiles.closeFrames();
                 userFiles.say("Кадр добавлен в обои: сохрани тему, чтобы он остался");
             });
         }
@@ -3256,10 +3268,10 @@ ShellRoot {
                 Chip {
                     text: "Взять этот кадр"
                     primary: true
-                    enabled: userFiles.framePreview !== "" && !userFilesProc.running
+                    enabled: userFiles.framePreview !== "" && userFiles.frameInput !== "" && !userFilesProc.running
                     onClicked: userFiles.takeFrame()
                 }
-                Chip { text: "Отмена"; onClicked: { userFiles.forgetPreview(); userFiles.frameSource = ""; } }
+                Chip { text: "Отмена"; onClicked: userFiles.closeFrames() }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: userFiles.pickFor === "frames" ? userFiles.message : ""

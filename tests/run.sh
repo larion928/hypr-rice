@@ -1174,6 +1174,24 @@ if shutil.which("ffmpeg"):
     assert 1.5 < frames.length(home / "v.mp4")["seconds"] < 2.5
     frames.frame(home / "v.mp4", 1.0, home / "v.png")
     assert Image.open(home / "v.png").size == (64, 36)
+    # A GIF is read through an mp4 made once; the user's own files are never removed.
+    prepared = frames.prepare(home / "a.gif")
+    assert prepared["kind"] == "video" and prepared["source"].endswith(".mp4"), prepared
+    # ffmpeg gives the first frame starting at or after the moment: at 0.1 s the GIF's second one. The
+    # preview and the saved frame come the same way, so what is picked is what was seen.
+    frames.frame(prepared["source"], 0.1, home / "from-mp4.png")
+    assert Image.open(home / "from-mp4.png").convert("RGB").getpixel((20, 10))[1] > 150, "не второй кадр GIF"
+    frames.frame(prepared["source"], 0.1, home / "preview.png", 20)
+    assert Image.open(home / "preview.png").convert("RGB").getpixel((10, 5))[1] > 150, "превью не тот кадр, что сохранён"
+    assert frames.prepare(home / "v.mp4")["source"] == str(home / "v.mp4")
+    frames.forget(home / "v.mp4")
+    assert (home / "v.mp4").exists(), "удалено видео пользователя"
+    frames.forget(prepared["source"])
+    assert not Path(prepared["source"]).exists()
+    # A frame wider than any screen is kept at 3840.
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=red:s=4000x200:d=1", str(home / "wide.mp4")], check=True)
+    frames.frame(home / "wide.mp4", 0.2, home / "wide.png")
+    assert Image.open(home / "wide.png").size[0] == 3840, Image.open(home / "wide.png").size
 try:
     frames.length(home / "frame.png")
     raise AssertionError("кадр из картинки")
