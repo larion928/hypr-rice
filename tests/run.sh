@@ -854,6 +854,31 @@ assert "coffee" in all_names() and removed_themes.names() == []
 PY
 }
 
+# «К заводским»: a theme of the rice loses its edits, its added wallpapers and changes made by hand in
+# its folder; it is the rice's again.
+test_factory_reset() {
+    user_theme_home
+    mkdir -p "$HOME/.local/bin" "$HOME/.local/share/hypr-rice/wallpapers/coffee"
+    ln -s "$REPO/rice" "$HOME/.local/bin/rice"
+    touch "$HOME/.local/share/hypr-rice/wallpapers/coffee/added.png"
+    echo "-- broken by hand" >> "$HOME/.config/hypr/themes/coffee/hypr.lua"
+    touch "$HOME/.config/hypr/themes/coffee/stray.png"
+    python3 - "$HOME/.config/hypr/scripts" "$HOME" <<'PY' || fail "тема не вернулась к заводской"
+import json, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from apptheme import factory_reset
+from apptheme.theme import load
+home = Path(sys.argv[2])
+factory_reset.reset("coffee")
+coffee = home / ".config/hypr/themes/coffee"
+assert load("coffee").edits == {}
+assert not (home / ".local/share/hypr-rice/wallpapers/coffee").exists()
+assert "broken by hand" not in (coffee / "hypr.lua").read_text() and not (coffee / "stray.png").exists()
+assert load("night").name == "night"
+PY
+}
+
 tests=("$@")
 [ ${#tests[@]} -gt 0 ] || mapfile -t tests < <(declare -F | awk '{print $3}' | grep '^test_')
 for name in "${tests[@]}"; do

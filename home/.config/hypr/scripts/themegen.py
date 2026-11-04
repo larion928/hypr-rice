@@ -26,6 +26,7 @@
   themegen.py delete <theme>                     removes a theme: one of the user's own for good, one of
                                                  the rice until restore (updates leave it out meanwhile)
   themegen.py restore <theme>                    brings a removed theme of the rice back
+  themegen.py factory <theme>                    the theme as the rice ships it: no edits, its files again
   themegen.py removed-themes                     the removed themes of the rice, as JSON
   themegen.py promote <theme>                    makes a theme of the user's own part of the rice
                                                  (~/.config/hypr/themes, which sync.sh publishes)
@@ -39,9 +40,9 @@ import sys
 import zipfile
 from pathlib import Path
 
-from apptheme import (bar_preview, battery, chromium, css_palette, cursor_theme, cursor_themes, drift, firefox,
-                      glyphs, gtk, hypr, hyprlock, icon_theme, icon_themes, kitty, neohtop, obsidian, removed_themes, system,
-                      telegram, user_themes, vesktop, vscode, waybar, windows)
+from apptheme import (bar_preview, battery, chromium, css_palette, cursor_theme, cursor_themes, drift, factory_reset,
+                      firefox, glyphs, gtk, hypr, hyprlock, icon_theme, icon_themes, kitty, neohtop, obsidian,
+                      removed_themes, system, telegram, user_themes, vesktop, vscode, waybar, windows)
 from apptheme.paths import HYPR
 from apptheme.theme import all_names, load
 
@@ -129,7 +130,7 @@ def main(argv):
         print(json.dumps(bar_preview.preview(load(argv[1])), ensure_ascii=False))
     elif argv[:1] == ["removed-themes"]:
         print(json.dumps(removed_themes.listing(), ensure_ascii=False))
-    elif argv[:1] in (["new"], ["import"], ["export"], ["delete"], ["restore"], ["promote"]):
+    elif argv[:1] in (["new"], ["import"], ["export"], ["delete"], ["restore"], ["factory"], ["promote"]):
         return manage_themes(argv)
     else:
         print(__doc__.strip(), file=sys.stderr)
@@ -138,7 +139,7 @@ def main(argv):
 
 
 def manage_themes(argv):
-    """Adding and removing themes: new, import, export, delete, restore, promote. 1 with the reason on
+    """Adding and removing themes: new, import, export, delete, restore, factory, promote. 1 with the reason on
     stderr when the theme or the archive does not fit."""
     command, rest = argv[0], argv[1:]
     try:
@@ -153,6 +154,8 @@ def manage_themes(argv):
             delete_theme(rest[0])
         elif command == "restore" and len(rest) == 1:
             removed_themes.restore(rest[0])
+        elif command == "factory" and len(rest) == 1:
+            factory_reset.reset(rest[0])
         elif command == "promote" and len(rest) == 1:
             user_themes.promote(rest[0])
         else:

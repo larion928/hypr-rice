@@ -909,10 +909,17 @@ ShellRoot {
         property string openAfter: ""  // the theme to open once the list is read again
         property string picking: ""    // "import" or "export": what the file dialog is for
         property var removed: []       // the rice's themes the user removed: [{name, label}]
+        property string selected: ""   // the theme picked in the list; the current one until then
         property int themePage: 0      // the tab of the theme list shown
         readonly property int perPage: 8
         readonly property int pages: Math.max(1, Math.ceil(root.themes.length / ownThemes.perPage))
 
+        function chosen() {
+            return root.themes.find(t => t.name === ownThemes.selected) || root.themes.find(t => t.current) || null;
+        }
+        function factory() {
+            ownThemes.run("Возвращаю к заводским…", ["factory", ownThemes.subject.name]);
+        }
         function ask(kind, entry) {
             ownThemes.subject = entry;
             ownThemes.error = "";
@@ -967,8 +974,13 @@ ShellRoot {
             ownThemes.dialog = "";
             const command = manageProc.args[0];
             // new and import print the theme's name first; restore brings back the one it was given.
+            const subject = manageProc.args[1];
+            if (command === "factory" && ownThemes.subject.current)
+                Quickshell.execDetached(["changetheme", subject]);  // the theme on screen changes too
+            const reopen = command === "factory" && themeEdit.editing && themeEdit.editing.name === subject;
             ownThemes.openAfter = command === "new" || command === "import" ? lines[0]
-                                  : command === "restore" ? manageProc.args[1] : "";
+                                  : command === "restore" || reopen ? subject : "";
+            if (ownThemes.openAfter) ownThemes.selected = ownThemes.openAfter;
             themeListProc.running = true;
         }
         function listRead(text) {
@@ -1428,25 +1440,21 @@ ShellRoot {
                     }
 
                     // ---------------- Тема ----------------
-                    // What adds or brings back themes, and the tabs of the list: 8 themes to a tab.
+                    // On the left what adds or brings back themes and the tabs of the list (8 themes to a
+                    // tab); on the right what can be done with the theme selected below.
                     Row {
                         id: themeTools
                         visible: root.page === "theme"
                         spacing: 10
-                        Chip { text: "Новая из текущей"; onClicked: ownThemes.ask("new", root.themes.find(t => t.current) || root.themes[0]) }
                         Chip { text: "Из файла…"; onClicked: ownThemes.ask("import", null) }
                         Chip {
                             visible: ownThemes.removed.length > 0
                             text: "Вернуть удалённые (" + ownThemes.removed.length + ")"
                             onClicked: ownThemes.ask("restore", null)
                         }
-                    }
-                    Row {
-                        anchors { right: parent.right; verticalCenter: themeTools.verticalCenter }
-                        visible: root.page === "theme" && ownThemes.pages > 1
-                        spacing: 8
+                        Item { visible: ownThemes.pages > 1; width: 12; height: 1 }
                         Repeater {
-                            model: ownThemes.pages
+                            model: ownThemes.pages > 1 ? ownThemes.pages : 0
                             TabButton {
                                 required property int index
                                 text: String(index + 1)
@@ -1454,6 +1462,23 @@ ShellRoot {
                                 onClicked: ownThemes.themePage = index
                             }
                         }
+                    }
+                    Row {
+                        readonly property var chosen: ownThemes.chosen()
+                        anchors { right: parent.right; verticalCenter: themeTools.verticalCenter }
+                        visible: root.page === "theme" && chosen !== null
+                        spacing: 10
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: parent.chosen ? "«" + parent.chosen.pal.label + "»" : ""
+                            font.family: theme.titleFont; font.pixelSize: 16; font.italic: !!theme.ui.italicTitle
+                            color: theme.c.accent2 || theme.c.accent || "white"
+                        }
+                        Chip { text: "Изменить"; primary: true; onClicked: themeEdit.open(parent.chosen) }
+                        Chip { text: "Добавить на её основе"; onClicked: ownThemes.ask("new", parent.chosen) }
+                        Chip { text: "Экспорт…"; onClicked: ownThemes.ask("export", parent.chosen) }
+                        Chip { text: "К заводским"; onClicked: ownThemes.ask("factory", parent.chosen) }
+                        Chip { visible: parent.chosen !== null && !parent.chosen.current; text: "Удалить"; onClicked: ownThemes.ask("delete", parent.chosen) }
                     }
                     Flow {
                         anchors { left: parent.left; right: parent.right; top: themeTools.bottom; bottom: parent.bottom; topMargin: 16 }
@@ -1467,7 +1492,8 @@ ShellRoot {
                                 width: 280; height: 230
                                 radius: Math.min(root.r, 14)
                                 color: modelData.pal.colors.bg
-                                border.width: tma.containsMouse || modelData.current ? 2 : 1
+                                readonly property bool chosen: ownThemes.chosen() !== null && ownThemes.chosen().name === modelData.name
+                                border.width: chosen ? 3 : tma.containsMouse || modelData.current ? 2 : 1
                                 border.color: modelData.pal.colors.accent
                                 clip: true
                                 Image {
@@ -1510,7 +1536,8 @@ ShellRoot {
                                     id: tma
                                     anchors.fill: parent
                                     hoverEnabled: true
-                                    onClicked: themeEdit.open(tcard.modelData)
+                                    onClicked: ownThemes.selected = tcard.modelData.name
+                                    onDoubleClicked: themeEdit.open(tcard.modelData)
                                 }
                             }
                         }
@@ -1617,7 +1644,8 @@ ShellRoot {
                 text: "Удалить"
                 onClicked: ownThemes.ask("delete", themeEdit.editing)
             }
-            Chip { text: "Сбросить к теме"; enabled: themeEdit.editing !== null && themeEdit.sectionEdited(); onClicked: themeEdit.resetSection() }
+            Chip { text: "Сбросить раздел"; enabled: themeEdit.editing !== null && themeEdit.sectionEdited(); onClicked: themeEdit.resetSection() }
+            Chip { text: "К заводским"; enabled: themeEdit.editing !== null; onClicked: ownThemes.ask("factory", themeEdit.editing) }
             Chip { visible: themeEdit.editing !== null && !themeEdit.editing.current; text: "Включить тему"; onClicked: themeEdit.switchTo() }
             Chip { text: "Сохранить"; primary: true; enabled: themeEdit.dirty; onClicked: themeEdit.save() }
         }
@@ -1861,12 +1889,16 @@ ShellRoot {
             "delete": ["Удалить тему", ownThemes.subject && ownThemes.subject.user
                        ? "Тема «" + label + "» и её правки удалятся насовсем."
                        : "Тема «" + label + "» уйдёт из списка, обновления райса её не вернут. Вернуть её можно кнопкой «Вернуть удалённые» над списком тем, вместе с твоими правками.", "Удалить"],
+            "factory": ["Вернуть к заводским", ownThemes.subject && ownThemes.subject.user
+                        ? "У своей темы нет заводского вида: уберутся все правки из этого окна, тема станет такой, какой её создали."
+                        : "Тема «" + label + "» станет такой, как в райсе: уберутся все правки из этого окна и добавленные обои, файлы темы возьмутся заново из копии райса (так уйдут и правки руками в её папке). Общая раскладка панели для всех тем останется: её убирает кнопка в разделе «Панель».", "Вернуть"],
             "restore": ["Вернуть удалённые темы", "Темы райса, которые ты удалил: нажми на тему, и она вернётся из копии райса на этом компьютере вместе с твоими правками.", ""]
         })
         readonly property var wording: texts[ownThemes.dialog] || ["", "", ""]
         function act() {
             if (ownThemes.dialog === "new") ownThemes.create(nameField.text);
             else if (ownThemes.dialog === "delete") ownThemes.remove();
+            else if (ownThemes.dialog === "factory") ownThemes.factory();
             else ownThemes.pickFile(ownThemes.dialog);
         }
         onVisibleChanged: {
