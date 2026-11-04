@@ -434,7 +434,7 @@ EOF
     grep -q "^sudo -S -p  pacman -S --needed --noconfirm repo-pkg$" "$calls" || fail "pacman вызван не через sudo -S: $(cat "$calls")"
     echo right | "$tool" aur-pkg >/dev/null || fail "установка из AUR не запустилась"
     install_finished aur-pkg
-    grep -q "^yay -S .*--sudo $HOME/run/rice-sudo\.[^ ]*/sudo aur-pkg$" "$calls" || fail "yay вызван без обёртки sudo: $(grep yay "$calls")"
+    grep -q "^yay -S .*--sudo $HOME/run/rice-sudo\.[^ ]*/sudo --mflags --config .*makepkg.conf aur-pkg$" "$calls" || fail "yay вызван без обёртки sudo: $(grep yay "$calls")"
     grep -q "^notify-send .*Установлено: aur-pkg" "$calls" || fail "нет уведомления об установке"
     ! grep -q "right\|wrong" "$calls" || fail "пароль попал в аргументы команд"
     [ -z "$(ls -d "$HOME"/run/rice-sudo.* 2>/dev/null)" ] || fail "остались файлы с паролем"

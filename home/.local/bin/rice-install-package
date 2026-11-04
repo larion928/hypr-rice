@@ -12,15 +12,24 @@
 #   rice-install-package --run PACKAGE DIR  the install itself (started by the line above)
 set -u
 
+# The folder with the password goes however this ends; SIGKILL cannot be caught, so a folder left by
+# a killed run is removed by the next one (see below) or at the next login, $XDG_RUNTIME_DIR being RAM.
+forget_password() { rm -rf "$private"; }
+
 if [ "${1:-}" = --run ]; then
     package=$2 private=$3
-    trap 'rm -rf "$private"' EXIT
+    trap forget_password EXIT
+    trap 'exit 1' INT TERM HUP
     if pacman -Si "$package" >/dev/null 2>&1; then
         echo "Ставлю $package из репозитория…"
         "$private/sudo" pacman -S --needed --noconfirm "$package" 2>&1
     else
         echo "Собираю $package из AUR…"
-        yay -S --needed --noconfirm --answerdiff None --answerclean None --sudo "$private/sudo" "$package" 2>&1
+        # Icon themes are pictures: makepkg's strip and debug steps only cost time, and they look at
+        # every file (hundreds of thousands in a big theme, half an hour on Tela Circle).
+        sed -E '/^OPTIONS=/{s/\<strip\>/!strip/;s/\<debug\>/!debug/}' /etc/makepkg.conf > "$private/makepkg.conf"
+        yay -S --needed --noconfirm --answerdiff None --answerclean None --sudo "$private/sudo" \
+            --mflags "--config $private/makepkg.conf" "$package" 2>&1
     fi
     if pacman -Q "$package" >/dev/null 2>&1; then
         echo "Готово: $package установлен."
@@ -37,8 +46,16 @@ fi
 
 package=${1:?usage: rice-install-package PACKAGE}
 IFS= read -r password
+# Folders a killed run left behind, unless an install is going on now.
+pgrep -f "rice-install-package --run" >/dev/null || rm -rf "${XDG_RUNTIME_DIR:-/tmp}"/rice-sudo.*
+free_mb=$(df --output=avail -m / | tail -n1)
+if [ "$free_mb" -lt 3000 ]; then
+    echo "На системном разделе свободно ${free_mb} МБ: мало для установки, освободи место."
+    exit 1
+fi
 private=$(umask 077 && mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/rice-sudo.XXXXXX") || exit 1
-trap 'rm -rf "$private"' EXIT
+trap forget_password EXIT
+trap 'exit 1' INT TERM HUP
 (umask 077 && printf '%s\n' "$password" > "$private/password")
 unset password
 printf '#!/bin/sh\nexec sudo -S -p "" "$@" < "%s"\n' "$private/password" > "$private/sudo"
