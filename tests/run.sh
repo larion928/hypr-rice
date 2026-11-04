@@ -125,6 +125,24 @@ fake_pacman() {
     cp "$MIRRORLIST" "$HOME/mirrorlist.orig"
 }
 
+# pac returns as soon as pacman does, with rice's sudo keeper running in the background: waiting on
+# $! once waited on that keeper for ever, after a finished system upgrade.
+test_pac_returns_with_background_job() {
+    load_rice
+    # Real programs, not shell functions: bash points $! elsewhere for those.
+    unset -f sudo pacman
+    mkdir -p "$HOME/bin"
+    printf '#!/bin/sh\nexec "$@"\n' > "$HOME/bin/sudo"
+    printf '#!/bin/sh\necho "warning: something" >&2\nexit 0\n' > "$HOME/bin/pacman"
+    chmod +x "$HOME/bin/sudo" "$HOME/bin/pacman"
+    PATH="$HOME/bin:$PATH"
+    ( sleep 30 ) &
+    local keeper=$! started=$SECONDS
+    pac -Syu >/dev/null 2>&1 || fail "pac сообщил об ошибке"
+    kill "$keeper" 2>/dev/null
+    [ $((SECONDS - started)) -lt 5 ] || fail "pac ждал фоновый процесс $((SECONDS - started)) с"
+}
+
 # A package that does not exist is not a network problem: one try, mirrors untouched.
 test_pac_gives_up_on_non_network_error() {
     load_rice
@@ -326,6 +344,43 @@ assert config["pulseaudio"]["format"] == "V {volume}%", config["pulseaudio"]["fo
 assert config["hyprland/workspaces"]["format"] == "{icon}", "the workspaces' icon must stay"
 assert "cpu" in waybar.layout(load("coffee"))["iconEditable"]
 PY
+}
+
+# A theme can take another's battery drawing (in its own colours, with that drawing's animation), its
+# own folder colour and icon theme; folders are recoloured only under a Papirus icon theme.
+test_icon_edits() {
+    local themes="$HOME/.config/hypr/themes"
+    mkdir -p "$themes" "$HOME/.config/gtk-3.0" "$HOME/bin"
+    cp -r "$REPO/home/.config/hypr/themes/"{coffee,night} "$themes/"
+    printf '[Settings]\ngtk-icon-theme-name=Papirus-Dark\n' > "$HOME/.config/gtk-3.0/settings.ini"
+    printf '#!/bin/sh\n' > "$HOME/bin/gsettings" && chmod +x "$HOME/bin/gsettings"
+    mkdir -p "$HOME/.config/hypr-rice"
+    echo '{"themes": {"coffee": {"battery": "night", "folders": "teal", "iconTheme": "breeze-dark"}}}' \
+        > "$HOME/.config/hypr-rice/theme-edits.json"
+    PATH="$HOME/bin:$PATH" python3 - "$REPO/home/.config/hypr/scripts" <<'PY' || fail "значки применены не так"
+import sys
+sys.path.insert(0, sys.argv[1])
+from apptheme import battery, icon_theme
+from apptheme.theme import load
+coffee = load("coffee")
+frames = battery.frames(coffee)
+assert len(frames) == 7, len(frames)                                  # night's moon phases
+assert coffee.colors["fg"] in frames[0], "drawn in coffee's colours"
+assert coffee.ui.get("batteryAnim") == "pingpong", coffee.ui.get("batteryAnim")  # night's animation
+assert coffee.ui["folders"] == "teal"
+assert icon_theme.current(coffee) == "breeze-dark"
+icon_theme.apply(coffee)
+PY
+    grep -qx "gtk-icon-theme-name=breeze-dark" "$HOME/.config/gtk-3.0/settings.ini" || fail "тема значков не записана"
+    echo '{"themes": {}}' > "$HOME/.config/hypr-rice/theme-edits.json"
+    PATH="$HOME/bin:$PATH" python3 - "$REPO/home/.config/hypr/scripts" <<'PY' || fail "тема значков не вернулась"
+import sys
+sys.path.insert(0, sys.argv[1])
+from apptheme import icon_theme
+from apptheme.theme import load
+icon_theme.apply(load("coffee"))
+PY
+    grep -qx "gtk-icon-theme-name=Papirus-Dark" "$HOME/.config/gtk-3.0/settings.ini" || fail "без правки не вернулась тема значков райса"
 }
 
 # The settings window's bar fills a module's own format the way waybar does, and tells a script that

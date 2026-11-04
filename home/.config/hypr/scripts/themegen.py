@@ -15,6 +15,8 @@
                                                  for the bar in the settings window
   themegen.py icons                              every icon of the Nerd Font with its name, as JSON, for
                                                  the icon picker in the settings window
+  themegen.py icon-themes                        installed icon themes with sample icons and the ones to
+                                                 install, as JSON, for the settings window
 
 Each program has its module in apptheme/.
 """
@@ -23,8 +25,8 @@ import os
 import sys
 from pathlib import Path
 
-from apptheme import (bar_preview, battery, chromium, css_palette, drift, firefox, glyphs, gtk, hypr, hyprlock, kitty,
-                      neohtop, obsidian, system, telegram, vesktop, vscode, waybar)
+from apptheme import (bar_preview, battery, chromium, css_palette, drift, firefox, glyphs, gtk, hypr, hyprlock,
+                      icon_theme, icon_themes, kitty, neohtop, obsidian, system, telegram, vesktop, vscode, waybar)
 from apptheme.paths import HYPR
 from apptheme.theme import all_names, load
 
@@ -39,6 +41,7 @@ def apply(name, wallpaper=None):
     kitty.apply(theme)
     hyprlock.apply(theme, wallpaper)
     gtk.apply(theme)
+    icon_theme.apply(theme)
     drift.apply(theme)
     vscode.apply(theme)
     system.apply(theme, wallpaper)
@@ -98,6 +101,8 @@ def main(argv):
         telegram.offer(load(argv[1]))
     elif len(argv) >= 2 and argv[0] == "wallpapers":
         print(*load(argv[1]).wallpapers, sep="\n")
+    elif argv[:1] == ["icon-themes"]:
+        print(json.dumps(icon_themes.listing(), ensure_ascii=False))
     elif argv[:1] == ["icons"]:
         print(json.dumps(glyphs.all_icons(), ensure_ascii=False))
     elif len(argv) >= 2 and argv[0] == "bar-preview":

@@ -4,10 +4,13 @@ draw is the drawing module. They are written as themes/<name>/assets/battery-<N>
 import importlib.util
 
 from . import drawing
+from .paths import THEMES
+from .theme import battery_theme
 
 
 def frames(theme):
-    source = theme.dir / "battery.py"
+    """The theme's own drawing, or the one picked for it in the settings, in the theme's colours."""
+    source = THEMES / battery_theme(theme.name, theme.edits) / "battery.py"
     if not source.exists():
         return []
     spec = importlib.util.spec_from_file_location(f"battery_{theme.name}", source)

@@ -14,13 +14,16 @@ from .paths import RICE_CONF, THEMES
 #                          "colors": {"accent": "#e0a050"},
 #                          "wallpapers": {"added": ["/home/me/Pictures/a.png"], "off": ["…/02.png"]},
 #                          "waybar": {"modules-left": […], "modules-center": […], "modules-right": […],
-#                                     "position": "bottom"}}},
+#                                     "position": "bottom"},
+#                          "icons": {"cpu": "󰻠"}, "battery": "night", "folders": "teal",
+#                          "iconTheme": "breeze-dark"}},
 #    "everywhere": {"waybar": {…}}}
 # "everywhere" holds what was saved for all themes; a theme's own edit wins over it. An empty font or
 # a missing key keeps the theme's own.
 EDITS = RICE_CONF / "theme-edits.json"
 WALLPAPER_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")
 COLOR = re.compile(r"#[0-9a-fA-F]{6}")
+BATTERY_ANIMATION = ("batteryAnim", "batteryStep")  # ui.json keys that go with a battery drawing
 
 
 @dataclass(frozen=True)
@@ -75,8 +78,7 @@ def resolve_body_font(ui, font, display):
 def load(name):
     folder = THEMES / name
     palette = json.loads((folder / "palette.json").read_text())
-    ui_file = folder / "ui.json"
-    ui = json.loads(ui_file.read_text()) if ui_file.exists() else {}
+    ui = read_ui(folder)
     own = {"fonts": {"font": palette["font"], "display": palette["display"],
                      "body": resolve_body_font(ui, palette["font"], palette["display"])},
            "colors": palette["colors"]}
@@ -89,9 +91,28 @@ def load(name):
                "colors": {**palette["colors"], **colors}}
     if "body" in fonts:
         ui = {**ui, "bodyFont": fonts["body"]}
+    if edits.get("folders"):
+        ui = {**ui, "folders": edits["folders"]}
+    battery_source = battery_theme(name, edits)
+    if battery_source != name:
+        # The drawing comes with its own animation (the moon wanes back, the jellyfish relaxes).
+        source_ui = read_ui(THEMES / battery_source)
+        ui = {**{key: value for key, value in ui.items() if key not in BATTERY_ANIMATION},
+              **{key: source_ui[key] for key in BATTERY_ANIMATION if key in source_ui}}
     return Theme(name=palette["name"], label=palette["label"], font=palette["font"], display=palette["display"],
                  colors=palette["colors"], palette=palette, ui=ui, dir=folder, edits=edits,
                  shared=every_edit.get("everywhere", {}), own=own)
+
+
+def read_ui(folder):
+    ui_file = folder / "ui.json"
+    return json.loads(ui_file.read_text()) if ui_file.exists() else {}
+
+
+def battery_theme(name, edits):
+    """The theme whose battery drawing this one uses: its own, or the one picked in the settings."""
+    source = edits.get("battery")
+    return source if source and (THEMES / source / "battery.py").exists() else name
 
 
 def read_edits():

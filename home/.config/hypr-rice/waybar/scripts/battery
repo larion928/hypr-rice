@@ -69,7 +69,9 @@ def wave():
     if frames < 2:
         return
     try:
-        ui = json.loads(read(HYPR / "themes" / theme / "ui.json", "{}"))
+        # As themegen wrote it for the current theme: a battery drawing taken from another theme
+        # comes with that theme's animation.
+        ui = json.loads(read(HYPR / "ui.json", "") or read(HYPR / "themes" / theme / "ui.json", "{}"))
     except ValueError:
         ui = {}
     if ui.get("batteryAnim") == "pingpong":

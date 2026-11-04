@@ -2,6 +2,7 @@
 import subprocess
 from pathlib import Path
 
+from . import icon_theme
 from .paths import HOME
 
 ROOT_HELPER = "/usr/local/bin/hypr-theme-root"
@@ -12,7 +13,8 @@ CHROMIUM_POLICY_DIRS = ("/etc/chromium/policies/managed", "/etc/brave/policies/m
 def apply(theme, wallpaper):
     if not Path(ROOT_HELPER).exists():
         return
-    folders = theme.ui.get("folders")
+    # papirus-folders recolours Papirus only.
+    folders = theme.ui.get("folders") if icon_theme.current(theme).startswith("Papirus") else None
     stamp = HOME / ".cache/hypr-theme-folders"
     # papirus-folders takes a few seconds; skip it when the colour does not change. The stamp is
     # written only once the helper succeeded, hence the small script (values go in as arguments).

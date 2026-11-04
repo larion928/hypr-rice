@@ -143,10 +143,12 @@ pac() {  # pacman that retries downloads cut off by a flaky network
     local try extra=() errors status
     errors=$(mktemp)
     for try in 1 2 3 4 5 6; do
-        # stderr is copied for the check below; stdout stays on the terminal with its progress bars.
+        # stderr goes to a file for the check below and is shown right after; stdout stays on the
+        # terminal with its progress bars. (Copying it live through tee left nothing to wait on
+        # safely: $! is the sudo keeper, which runs as long as rice does.)
         status=0
-        sudo pacman --noconfirm "${extra[@]}" "$@" 2> >(tee "$errors" >&2) || status=$?
-        wait $! 2>/dev/null || true  # tee may still be writing $errors
+        sudo pacman --noconfirm "${extra[@]}" "$@" 2>"$errors" || status=$?
+        cat "$errors" >&2
         if [ "$status" -eq 0 ]; then
             rm -f "$errors"
             return 0
