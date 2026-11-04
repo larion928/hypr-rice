@@ -571,6 +571,17 @@ ShellRoot {
             if (!path || themeEdit.edit.wallpapers.added.includes(path)) return;
             themeEdit.change("wallpapers", { added: themeEdit.edit.wallpapers.added.concat([path]),
                                              off: themeEdit.edit.wallpapers.off });
+            themeEdit.offerAnimated(path);
+        }
+        // ---- animated wallpapers need mpvpaper (with mpv and ffmpeg): offered the moment one is used
+        property string wallpaperNeeds: ""   // the package still missing (themegen.py wallpaper-needs), or ""
+        function isAnimated(path) {
+            return /\.(gif|mp4|webm|mkv|mov|avi|m4v)$/i.test(path);
+        }
+        function offerAnimated(path) {
+            if (!themeEdit.isAnimated(path) || !themeEdit.wallpaperNeeds || themeEdit.installing) return;
+            themeEdit.askInstall({ package: themeEdit.wallpaperNeeds, title: "mpvpaper — анимированные обои", source: "aur",
+                                   done: "Установлено. Нажми «Поставить сейчас» на анимированных обоях, и они заиграют." });
         }
         function pickWallpaper() {
             root.picking = true;
@@ -588,6 +599,7 @@ ShellRoot {
         // changetheme picks from), the picture is shown, and the theme applied again with it, so the
         // lock screen, login screen and browsers get it too.
         function showWallpaper(path) {
+            themeEdit.offerAnimated(path);
             themeEdit.write("printf '%s\\n' " + root.quote(path) + " > " + root.quote(root.home + "/.config/hypr/current-wallpaper")
                             + " && " + root.quote(root.home + "/.local/bin/wallpaper") + " " + root.quote(path)
                             + " && changetheme --keep-wallpaper " + themeEdit.editing.name);
@@ -712,9 +724,11 @@ ShellRoot {
             themeEdit.installLog = lines.filter(line => !line.startsWith("@@done")).slice(-14);
             if (done) {
                 themeEdit.installState = done[1] === "0" ? "done" : "failed";
-                themeEdit.installMessage = done[1] === "0" ? "Установлено. Тема появилась в списке." : "Не установилось, подробности выше.";
+                themeEdit.installMessage = done[1] !== "0" ? "Не установилось, подробности выше."
+                                           : themeEdit.installing.done || "Установлено. Тема появилась в списке.";
                 iconThemesProc.running = true;
                 cursorThemesProc.running = true;
+                wallpaperNeedsProc.running = true;
             }
         }
         function askIcons() {
@@ -877,6 +891,12 @@ ShellRoot {
         watchChanges: true
         onFileChanged: reload()
         onLoaded: themeEdit.readInstallLog(text())
+    }
+    Process {
+        id: wallpaperNeedsProc
+        command: ["python3", root.home + "/.config/hypr/scripts/themegen.py", "wallpaper-needs"]
+        running: true
+        stdout: StdioCollector { onStreamFinished: themeEdit.wallpaperNeeds = this.text.trim() }
     }
     Process {
         id: cursorThemesProc
@@ -1104,6 +1124,7 @@ ShellRoot {
 
         // ---- a wallpaper from a moment of a GIF or a video
         function openFrames(path) {
+            if (!/\.gif$/i.test(path)) themeEdit.offerAnimated(path);  // a video's frames take ffmpeg
             userFiles.frameSource = path;
             userFiles.frameInput = "";
             userFiles.frameLength = null;

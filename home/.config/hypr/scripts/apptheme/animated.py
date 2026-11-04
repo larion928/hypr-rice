@@ -30,12 +30,25 @@ def playable(path):
     return str(target)
 
 
+# What playing animated wallpapers takes: mpvpaper, which brings mpv and ffmpeg (the conversion).
+NEEDED_PACKAGE = "mpvpaper"
+
+
+def missing_package():
+    """NEEDED_PACKAGE when something it brings is not installed, else ""."""
+    return "" if all(shutil.which(program) for program in ("mpvpaper", "ffmpeg", "ffprobe")) else NEEDED_PACKAGE
+
+
 def import_into(source, folder):
     """An animation added in the settings window, kept in folder as the mp4 it plays from (a file
-    already fit for playing is copied as it is); the kept file's path."""
+    already fit for playing is copied as it is; without ffmpeg the file as it is, converted once
+    ffmpeg is there); the kept file's path."""
     source, folder = Path(source), Path(folder)
-    target = folder / f"{source.stem}.mp4"
     folder.mkdir(parents=True, exist_ok=True)
+    if not shutil.which("ffmpeg"):
+        shutil.copy(source, folder / source.name)
+        return str(folder / source.name)
+    target = folder / f"{source.stem}.mp4"
     if source.suffix.lower() == ".mp4" and fits(source):
         if source.resolve() != target.resolve():
             shutil.copy(source, target)

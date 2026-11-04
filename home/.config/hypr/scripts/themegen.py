@@ -29,6 +29,7 @@
   themegen.py wallpaper-play <file>              for ~/.local/bin/wallpaper: the wallpaper's still picture, and
                                                  for an animation the mp4 mpvpaper plays, one per line
   themegen.py wallpaper-import <file> <folder>   an animation kept in folder as the mp4 it plays from; prints it
+  themegen.py wallpaper-needs                    the package animated wallpapers still need, or nothing
   themegen.py new <label> --from <theme>         a theme of the user's own (~/.config/hypr-rice/themes):
                                                  a copy of <theme> with its edits written in; prints its name
   themegen.py import <file.zip>                  a theme from an archive made by export; prints its name
@@ -145,7 +146,7 @@ def main(argv):
     elif argv[:1] == ["removed-themes"]:
         print(json.dumps(removed_themes.listing(), ensure_ascii=False))
     elif argv[:1] in (["cursor-add"], ["cursor-remove"], ["frame-length"], ["frame-prepare"], ["frame-forget"], ["frame"],
-                      ["wallpaper-play"], ["wallpaper-import"]):
+                      ["wallpaper-play"], ["wallpaper-import"], ["wallpaper-needs"]):
         return files_from_user(argv)
     elif argv[:1] in (["new"], ["import"], ["export"], ["delete"], ["restore"], ["factory"], ["promote"]):
         return manage_themes(argv)
@@ -203,6 +204,8 @@ def files_from_user(argv):
             print(json.dumps(frames.prepare(rest[0]), ensure_ascii=False))
         elif command == "frame-forget" and len(rest) == 1:
             frames.forget(rest[0])
+        elif command == "wallpaper-needs" and not rest:
+            print(animated.missing_package())
         elif command == "wallpaper-import" and len(rest) == 2:
             print(animated.import_into(rest[0], rest[1]))
         elif command == "wallpaper-play" and len(rest) == 1:

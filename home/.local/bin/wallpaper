@@ -28,7 +28,8 @@ if ! command -v "$PLAYER" >/dev/null; then
         *.gif) awww img "$file" ;;
         *) [ -n "$still" ] && awww img "$still" ;;
     esac
-    notify-send -a hypr-rice "Видеообои без mpvpaper" "Показан первый кадр. Поставить: rice repair" 2>/dev/null
+    notify-send -a hypr-rice "Анимированные обои: нужен mpvpaper" \
+        "Пока виден первый кадр. Поставить: Alt+F2 → Тема → Обои, там предложат установку" 2>/dev/null
     exit
 fi
 [ -n "$still" ] && awww img "$still"

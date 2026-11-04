@@ -1271,6 +1271,23 @@ test_wallpaper_command() {
         && grep -q "^mpvpaper .* ALL $HOME/w/.animated/anim.mp4$" "$HOME/calls" || fail "GIF через mpvpaper: $(cat "$HOME/calls")"
 }
 
+# Without mpvpaper (or the ffmpeg it brings) the settings window is told which package to offer, and an
+# animation added meanwhile is kept as it is, to be converted once ffmpeg is there.
+test_animated_wallpapers_need_mpvpaper() {
+    mkdir -p "$HOME/empty-path" "$HOME/w"
+    printf 'GIF89a' > "$HOME/w/anim.gif"
+    PATH="$HOME/empty-path" /usr/bin/python3 - "$REPO/home/.config/hypr/scripts" "$HOME" <<'PY' || fail "без mpvpaper не так"
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from apptheme import animated
+home = Path(sys.argv[2])
+assert animated.missing_package() == "mpvpaper", animated.missing_package()
+kept = animated.import_into(home / "w/anim.gif", home / "added")
+assert kept == str(home / "added/anim.gif") and Path(kept).read_bytes() == b"GIF89a", kept
+PY
+}
+
 tests=("$@")
 [ ${#tests[@]} -gt 0 ] || mapfile -t tests < <(declare -F | awk '{print $3}' | grep '^test_')
 for name in "${tests[@]}"; do
