@@ -925,6 +925,7 @@ cmd_install() {
     local aur=()
     mapfile -t aur < <(list "$SRC/packages/aur.txt")
     aur_install "${aur[@]}" || true
+    mark_rice_packages_explicit
     ok "готово"
 
     if [ ${#PICKED[@]} -gt 0 ]; then
@@ -1012,6 +1013,16 @@ cmd_apply_update() {
     finish
 }
 
+# The rice's packages count as installed on purpose: one that was already there as some program's
+# dependency would otherwise go with that program (pacman -Rs, or a cleanup of orphans), screenshots
+# and the theme generator with it.
+mark_rice_packages_explicit() {
+    local wanted=() installed=()
+    mapfile -t wanted < <(list "$SRC/packages/base.txt"; list "$SRC/packages/aur.txt")
+    mapfile -t installed < <(pacman -Qq "${wanted[@]}" 2>/dev/null || true)
+    [ ${#installed[@]} -eq 0 ] || sudo pacman -D --asexplicit "${installed[@]}" >/dev/null || true
+}
+
 install_missing_packages() {
     local packages=() missing=() aur=()
     mapfile -t packages < <(list "$SRC/packages/base.txt")
@@ -1023,6 +1034,7 @@ install_missing_packages() {
     elif aur_install "${aur[@]}"; then
         ok "все пакеты райса на месте"
     fi
+    mark_rice_packages_explicit
 }
 
 cmd_proton() {  # which Proton runs .exe files (proton-run reads ~/.config/hypr-rice/proton.conf)
@@ -1086,6 +1098,7 @@ cmd_repair() {
     pac -S --needed "${base[@]}" >/dev/null || warn "не все основные пакеты встали"
     pkg_repo_enabled || setup_pkg_repo
     aur_install "${aur[@]}" || true
+    mark_rice_packages_explicit
     setup_system
     setup_maintenance
     apply_theme "$(cat "$HOME/.config/hypr/current-theme" 2>/dev/null || echo claude)"

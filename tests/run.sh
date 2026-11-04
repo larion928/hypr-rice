@@ -143,6 +143,26 @@ test_pac_returns_with_background_job() {
     [ $((SECONDS - started)) -lt 5 ] || fail "pac ждал фоновый процесс $((SECONDS - started)) с"
 }
 
+# The rice's own packages that are installed get marked as explicitly installed, so removing some
+# program (pacman -Rs) or its orphans never takes them along.
+test_rice_packages_marked_explicit() {
+    load_rice
+    pacman() {
+        echo "pacman $*" >> "$HOME/calls"
+        if [ "$1" = -Qq ]; then
+            shift
+            local name
+            for name in "$@"; do
+                case "$name" in grim|python-pillow) echo "$name" ;; esac
+            done
+            return 1  # some of the asked are not installed
+        fi
+    }
+    mark_rice_packages_explicit
+    grep -qx "pacman -D --asexplicit python-pillow grim" "$HOME/calls" \
+        || fail "пакеты райса не отмечены: $(grep -- -D "$HOME/calls" || echo нет вызова)"
+}
+
 # A package that does not exist is not a network problem: one try, mirrors untouched.
 test_pac_gives_up_on_non_network_error() {
     load_rice
