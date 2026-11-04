@@ -12,16 +12,16 @@ from .paths import HOME
 THEMES_DIR = HOME / ".local/share/hypr-themes/telegram"
 
 
-def slug(theme):
-    """Cloud theme link (t.me/addtheme/<slug>) made from ~/.local/share/hypr-themes/telegram/<name>.tdesktop-theme."""
-    return theme.ui.get("telegramSlug") or f"hyprrice_{theme.name}"
-
-
 def offer(theme):
     # Telegram cannot be themed from outside. A cloud theme link opens its preview with an "Apply"
     # button (a theme file passed on the command line only offers to forward it). Only offered
-    # while a client runs, so nothing pops up otherwise.
-    link = f"tg://addtheme?slug={slug(theme)}"
+    # while a client runs, so nothing pops up otherwise. The link (ui.json "telegramSlug") is made
+    # by uploading ~/.local/share/hypr-themes/telegram/<name>.tdesktop-theme from a Telegram
+    # account; a theme without one (made in the settings window) has nothing to offer.
+    slug = theme.ui.get("telegramSlug")
+    if not slug:
+        return
+    link = f"tg://addtheme?slug={slug}"
     for binary in ("AyuGram", "Telegram"):
         if subprocess.run(["pgrep", "-x", binary], capture_output=True).returncode == 0:
             subprocess.Popen([binary, "--", link], start_new_session=True,
