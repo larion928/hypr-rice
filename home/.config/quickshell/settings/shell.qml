@@ -54,7 +54,7 @@ ShellRoot {
     // Writes a file, then optionally runs a command (all detached, in that order).
     // Esc: out of the icon picker, then out of a theme's settings, then the window closes.
     function back() {
-        if (themeEdit.installing && themeEdit.installState !== "running") themeEdit.installing = null;
+        if (themeEdit.installing && themeEdit.installState !== "checking") themeEdit.installing = null;
         else if (themeEdit.installing) return;
         else if (themeEdit.iconFor) themeEdit.iconFor = "";
         else if (themeEdit.editing) themeEdit.editing = null;
@@ -618,9 +618,10 @@ ShellRoot {
         function iconThemeNow() {
             return themeEdit.edit.iconTheme || themeEdit.defaultIconTheme;
         }
-        // ---- installing an icon theme: the window asks for the sudo password and shows the output
-        property var installing: null      // {package, title, source} being installed
-        property string installState: ""   // ask, running, done, failed
+        // ---- installing an icon theme: the window asks for the sudo password; the install itself runs
+        // in the background (rice-install-package), so this window may close. Its log is shown here.
+        property var installing: null      // {package, title, source} whose install the dialog shows
+        property string installState: ""   // ask, checking (the password), running, done, failed
         property string installMessage: ""
         property var installLog: []
         function askInstall(item) {
@@ -628,13 +629,28 @@ ShellRoot {
             themeEdit.installState = "ask";
             themeEdit.installMessage = "";
             themeEdit.installLog = [];
+            installLogFile.reload();  // an install of this package may be running already: then its log shows
         }
         function startInstall(password) {
             installProc.password = password;
             installProc.command = [root.home + "/.local/bin/rice-install-package", themeEdit.installing.package];
-            themeEdit.installState = "running";
-            themeEdit.installLog = [];
+            themeEdit.installState = "checking";
+            themeEdit.installMessage = "";
             installProc.running = true;
+        }
+        // The background install's log; its last line is "@@done <status>" once it is over.
+        function readInstallLog(text) {
+            const lines = text.split("\n").filter(line => line);
+            if (!lines.length || !themeEdit.installing) return;
+            const done = lines[lines.length - 1].match(/^@@done (\d+)$/);
+            if (!done && themeEdit.installState === "ask") themeEdit.installState = "running";
+            if (themeEdit.installState !== "running") return;
+            themeEdit.installLog = lines.filter(line => !line.startsWith("@@done")).slice(-14);
+            if (done) {
+                themeEdit.installState = done[1] === "0" ? "done" : "failed";
+                themeEdit.installMessage = done[1] === "0" ? "Установлено. Тема появилась в списке." : "Не установилось, подробности выше.";
+                iconThemesProc.running = true;
+            }
         }
         function askIcons() {
             if (!themeEdit.allIcons.length && !iconsProc.running) iconsProc.running = true;
@@ -770,17 +786,24 @@ ShellRoot {
         }
         onExited: exitCode => {
             if (exitCode === 0) {
-                themeEdit.installState = "done";
-                themeEdit.installMessage = "Установлено. Тема появилась в списке.";
+                themeEdit.installState = "running";
+                themeEdit.installMessage = "Идёт в фоне: окно установки и настройки можно закрыть, по окончании придёт уведомление.";
+                installLogFile.reload();
             } else if (exitCode === 2) {
                 themeEdit.installState = "ask";
-                themeEdit.installMessage = "Пароль не подошёл, попробуй ещё раз.";
+                themeEdit.installMessage = "Пароль не подошёл. После трёх неверных паролей подряд sudo блокируется на 10 минут.";
             } else {
                 themeEdit.installState = "failed";
-                themeEdit.installMessage = "Не установилось, подробности выше.";
+                themeEdit.installMessage = "Установка не запустилась.";
             }
-            iconThemesProc.running = true;
         }
+    }
+    FileView {
+        id: installLogFile
+        path: themeEdit.installing ? (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/rice-install-" + themeEdit.installing.package + ".log" : ""
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: themeEdit.readInstallLog(text())
     }
     Process {
         id: iconsProc
@@ -2290,7 +2313,7 @@ ShellRoot {
                         Chip { text: "Отмена"; onClicked: themeEdit.installing = null }
                     }
                     Rectangle {
-                        visible: themeEdit.installState !== "ask"
+                        visible: themeEdit.installState === "running" || themeEdit.installState === "done" || themeEdit.installState === "failed"
                         width: parent.width; height: 260
                         radius: 8
                         color: theme.c.bg || "black"
@@ -2308,16 +2331,19 @@ ShellRoot {
                         visible: themeEdit.installMessage !== ""
                         text: themeEdit.installMessage
                         font.family: theme.bodyFont; font.pixelSize: 14; font.bold: true
-                        color: themeEdit.installState === "done" ? (theme.c.good || "green") : (theme.c.crit || "red")
+                        color: themeEdit.installState === "done" ? (theme.c.good || "green")
+                               : themeEdit.installState === "running" ? (theme.c.accent || "white") : (theme.c.crit || "red")
                     }
-                    Row {
+                    Text {
+                        visible: themeEdit.installState === "checking"
+                        text: "Проверяю пароль…"
+                        font.family: theme.bodyFont; font.pixelSize: 14
+                        color: theme.c.accent || "white"
+                    }
+                    Chip {
                         visible: themeEdit.installState === "running"
-                        spacing: 10
-                        Text {
-                            text: "Идёт установка…"
-                            font.family: theme.bodyFont; font.pixelSize: 14
-                            color: theme.c.accent || "white"
-                        }
+                        text: "Скрыть (установка продолжится)"
+                        onClicked: themeEdit.installing = null
                     }
                     Chip {
                         visible: themeEdit.installState === "done" || themeEdit.installState === "failed"

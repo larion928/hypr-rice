@@ -2,12 +2,40 @@
 # rice-install-package PACKAGE — install a package from the repos or the AUR without a terminal, for
 # windows that ask for the sudo password themselves (the theme settings install icon themes with it).
 # The password comes as the first line on stdin, never as an argument (arguments are visible to every
-# user in the process list). It is kept only in a 0600 file inside a 0700 folder in $XDG_RUNTIME_DIR
-# (in RAM), which goes when this script ends however it ends; every sudo call, yay's too, goes through
-# a wrapper that hands it to sudo -S. Exit status: 0 installed, 2 wrong password, 1 anything else.
+# user in the process list). It is checked at once (status 2 when wrong); then the install goes on in
+# the background, on its own, so the window may close: its output is in
+# $XDG_RUNTIME_DIR/rice-install-PACKAGE.log, which ends with "@@done <status>", and a notification
+# says how it went. The password is kept only in a 0600 file inside a 0700 folder in $XDG_RUNTIME_DIR
+# (in RAM) until the install ends; every sudo call, yay's too, goes through a wrapper that hands it to
+# sudo -S.
+#   rice-install-package PACKAGE            check the password from stdin, start the install, exit 0
+#   rice-install-package --run PACKAGE DIR  the install itself (started by the line above)
 set -u
-package=${1:?usage: rice-install-package PACKAGE}
 
+if [ "${1:-}" = --run ]; then
+    package=$2 private=$3
+    trap 'rm -rf "$private"' EXIT
+    if pacman -Si "$package" >/dev/null 2>&1; then
+        echo "Ставлю $package из репозитория…"
+        "$private/sudo" pacman -S --needed --noconfirm "$package" 2>&1
+    else
+        echo "Собираю $package из AUR…"
+        yay -S --needed --noconfirm --answerdiff None --answerclean None --sudo "$private/sudo" "$package" 2>&1
+    fi
+    if pacman -Q "$package" >/dev/null 2>&1; then
+        echo "Готово: $package установлен."
+        notify-send -a hypr-rice "Установлено: $package" "Тема появилась в настройках (Alt+F2 → Тема → Значки)" 2>/dev/null
+        echo "@@done 0"
+    else
+        echo "Не установилось."
+        notify-send -a hypr-rice -u critical "Не установилось: $package" \
+            "Подробности: ${XDG_RUNTIME_DIR:-/tmp}/rice-install-$package.log" 2>/dev/null
+        echo "@@done 1"
+    fi
+    exit 0
+fi
+
+package=${1:?usage: rice-install-package PACKAGE}
 IFS= read -r password
 private=$(umask 077 && mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/rice-sudo.XXXXXX") || exit 1
 trap 'rm -rf "$private"' EXIT
@@ -20,17 +48,9 @@ if ! "$private/sudo" -v 2>/dev/null; then
     echo "Пароль не подошёл."
     exit 2
 fi
-if pacman -Si "$package" >/dev/null 2>&1; then
-    echo "Ставлю $package из репозитория…"
-    "$private/sudo" pacman -S --needed --noconfirm "$package" 2>&1
-else
-    echo "Собираю $package из AUR…"
-    yay -S --needed --noconfirm --answerdiff None --answerclean None --sudo "$private/sudo" "$package" 2>&1
-fi
-status=$?
-if [ "$status" -eq 0 ] && pacman -Q "$package" >/dev/null 2>&1; then
-    echo "Готово: $package установлен."
-    exit 0
-fi
-echo "Не установилось (код $status)."
-exit 1
+# From here the background part owns $private and removes it when it ends.
+trap - EXIT
+log="${XDG_RUNTIME_DIR:-/tmp}/rice-install-$package.log"
+setsid -f "$0" --run "$package" "$private" > "$log" 2>&1 < /dev/null
+echo "Установка идёт в фоне."
+exit 0
