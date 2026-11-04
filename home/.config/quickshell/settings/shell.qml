@@ -971,9 +971,8 @@ ShellRoot {
                                   : command === "restore" ? manageProc.args[1] : "";
             themeListProc.running = true;
         }
-        function listRead() {
-            themeListFile.reload();
-            try { root.themes = JSON.parse(themeListFile.text()); } catch (e) {}
+        function listRead(text) {
+            try { root.themes = JSON.parse(text); } catch (e) {}
             removedProc.running = true;
             const made = root.themes.findIndex(t => t.name === ownThemes.openAfter);
             if (made >= 0) {
@@ -998,10 +997,13 @@ ShellRoot {
             }
         }
     }
+    // The list comes on stdout, not read back through themeListFile: read that way right after reload(),
+    // a new theme was missing until the window was opened again (reload() most likely not done yet).
     Process {
         id: themeListProc
-        command: ["python3", root.home + "/.config/quickshell/theme-list.py", Quickshell.env("RICE_THEME_LIST")]
-        onExited: ownThemes.listRead()
+        command: ["sh", "-c", 'python3 "$0" "$1" && cat "$1"',
+                  root.home + "/.config/quickshell/theme-list.py", Quickshell.env("RICE_THEME_LIST")]
+        stdout: StdioCollector { onStreamFinished: ownThemes.listRead(this.text) }
     }
     Process {
         id: fileDialogProc
