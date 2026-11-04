@@ -30,6 +30,8 @@
                                                  for an animation the mp4 mpvpaper plays, one per line
   themegen.py wallpaper-import <file> <folder>   an animation kept in folder as the mp4 it plays from; prints it
   themegen.py wallpaper-needs                    the package animated wallpapers still need, or nothing
+  themegen.py wallpaper-engine                   Wallpaper Engine's subscribed wallpapers, as JSON
+  themegen.py wallpaper-engine-add <id> <folder> a video one kept in folder as the mp4 it plays from; prints it
   themegen.py new <label> --from <theme>         a theme of the user's own (~/.config/hypr-rice/themes):
                                                  a copy of <theme> with its edits written in; prints its name
   themegen.py import <file.zip>                  a theme from an archive made by export; prints its name
@@ -54,7 +56,7 @@ from pathlib import Path
 from apptheme import (animated, bar_preview, battery, chromium, css_palette, cursor_install, cursor_theme,
                       cursor_themes, drift, factory_reset, firefox, frames, glyphs, gtk, hypr, hyprlock, icon_theme,
                       icon_themes, kitty, neohtop, obsidian, removed_themes, system, telegram, user_themes, vesktop,
-                      vscode, wallpaper_still, waybar, windows)
+                      vscode, wallpaper_engine, wallpaper_still, waybar, windows)
 from apptheme.paths import HYPR
 from apptheme.theme import all_names, load
 
@@ -146,7 +148,8 @@ def main(argv):
     elif argv[:1] == ["removed-themes"]:
         print(json.dumps(removed_themes.listing(), ensure_ascii=False))
     elif argv[:1] in (["cursor-add"], ["cursor-remove"], ["frame-length"], ["frame-prepare"], ["frame-forget"], ["frame"],
-                      ["wallpaper-play"], ["wallpaper-import"], ["wallpaper-needs"]):
+                      ["wallpaper-play"], ["wallpaper-import"], ["wallpaper-needs"], ["wallpaper-engine"],
+                      ["wallpaper-engine-add"]):
         return files_from_user(argv)
     elif argv[:1] in (["new"], ["import"], ["export"], ["delete"], ["restore"], ["factory"], ["promote"]):
         return manage_themes(argv)
@@ -204,6 +207,10 @@ def files_from_user(argv):
             print(json.dumps(frames.prepare(rest[0]), ensure_ascii=False))
         elif command == "frame-forget" and len(rest) == 1:
             frames.forget(rest[0])
+        elif command == "wallpaper-engine" and not rest:
+            print(json.dumps(wallpaper_engine.listing(), ensure_ascii=False))
+        elif command == "wallpaper-engine-add" and len(rest) == 2:
+            print(wallpaper_engine.add(rest[0], rest[1]))
         elif command == "wallpaper-needs" and not rest:
             print(animated.missing_package())
         elif command == "wallpaper-import" and len(rest) == 2:

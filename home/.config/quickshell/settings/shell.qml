@@ -54,6 +54,10 @@ ShellRoot {
     // Writes a file, then optionally runs a command (all detached, in that order).
     // Esc: out of the icon picker, then out of a theme's settings, then the window closes.
     function back() {
+        if (userFiles.engineOpen) {
+            userFiles.engineOpen = false;
+            return;
+        }
         if (userFiles.frameSource) {
             userFiles.closeFrames();
             return;
@@ -1122,6 +1126,32 @@ ShellRoot {
             });
         }
 
+        // ---- wallpapers from Wallpaper Engine's Steam Workshop subscriptions (video ones are added)
+        property bool engineOpen: false
+        property var engine: null        // {installed, items: [{id, title, type, preview, addable}]}
+        property var engineAdded: []     // ids added while the picker is open
+        function openEngine() {
+            userFiles.engineOpen = true;
+            userFiles.engine = null;
+            userFiles.engineAdded = [];
+            userFiles.pickFor = "engine";
+            userFiles.say("Ищу подписки Wallpaper Engine…");
+            userFiles.run(["wallpaper-engine"], (lines, ok) => {
+                if (!ok) return;
+                userFiles.engine = JSON.parse(lines[lines.length - 1]);
+                userFiles.say("");
+            });
+        }
+        function addEngine(item) {
+            userFiles.say("Перевожу «" + item.title + "» в mp4…");
+            userFiles.run(["wallpaper-engine-add", item.id, themeEdit.wallpaperDir + "/" + themeEdit.editing.name], (lines, ok) => {
+                if (!ok) return;
+                themeEdit.addWallpaper(lines[lines.length - 1]);
+                userFiles.engineAdded = userFiles.engineAdded.concat([item.id]);
+                userFiles.say("Добавлено «" + item.title + "»: сохрани тему, чтобы обои остались");
+            });
+        }
+
         // ---- a wallpaper from a moment of a GIF or a video
         function openFrames(path) {
             if (!/\.gif$/i.test(path)) themeEdit.offerAnimated(path);  // a video's frames take ffmpeg
@@ -1858,6 +1888,7 @@ ShellRoot {
             WindowsSection { anchors.fill: parent; visible: themeEdit.section === "windows" }
             CursorSection { anchors.fill: parent; visible: themeEdit.section === "cursor" }
             FramePicker { anchors.fill: parent; z: 20; visible: userFiles.frameSource !== "" }
+            EnginePicker { anchors.fill: parent; z: 20; visible: userFiles.engineOpen }
             InstallDialog { anchors.fill: parent; z: 30; visible: themeEdit.installing !== null }
         }
     }
@@ -3243,6 +3274,90 @@ ShellRoot {
     }
 
     // The wallpapers changetheme picks from: click one to switch it on or off.
+    // Wallpaper Engine's subscribed wallpapers: a video one is added to the theme with a click; scenes and
+    // web wallpapers are programs, shown but not added.
+    component EnginePicker: Rectangle {
+        id: enginePicker
+        readonly property var kinds: ({ video: "видео", scene: "сцена · пока нельзя", web: "веб · пока нельзя",
+                                        application: "программа · нельзя" })
+        color: Color.withAlpha(theme.c.bg, 0.92)
+        MouseArea { anchors.fill: parent }
+        Row {
+            id: engineHeader
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 8 }
+            spacing: 14
+            SectionTitle { text: "Wallpaper Engine" }
+            Chip { anchors.verticalCenter: parent.verticalCenter; text: "Готово"; onClicked: userFiles.engineOpen = false }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                width: parent.width - 420
+                elide: Text.ElideRight
+                text: userFiles.pickFor === "engine" ? userFiles.message : ""
+                font.family: theme.bodyFont; font.pixelSize: 13
+                color: userFiles.failed ? (theme.c.crit || "red") : (theme.c.muted || "grey")
+            }
+        }
+        Text {
+            anchors { left: parent.left; right: parent.right; top: engineHeader.bottom; margins: 8; topMargin: 24 }
+            visible: userFiles.engine !== null && !userFiles.engine.items.length
+            wrapMode: Text.WordWrap
+            text: !userFiles.engine ? "" : !userFiles.engine.installed
+                  ? "Wallpaper Engine не установлен в Steam. Он платный: купи и установи его, подпишись на обои в его Мастерской Steam, и Steam их скачает. Видеообои из подписок появятся здесь."
+                  : "Подписок нет: подпишись на обои в Мастерской Wallpaper Engine, Steam их скачает, и они появятся здесь."
+            font.family: theme.bodyFont; font.pixelSize: 15
+            color: theme.c.fg || "white"
+        }
+        GridView {
+            anchors { left: parent.left; right: parent.right; top: engineHeader.bottom; bottom: parent.bottom; topMargin: 16 }
+            clip: true
+            cellWidth: 230; cellHeight: 200
+            boundsBehavior: Flickable.StopAtBounds
+            model: userFiles.engine ? userFiles.engine.items : []
+            delegate: Item {
+                id: engineItem
+                required property var modelData
+                readonly property bool added: userFiles.engineAdded.includes(modelData.id)
+                width: 220; height: 190
+                Rectangle {
+                    width: parent.width; height: 130
+                    radius: root.r > 4 ? 10 : 0
+                    clip: true
+                    color: theme.c.bg2 || "black"
+                    border.width: engineArea.containsMouse && engineItem.modelData.addable ? 2 : 0
+                    border.color: theme.c.accent || "white"
+                    opacity: engineItem.modelData.addable ? 1 : 0.4
+                    Image {
+                        anchors { fill: parent; margins: parent.border.width }
+                        source: engineItem.modelData.preview ? "file://" + engineItem.modelData.preview : ""
+                        fillMode: Image.PreserveAspectCrop
+                        asynchronous: true
+                    }
+                    MouseArea {
+                        id: engineArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        enabled: engineItem.modelData.addable && !engineItem.added && !userFilesProc.running
+                        onClicked: userFiles.addEngine(engineItem.modelData)
+                    }
+                }
+                Text {
+                    y: 136; width: parent.width
+                    elide: Text.ElideRight
+                    text: (engineItem.added ? "✓ " : "") + engineItem.modelData.title
+                    font.family: theme.bodyFont; font.pixelSize: 14
+                    color: theme.c.fg || "white"
+                }
+                Text {
+                    y: 158; width: parent.width
+                    elide: Text.ElideRight
+                    text: engineItem.added ? "добавлено в обои темы" : (enginePicker.kinds[engineItem.modelData.type] || engineItem.modelData.type)
+                    font.family: theme.bodyFont; font.pixelSize: 12
+                    color: engineItem.modelData.addable ? (theme.c.accent || "white") : (theme.c.muted || "grey")
+                }
+            }
+        }
+    }
+
     // A moment of a GIF or a video picked with a slider, then kept as one of the theme's wallpapers.
     component FramePicker: Rectangle {
         color: Color.withAlpha(theme.c.bg, 0.92)
@@ -3313,6 +3428,7 @@ ShellRoot {
             spacing: 10
             Chip { text: "Добавить обои"; onClicked: themeEdit.pickWallpaper() }
             Chip { text: "Кадр из GIF или видео…"; enabled: !userFilesProc.running; onClicked: userFiles.pick("frames") }
+            Chip { text: "Из Wallpaper Engine…"; enabled: !userFilesProc.running; onClicked: userFiles.openEngine() }
             Text {
                 readonly property bool news: userFiles.pickFor === "frames" && userFiles.message !== ""
                 anchors.verticalCenter: parent.verticalCenter

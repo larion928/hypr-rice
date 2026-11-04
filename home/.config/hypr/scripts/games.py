@@ -35,10 +35,12 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+from apptheme import steam
+
 HOME = Path.home()
 LIBRARY = HOME / ".config/hypr-rice/games.json"
 COVERS = HOME / ".local/share/hypr-rice/game-covers"
-STEAM = HOME / ".local/share/Steam"
+STEAM = steam.STEAM
 # Switched on in rice → Игры: оптимизация: games run under gamemoderun. A Windows game gets it from
 # proton-run, a Steam game only from its launch options in Steam (Steam starts it, not this script).
 GAMEMODE_MARK = HOME / ".config/hypr-rice/gamemode"
@@ -317,18 +319,6 @@ def present(entry):
 
 # ---------- Steam ----------
 
-def steam_libraries():
-    """The library folders Steam keeps games in (libraryfolders.vdf), the default one first."""
-    vdf = STEAM / "steamapps/libraryfolders.vdf"
-    folders = [STEAM]
-    if vdf.exists():
-        for found in re.findall(r'^\s*"path"\s*"(.*)"\s*$', vdf.read_text(errors="replace"), re.M):
-            folder = Path(found)
-            if folder not in folders:
-                folders.append(folder)
-    return [folder for folder in folders if (folder / "steamapps").is_dir()]
-
-
 def manifest_fields(manifest):
     text = manifest.read_text(errors="replace")
     return dict(re.findall(r'^\s*"(appid|name)"\s*"(.*)"\s*$', text, re.M))
@@ -336,7 +326,7 @@ def manifest_fields(manifest):
 
 def steam_games():
     found = {}
-    for library in steam_libraries():
+    for library in steam.libraries():
         for manifest in sorted((library / "steamapps").glob("appmanifest_*.acf")):
             fields = manifest_fields(manifest)
             if "appid" in fields and "name" in fields and not STEAM_TOOLS.match(fields["name"]):
@@ -346,7 +336,7 @@ def steam_games():
 
 
 def steam_library_of(appid):
-    for library in steam_libraries():
+    for library in steam.libraries():
         if (library / f"steamapps/appmanifest_{appid}.acf").exists():
             return library
     return None

@@ -39,16 +39,17 @@ def missing_package():
     return "" if all(shutil.which(program) for program in ("mpvpaper", "ffmpeg", "ffprobe")) else NEEDED_PACKAGE
 
 
-def import_into(source, folder):
+def import_into(source, folder, name=""):
     """An animation added in the settings window, kept in folder as the mp4 it plays from (a file
     already fit for playing is copied as it is; without ffmpeg the file as it is, converted once
-    ffmpeg is there); the kept file's path."""
+    ffmpeg is there), under name or the source's own; the kept file's path."""
     source, folder = Path(source), Path(folder)
+    name = name or source.stem
     folder.mkdir(parents=True, exist_ok=True)
     if not shutil.which("ffmpeg"):
-        shutil.copy(source, folder / source.name)
-        return str(folder / source.name)
-    target = folder / f"{source.stem}.mp4"
+        shutil.copy(source, folder / f"{name}{source.suffix}")
+        return str(folder / f"{name}{source.suffix}")
+    target = folder / f"{name}.mp4"
     if source.suffix.lower() == ".mp4" and fits(source):
         if source.resolve() != target.resolve():
             shutil.copy(source, target)

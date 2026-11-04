@@ -1288,6 +1288,47 @@ assert kept == str(home / "added/anim.gif") and Path(kept).read_bytes() == b"GIF
 PY
 }
 
+# Wallpaper Engine's subscriptions: listed with their type, a video one added as an mp4 named after its
+# title; a scene is not a video and is refused, a broken project.json is skipped.
+test_wallpaper_engine_videos() {
+    command -v ffmpeg >/dev/null || { echo "нет ffmpeg, пропускаю"; return 0; }
+    local workshop="$HOME/.local/share/Steam/steamapps/workshop/content/431960"
+    mkdir -p "$workshop/111" "$workshop/222" "$workshop/333" "$workshop/444"
+    python3 - "$REPO/home/.config/hypr/scripts" "$HOME" <<'PY' || fail "Wallpaper Engine не так"
+import json, subprocess, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from apptheme import animated, wallpaper_engine
+home = Path(sys.argv[2])
+workshop = home / ".local/share/Steam/steamapps/workshop/content/431960"
+animated.screen_width = lambda: 640
+
+assert wallpaper_engine.listing() == {"installed": False, "items": []}, wallpaper_engine.listing()
+
+subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=320x180:r=10:d=1", str(workshop / "111/video.webm")], check=True)
+(workshop / "111/preview.jpg").write_bytes(b"jpg")
+(workshop / "111/project.json").write_text(json.dumps({"title": "Neon / City", "type": "Video", "file": "video.webm", "preview": "preview.jpg"}))
+(workshop / "222/project.json").write_text(json.dumps({"title": "A scene", "type": "scene", "file": "scene.json"}))
+(workshop / "333/project.json").write_text(json.dumps({"title": "Web one", "type": "web", "file": "index.html"}))
+(workshop / "444/project.json").write_text("{broken")
+(home / ".local/share/Steam/steamapps/appmanifest_431960.acf").write_text("x")
+
+listed = wallpaper_engine.listing()
+assert listed["installed"]
+assert [(i["title"], i["type"], i["addable"]) for i in listed["items"]] == \
+    [("A scene", "scene", False), ("Neon / City", "video", True), ("Web one", "web", False)], listed
+assert listed["items"][1]["preview"].endswith("111/preview.jpg")
+
+kept = wallpaper_engine.add("111", home / "added")
+assert kept == str(home / "added/Neon _ City.mp4") and animated.fits(Path(kept)), kept
+try:
+    wallpaper_engine.add("222", home / "added")
+    raise AssertionError("сцена добавлена как видео")
+except ValueError as error:
+    assert "не видео" in str(error), error
+PY
+}
+
 tests=("$@")
 [ ${#tests[@]} -gt 0 ] || mapfile -t tests < <(declare -F | awk '{print $3}' | grep '^test_')
 for name in "${tests[@]}"; do
