@@ -1,6 +1,7 @@
 // Theme switcher, toggled by ~/.local/bin/theme-picker (Alt+Shift+T, waybar palette button).
 // $RICE_THEME_LIST (written by ../theme-list.py): every theme's palette.json, ui.json and wallpaper thumbnail.
-// Each card is drawn in its own theme's colours and fonts; Enter runs changetheme.
+// Each card is drawn in its own theme's colours and fonts; Enter runs changetheme. Eight themes to a
+// tab; the tab follows the selected theme.
 import QtQuick
 import QtQuick.Effects
 import Quickshell
@@ -13,12 +14,16 @@ ShellRoot {
     id: root
 
     property var themes: []
-    property int index: 0
+    property int index: 0  // the selected theme, in the whole list
     property bool closing: false
     readonly property var cur: themes.find(t => t.current) || themes[0] || ({ pal: { colors: {} }, ui: {} })
+    readonly property int perPage: 8
+    readonly property int pages: Math.max(1, Math.ceil(themes.length / perPage))
+    readonly property int page: Math.floor(index / perPage)
+    readonly property var shown: themes.slice(page * perPage, (page + 1) * perPage)
     // Up to five cards fit in one row; more go into a 4-column grid with smaller cards.
-    readonly property int columns: themes.length > 5 ? 4 : Math.max(1, themes.length)
-    readonly property bool compact: themes.length > 5
+    readonly property int columns: shown.length > 5 ? 4 : Math.max(1, shown.length)
+    readonly property bool compact: shown.length > 5
 
     FileView { id: dataFile; path: Quickshell.env("RICE_THEME_LIST"); blockLoading: true }
 
@@ -30,6 +35,12 @@ ShellRoot {
 
     function move(d) {
         if (themes.length) index = (index + d + themes.length) % themes.length;
+    }
+
+    // The same place on another tab, or its last theme when that tab is shorter.
+    function turnPage(d) {
+        const next = (page + d + pages) % pages;
+        index = Math.min(next * perPage + index % perPage, themes.length - 1);
     }
 
     function apply() {
@@ -82,9 +93,11 @@ ShellRoot {
                 else if (e.key === Qt.Key_Right || e.key === Qt.Key_Tab || e.key === Qt.Key_L) root.move(1);
                 else if (e.key === Qt.Key_Up || e.key === Qt.Key_K) root.move(-root.columns);
                 else if (e.key === Qt.Key_Down || e.key === Qt.Key_J) root.move(root.columns);
+                else if (e.key === Qt.Key_PageUp) root.turnPage(-1);
+                else if (e.key === Qt.Key_PageDown) root.turnPage(1);
                 else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) root.apply();
-                else if (e.key >= Qt.Key_1 && e.key <= Qt.Key_9 && e.key - Qt.Key_1 < root.themes.length) {
-                    root.index = e.key - Qt.Key_1;
+                else if (e.key >= Qt.Key_1 && e.key <= Qt.Key_8 && e.key - Qt.Key_1 < root.shown.length) {
+                    root.index = root.page * root.perPage + e.key - Qt.Key_1;
                     root.apply();
                 }
             }
@@ -108,6 +121,24 @@ ShellRoot {
                 color: root.cur.pal.colors.fg || "white"
             }
 
+            // The tabs: one dot each, the current one long.
+            Row {
+                visible: root.pages > 1
+                anchors { horizontalCenter: parent.horizontalCenter; bottom: cards.top; bottomMargin: 26 }
+                spacing: 10
+                Repeater {
+                    model: root.pages
+                    Rectangle {
+                        required property int index
+                        width: index === root.page ? 34 : 12; height: 12
+                        radius: 6
+                        color: index === root.page ? (root.cur.pal.colors.accent || "white") : Color.withAlpha(root.cur.pal.colors.muted, 0.6)
+                        Behavior on width { NumberAnimation { duration: 180 } }
+                        MouseArea { anchors.fill: parent; onClicked: root.turnPage(index - root.page) }
+                    }
+                }
+            }
+
             Grid {
                 id: cards
                 anchors.centerIn: parent
@@ -115,15 +146,16 @@ ShellRoot {
                 spacing: 28
 
                 Repeater {
-                    model: root.themes
+                    model: root.shown
 
                     Item {
                         id: cardRoot
                         required property var modelData
-                        required property int index
+                        required property int index  // on this tab
+                        readonly property int place: root.page * root.perPage + index  // in the whole list
                         readonly property var t: modelData
                         readonly property var c: t.pal.colors
-                        readonly property bool selected: root.index === index
+                        readonly property bool selected: root.index === place
                         readonly property real r: Math.min(t.ui.radius ?? 12, 22)
                         width: root.compact ? 300 : 320
                         height: root.compact ? 332 : 372
@@ -255,8 +287,8 @@ ShellRoot {
                         MouseArea {
                             anchors.fill: parent
                             hoverEnabled: true
-                            onEntered: root.index = cardRoot.index
-                            onClicked: { root.index = cardRoot.index; root.apply(); }
+                            onEntered: root.index = cardRoot.place
+                            onClicked: { root.index = cardRoot.place; root.apply(); }
                         }
                     }
                 }
@@ -265,7 +297,8 @@ ShellRoot {
             Text {
                 anchors { horizontalCenter: parent.horizontalCenter; top: cards.bottom; topMargin: 56 }
                 text: (root.compact ? "←  →  ↑  ↓" : "←  →") + "  выбрать      Enter  применить      1–"
-                      + Math.min(9, root.themes.length) + "  сразу      Esc  закрыть"
+                      + root.shown.length + "  сразу" + (root.pages > 1 ? "      PgUp  PgDn  вкладки" : "")
+                      + "      Esc  закрыть"
                 font.family: root.cur.pal.font || "monospace"
                 font.pixelSize: 15
                 color: root.cur.pal.colors.muted || "grey"
