@@ -91,6 +91,11 @@ ShellRoot {
             root.dialog = "";
         }
     }
+    // A program's icon: a name from the icon theme, or (as some .desktop files give it) a picture's path.
+    function iconSource(icon) {
+        if (!icon) return "";
+        return icon.startsWith("/") ? "file://" + icon : Quickshell.iconPath(icon, true);
+    }
     function added(kind, target) {
         return root.games.some(g => g.kind === kind && g.target === target);
     }
@@ -289,7 +294,7 @@ ShellRoot {
                 anchors.centerIn: parent
                 visible: !coverImage.visible && card.modelData.kind === "app"
                 implicitSize: 88
-                source: card.modelData.kind === "app" ? Quickshell.iconPath(card.modelData.icon || "", true) : ""
+                source: card.modelData.kind === "app" ? root.iconSource(card.modelData.icon) : ""
             }
             Text {
                 anchors.centerIn: parent
@@ -470,7 +475,7 @@ ShellRoot {
                                 id: appIcon
                                 x: 10; anchors.verticalCenter: parent.verticalCenter
                                 implicitSize: 30
-                                source: Quickshell.iconPath(appRow.modelData.icon || "", true)
+                                source: root.iconSource(appRow.modelData.icon)
                             }
                             Text {
                                 anchors { left: appIcon.right; leftMargin: 12; verticalCenter: parent.verticalCenter }
