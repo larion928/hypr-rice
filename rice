@@ -401,8 +401,15 @@ enable_multilib() {
 EXE_TYPES=(application/x-ms-dos-executable application/x-msdownload application/vnd.microsoft.portable-executable
            application/x-msi application/x-ms-shortcut application/x-bat)
 
+# Thunar runs a .exe that has the execute bit (most archives unpack them so) as a program of its own
+# instead of opening it with umu-run.desktop, and the kernel cannot run it ("Exec format error"). This
+# rule makes the kernel hand every Windows program ("MZ" are its first two bytes) to proton-run, so
+# such a .exe and ./game.exe in a terminal start through Proton too.
+PROTON_BINFMT=/etc/binfmt.d/proton-run.conf
+PROTON_BINFMT_RULE=/proc/sys/fs/binfmt_misc/proton-run
+
 hook_proton_exe() {
-    # Double-clicking a .exe runs it through Proton (umu, via ~/.local/bin/proton-run) instead of plain wine.
+    # Opening a .exe runs it through Proton (umu, via ~/.local/bin/proton-run) instead of plain wine.
     local d="$HOME/.local/share/applications" m
     mkdir -p "$d"
     printf '%s\n' "[Desktop Entry]" "Type=Application" "Name=Proton (umu)" \
@@ -412,6 +419,8 @@ hook_proton_exe() {
         xdg-mime default umu-run.desktop "$m" 2>/dev/null || true
     done
     update-desktop-database "$d" 2>/dev/null || true
+    printf ':proton-run:M::MZ::%s:\n' "$HOME/.local/bin/proton-run" | sudo tee "$PROTON_BINFMT" >/dev/null
+    sudo systemctl restart systemd-binfmt.service
 }
 
 unhook_proton_exe() {
@@ -422,6 +431,25 @@ unhook_proton_exe() {
         sed -i -e 's/umu-run\.desktop;\?//g' -e '/=$/d' "$list"
     fi
     update-desktop-database "$d" 2>/dev/null || true
+    sudo rm -f "$PROTON_BINFMT"
+    if [ -e "$PROTON_BINFMT_RULE" ]; then
+        echo -1 | sudo tee "$PROTON_BINFMT_RULE" >/dev/null
+    fi
+}
+
+run_hook() { "hook_${1//-/_}" || warn "не отработал шаг $1"; }
+
+# An update may change what a program's setup step does, so it runs again for what is installed.
+rerun_installed_hooks() {
+    local id tok
+    for id in "${APP_IDS[@]}"; do
+        app_installed "$id" || continue
+        for tok in ${APP_SRC[$id]}; do
+            if [[ $tok == hook:* ]]; then
+                run_hook "${tok#hook:}"
+            fi
+        done
+    done
 }
 
 app_desktop_file() {  # first .desktop file an installed app ships
@@ -486,7 +514,7 @@ install_apps() {  # installs PICKED
         fi
     done
     local h
-    for h in "${hooks[@]}"; do "hook_${h//-/_}" || warn "не отработал шаг $h"; done
+    for h in "${hooks[@]}"; do run_hook "$h"; done
     # The first browser picked becomes the default when none is set (Alt+B opens it).
     if [ ${#browsers[@]} -gt 0 ] && [ -z "$(xdg-settings get default-web-browser 2>/dev/null)" ]; then
         local f
@@ -1033,6 +1061,7 @@ cmd_apply_update() {
     step "Новые пакеты райса"
     install_missing_packages
     apply_rice "$(cat "$HOME/.config/hypr/current-theme" 2>/dev/null || echo claude)"
+    rerun_installed_hooks
     finish
 }
 

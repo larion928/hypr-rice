@@ -524,6 +524,45 @@ test_themegen_applies_every_theme() {
     done
 }
 
+# The Proton step hands .exe files to proton-run twice: by type (opening a file) and in the kernel
+# (a .exe with the execute bit, which Thunar runs as a program); removing Proton takes both away.
+test_proton_exe_hook() {
+    load_rice
+    PROTON_BINFMT="$HOME/binfmt.d/proton-run.conf"
+    PROTON_BINFMT_RULE="$HOME/binfmt_misc/proton-run"
+    mkdir -p "$HOME/binfmt.d" "$HOME/binfmt_misc"
+    systemctl() { echo "systemctl $*" >> "$HOME/calls"; }
+    xdg-mime() { echo "xdg-mime $*" >> "$HOME/calls"; }
+    update-desktop-database() { :; }
+
+    hook_proton_exe
+    [ "$(cat "$PROTON_BINFMT")" = ":proton-run:M::MZ::$HOME/.local/bin/proton-run:" ] \
+        || fail "неверное правило binfmt: $(cat "$PROTON_BINFMT")"
+    grep -qx 'systemctl restart systemd-binfmt.service' "$HOME/calls" || fail "правило не загружено в ядро"
+    grep -qx 'xdg-mime default umu-run.desktop application/x-msdownload' "$HOME/calls" \
+        || fail ".exe не привязан к umu-run.desktop"
+
+    echo ':proton-run enabled' > "$PROTON_BINFMT_RULE"
+    unhook_proton_exe
+    [ ! -e "$PROTON_BINFMT" ] || fail "правило binfmt осталось после удаления Proton"
+    [ "$(cat "$PROTON_BINFMT_RULE")" = -1 ] || fail "правило не снято в ядре"
+    [ ! -e "$HOME/.local/share/applications/umu-run.desktop" ] || fail "umu-run.desktop остался"
+}
+
+# rice update runs the setup steps of installed programs again, and only theirs.
+test_update_reruns_installed_hooks() {
+    load_rice
+    APP_IDS=(kept gone)
+    APP_SRC[kept]="hook:first-step"
+    APP_SRC[gone]="hook:second-step"
+    app_installed() { [ "$1" = kept ]; }
+    hook_first_step() { echo first >> "$HOME/ran"; }
+    hook_second_step() { echo second >> "$HOME/ran"; }
+
+    rerun_installed_hooks
+    [ "$(cat "$HOME/ran")" = first ] || fail "выполнились шаги: $(cat "$HOME/ran" 2>/dev/null)"
+}
+
 tests=("$@")
 [ ${#tests[@]} -gt 0 ] || mapfile -t tests < <(declare -F | awk '{print $3}' | grep '^test_')
 for name in "${tests[@]}"; do
