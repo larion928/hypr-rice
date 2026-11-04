@@ -433,6 +433,13 @@ EOF
     [ -z "$(ls -A "$HOME/run")" ] || fail "остались файлы с паролем: $(ls "$HOME/run")"
 }
 
+# Every member the settings window uses on its main objects (themeEdit.save, panelEditor.slots, ...) is
+# defined; QML only notices a missing one when that line runs, e.g. on the first drag.
+test_settings_members_defined() {
+    python3 "$REPO/tests/qml_members.py" "$REPO/home/.config/quickshell/settings/shell.qml" \
+        panelEditor themeEdit keys mon || fail "в окне настроек используется неопределённое"
+}
+
 # themegen builds and applies every theme in a fake $HOME; tests/themegen_snapshot.sh records it all.
 test_themegen_applies_every_theme() {
     "$REPO/tests/themegen_snapshot.sh" "$HOME/snapshot" >/dev/null || fail "themegen упал, вывод выше"

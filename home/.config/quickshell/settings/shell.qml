@@ -1723,6 +1723,38 @@ ShellRoot {
             if (!words.length) return themeEdit.allIcons;
             return themeEdit.allIcons.filter(([, name]) => words.every(word => name.includes(word)));
         }
+        property string hovered: ""
+        readonly property var sideNames: ({ "modules-left": "слева", "modules-center": "по центру",
+                                            "modules-right": "справа" })
+
+        function row(side) {
+            return side === "modules-left" ? leftRow : side === "modules-center" ? centerRow : rightRow;
+        }
+        function pills(side) {
+            const list = [];
+            for (const child of panelEditor.row(side).children)
+                if (child.pillModule !== undefined) list.push(child);
+            return list;
+        }
+        // Every place a module can go, in the bar's coordinates: each gap of each group, a group's two
+        // ends, and the bar's middle while the centre group is empty. A drop takes the nearest one.
+        function slots() {
+            const list = [];
+            for (const [side] of themeEdit.sides) {
+                const pills = panelEditor.pills(side);
+                if (!pills.length) {
+                    const x = side === "modules-left" ? 16 : side === "modules-right" ? mockBar.width - 16 : mockBar.width / 2;
+                    list.push({ side: side, index: 0, x: x });
+                    continue;
+                }
+                const row = panelEditor.row(side);
+                for (let i = 0; i <= pills.length; i++) {
+                    const edge = i < pills.length ? pills[i].x - 3 : pills[i - 1].x + pills[i - 1].width + 3;
+                    list.push({ side: side, index: i, x: row.mapToItem(mockBar, edge, 0).x });
+                }
+            }
+            return list;
+        }
         function start(module, side, index, point) {
             panelEditor.drag = { module: module, side: side, index: index };
             panelEditor.pressedAt = point;
