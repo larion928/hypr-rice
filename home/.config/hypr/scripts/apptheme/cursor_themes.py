@@ -6,6 +6,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from .cursor_install import removable
 from .icon_themes import ICON_DIRS, index_fields
 from .paths import HOME
 
@@ -37,7 +38,7 @@ def installed():
                 continue
             index = cursors.parent / "index.theme"
             label = index_fields(index).get("Name", name) if index.exists() else name
-            themes[name] = {"name": name, "label": label, "previews": previews(cursors)}
+            themes[name] = {"name": name, "label": label, "previews": previews(cursors), "removable": removable(name)}
     return sorted(themes.values(), key=lambda theme: theme["label"].lower())
 
 

@@ -54,6 +54,10 @@ ShellRoot {
     // Writes a file, then optionally runs a command (all detached, in that order).
     // Esc: out of the icon picker, then out of a theme's settings, then the window closes.
     function back() {
+        if (userFiles.frameSource) {
+            userFiles.frameSource = "";
+            return;
+        }
         if (ownThemes.dialog) {
             if (!ownThemes.busy) ownThemes.dialog = "";
             return;
@@ -1023,6 +1027,142 @@ ShellRoot {
         onExited: root.picking = false
     }
 
+    // ================= theme: cursors and wallpaper frames from the user's files =================
+    // themegen.py with its output and then "@@exit <status>" in one stream; then(lines, ok) gets them.
+    QtObject {
+        id: userFiles
+        property var then: null
+        property string message: ""      // what the last step did, or why it did not
+        property bool failed: false
+        property string pickFor: ""      // "cursor" or "frames": what the file dialog is for
+        // The frame picker: the file, its length, the moment shown and its preview.
+        property string frameSource: ""
+        property var frameLength: null   // {kind: gif, frames} or {kind: video, seconds}
+        property real frameAt: 0
+        property string framePreview: ""
+        property int previewNumber: 0    // a new file name per preview: the same name would stay cached
+        readonly property string runtime: Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"
+
+        function run(args, then) {
+            userFiles.then = then;
+            userFilesProc.command = ["sh", "-c", 'python3 "$0" "$@" 2>&1; echo "@@exit $?"',
+                                     root.home + "/.config/hypr/scripts/themegen.py"].concat(args);
+            userFilesProc.running = true;
+        }
+        function done(output) {
+            const lines = output.trim().split("\n");
+            const ok = lines.pop() === "@@exit 0";
+            if (!ok) {
+                userFiles.failed = true;
+                userFiles.message = lines.join(" ") || "не вышло";
+            }
+            if (userFiles.then) userFiles.then(lines, ok);
+        }
+        function say(text) {
+            userFiles.failed = false;
+            userFiles.message = text;
+        }
+        function pick(kind) {
+            userFiles.pickFor = kind;
+            userFiles.message = "";
+            root.picking = true;
+            userFileDialog.command = kind === "cursor"
+                ? ["zenity", "--file-selection", "--title=Курсор",
+                   "--file-filter=Курсоры и скины osu! | *.tar.gz *.tgz *.tar.xz *.txz *.tar.bz2 *.zip *.osk"]
+                : ["zenity", "--file-selection", "--title=GIF или видео",
+                   "--file-filter=GIF и видео | *.gif *.mp4 *.webm *.mkv *.mov *.avi *.m4v"];
+            userFileDialog.running = true;
+        }
+        function picked(path) {
+            if (!path) return;
+            if (userFiles.pickFor === "cursor") userFiles.addCursor(path);
+            else userFiles.openFrames(path);
+        }
+
+        // ---- cursors
+        function addCursor(path) {
+            userFiles.say("Ставлю курсор…");
+            userFiles.run(["cursor-add", path], (lines, ok) => {
+                if (ok) userFiles.say("Добавлено: " + JSON.parse(lines[lines.length - 1]).join(", "));
+                cursorThemesProc.running = true;
+            });
+        }
+        function removeCursor(name) {
+            userFiles.run(["cursor-remove", name], (lines, ok) => {
+                if (!ok) return;
+                if (themeEdit.edit.cursor === name) themeEdit.change("cursor", "");
+                userFiles.say("Курсор «" + name + "» удалён");
+                cursorThemesProc.running = true;
+            });
+        }
+
+        // ---- a wallpaper from a moment of a GIF or a video
+        function openFrames(path) {
+            userFiles.frameSource = path;
+            userFiles.frameLength = null;
+            userFiles.framePreview = "";
+            userFiles.say("Открываю…");
+            userFiles.run(["frame-length", path], (lines, ok) => {
+                if (!ok) return;
+                userFiles.frameLength = JSON.parse(lines[lines.length - 1]);
+                userFiles.say("");
+                userFiles.showFrame(0);
+            });
+        }
+        function frameEnd() {
+            const length = userFiles.frameLength;
+            return !length ? 0 : length.kind === "gif" ? Math.max(0, length.frames - 1) : Math.max(0, length.seconds - 0.05);
+        }
+        function frameLabel() {
+            const length = userFiles.frameLength;
+            if (!length) return "";
+            return length.kind === "gif" ? "кадр " + (Math.round(userFiles.frameAt) + 1) + " из " + length.frames
+                                         : userFiles.frameAt.toFixed(1) + " с из " + length.seconds.toFixed(1) + " с";
+        }
+        function showFrame(at) {
+            userFiles.frameAt = at;
+            framePreviewTimer.restart();
+        }
+        function preview() {
+            if (userFilesProc.running) { framePreviewTimer.restart(); return; }
+            userFiles.previewNumber += 1;
+            const out = userFiles.runtime + "/frame-preview-" + userFiles.previewNumber + ".png";
+            userFiles.run(["frame", userFiles.frameSource, String(userFiles.frameAt), out, "960"], (lines, ok) => {
+                if (!ok) return;
+                userFiles.forgetPreview();
+                userFiles.framePreview = out;
+            });
+        }
+        function forgetPreview() {
+            if (userFiles.framePreview) Quickshell.execDetached(["rm", "-f", userFiles.framePreview]);
+            userFiles.framePreview = "";
+        }
+        function takeFrame() {
+            const name = userFiles.frameSource.split("/").pop().replace(/\.[^.]*$/, "");
+            const out = themeEdit.wallpaperDir + "/" + themeEdit.editing.name + "/" + name + "-"
+                        + String(userFiles.frameAt.toFixed(1)).replace(".", "_") + ".png";
+            userFiles.say("Сохраняю кадр…");
+            userFiles.run(["frame", userFiles.frameSource, String(userFiles.frameAt), out], (lines, ok) => {
+                if (!ok) return;
+                themeEdit.addWallpaper(out);
+                userFiles.forgetPreview();
+                userFiles.frameSource = "";
+                userFiles.say("Кадр добавлен в обои: сохрани тему, чтобы он остался");
+            });
+        }
+    }
+    Process {
+        id: userFilesProc
+        stdout: StdioCollector { onStreamFinished: userFiles.done(this.text) }
+    }
+    Process {
+        id: userFileDialog
+        stdout: StdioCollector { onStreamFinished: userFiles.picked(this.text.trim()) }
+        onExited: root.picking = false
+    }
+    // The preview follows the slider once it rests for a moment, not on every step of a drag.
+    Timer { id: framePreviewTimer; interval: 180; onTriggered: userFiles.preview() }
+
     Process {
         id: wallpaperPicker
         stdout: StdioCollector { onStreamFinished: themeEdit.addWallpaper(this.text.trim()) }
@@ -1680,6 +1820,7 @@ ShellRoot {
             IconsSection { anchors.fill: parent; visible: themeEdit.section === "icons" }
             WindowsSection { anchors.fill: parent; visible: themeEdit.section === "windows" }
             CursorSection { anchors.fill: parent; visible: themeEdit.section === "cursor" }
+            FramePicker { anchors.fill: parent; z: 20; visible: userFiles.frameSource !== "" }
             InstallDialog { anchors.fill: parent; z: 30; visible: themeEdit.installing !== null }
         }
     }
@@ -1695,6 +1836,20 @@ ShellRoot {
             text: themeEdit.editing && !themeEdit.edit.cursor ? "как в теме: " + themeEdit.themesCursor() : ""
             font.family: theme.bodyFont; font.pixelSize: 13
             color: theme.c.muted || "grey"
+        }
+        Row {
+            id: cursorFileRow
+            anchors { left: cursorTitle.right; leftMargin: 220; verticalCenter: cursorTitle.verticalCenter }
+            spacing: 12
+            Chip { text: "Добавить из файла…"; enabled: !userFilesProc.running; onClicked: userFiles.pick("cursor") }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 360
+                elide: Text.ElideRight
+                text: userFiles.pickFor === "cursor" ? userFiles.message : ""
+                font.family: theme.bodyFont; font.pixelSize: 13
+                color: userFiles.failed ? (theme.c.crit || "red") : (theme.c.muted || "grey")
+            }
         }
         Row {
             id: cursorSizeRow
@@ -1775,6 +1930,13 @@ ShellRoot {
                     text: "Установить"
                     enabled: !installProc.running
                     onClicked: themeEdit.askInstall(cursorRow.modelData)
+                }
+                Chip {
+                    visible: cursorRow.installed && !!cursorRow.modelData.removable
+                    anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                    text: "Удалить"
+                    enabled: !userFilesProc.running
+                    onClicked: userFiles.removeCursor(cursorRow.modelData.name)
                 }
             }
         }
@@ -3044,16 +3206,83 @@ ShellRoot {
     }
 
     // The wallpapers changetheme picks from: click one to switch it on or off.
+    // A moment of a GIF or a video picked with a slider, then kept as one of the theme's wallpapers.
+    component FramePicker: Rectangle {
+        color: Color.withAlpha(theme.c.bg, 0.92)
+        MouseArea { anchors.fill: parent }
+        Column {
+            anchors.centerIn: parent
+            width: Math.min(parent.width - 60, 980)
+            spacing: 14
+            SectionTitle { text: "Кадр для обоев" }
+            Text {
+                width: parent.width
+                elide: Text.ElideMiddle
+                text: userFiles.frameSource
+                font.family: theme.font; font.pixelSize: 12
+                color: theme.c.muted || "grey"
+            }
+            Rectangle {
+                width: parent.width; height: width * 9 / 16
+                radius: root.r > 4 ? 10 : 0
+                color: theme.c.bg2 || "black"
+                clip: true
+                Image {
+                    anchors.fill: parent
+                    source: userFiles.framePreview ? "file://" + userFiles.framePreview : ""
+                    fillMode: Image.PreserveAspectFit
+                    cache: false
+                }
+            }
+            Row {
+                spacing: 14
+                NumberSlider {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 640
+                    from: 0; to: userFiles.frameEnd()
+                    step: userFiles.frameLength && userFiles.frameLength.kind === "gif" ? 1 : 0.1
+                    value: userFiles.frameAt
+                    onMoved: value => userFiles.showFrame(value)
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: userFiles.frameLabel()
+                    font.family: theme.font; font.pixelSize: 14
+                    color: theme.c.fg || "white"
+                }
+            }
+            Row {
+                spacing: 10
+                Chip {
+                    text: "Взять этот кадр"
+                    primary: true
+                    enabled: userFiles.framePreview !== "" && !userFilesProc.running
+                    onClicked: userFiles.takeFrame()
+                }
+                Chip { text: "Отмена"; onClicked: { userFiles.forgetPreview(); userFiles.frameSource = ""; } }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: userFiles.pickFor === "frames" ? userFiles.message : ""
+                    font.family: theme.bodyFont; font.pixelSize: 13
+                    color: userFiles.failed ? (theme.c.crit || "red") : (theme.c.muted || "grey")
+                }
+            }
+        }
+    }
+
     component WallpapersSection: Item {
         Row {
             id: wallpaperActions
             spacing: 10
             Chip { text: "Добавить обои"; onClicked: themeEdit.pickWallpaper() }
+            Chip { text: "Кадр из GIF или видео…"; enabled: !userFilesProc.running; onClicked: userFiles.pick("frames") }
             Text {
+                readonly property bool news: userFiles.pickFor === "frames" && userFiles.message !== ""
                 anchors.verticalCenter: parent.verticalCenter
-                text: "Нажми на картинку, чтобы включить или выключить её; при смене темы обои выбираются случайно из включённых."
+                text: news ? userFiles.message
+                           : "Нажми на картинку, чтобы включить или выключить её; при смене темы обои выбираются случайно из включённых."
                 font.family: theme.bodyFont; font.pixelSize: 13
-                color: theme.c.muted || "grey"
+                color: news && userFiles.failed ? (theme.c.crit || "red") : (theme.c.muted || "grey")
             }
         }
         GridView {

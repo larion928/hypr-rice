@@ -509,7 +509,7 @@ PY
 # defined; QML only notices a missing one when that line runs, e.g. on the first drag.
 test_settings_members_defined() {
     python3 "$REPO/tests/qml_members.py" "$REPO/home/.config/quickshell/settings/shell.qml" \
-        panelEditor themeEdit keys mon ownThemes || fail "в окне настроек используется неопределённое"
+        panelEditor themeEdit keys mon ownThemes userFiles || fail "в окне настроек используется неопределённое"
 }
 
 # themegen builds and applies every theme in a fake $HOME; tests/themegen_snapshot.sh records it all.
@@ -1099,6 +1099,86 @@ assert wallpaper_still.still(plain) == str(plain)
 
 bake.copy_theme(coffee, home / "copy")
 assert (home / "copy/zz-animated.gif").exists() and not (home / "copy/.stills").exists()
+PY
+}
+
+# A cursor theme from a file: an archive (refused when it reaches out of itself or carries no cursor),
+# or an osu! skin; added ones can go again, the rice's WhiteCat cannot.
+test_cursor_from_file() {
+    mkdir -p "$HOME/pack/Neon/cursors" "$HOME/.config/hypr/scripts" "$HOME/skin"
+    cp -r "$REPO/home/.config/hypr/scripts/." "$HOME/.config/hypr/scripts/"
+    printf 'Xcur' > "$HOME/pack/Neon/cursors/left_ptr"
+    printf '[Icon Theme]\nName=Neon\n' > "$HOME/pack/Neon/index.theme"
+    tar -czf "$HOME/neon.tar.gz" -C "$HOME/pack" Neon
+    python3 - "$HOME/.config/hypr/scripts" "$HOME" <<'PY' || fail "курсор из файла не так"
+import sys, tarfile, zipfile
+from pathlib import Path
+from PIL import Image
+sys.path.insert(0, sys.argv[1])
+from apptheme import cursor_install
+home = Path(sys.argv[2])
+icons = home / ".local/share/icons"
+
+assert cursor_install.install(home / "neon.tar.gz") == ["Neon"] and (icons / "Neon/cursors/left_ptr").exists()
+try:
+    cursor_install.install(home / "neon.tar.gz")
+    raise AssertionError("курсор установлен поверх того же")
+except ValueError:
+    pass
+
+with zipfile.ZipFile(home / "evil.zip", "w") as out:
+    out.writestr("../evil/cursors/left_ptr", "x")
+with zipfile.ZipFile(home / "empty.zip", "w") as out:
+    out.writestr("Thing/readme.txt", "x")
+for bad, reason in (("evil.zip", "за его пределы"), ("empty.zip", "нет темы курсора")):
+    try:
+        cursor_install.install(home / bad)
+        raise AssertionError(f"{bad} принят")
+    except ValueError as error:
+        assert reason in str(error), error
+
+Image.new("RGBA", (64, 64), (255, 255, 0, 255)).save(home / "skin/cursor@2x.png")
+with zipfile.ZipFile(home / "My Skin.osk", "w") as out:
+    out.write(home / "skin/cursor@2x.png", "cursor@2x.png")
+assert cursor_install.install(home / "My Skin.osk") == ["My Skin"] and (icons / "My Skin/cursors/left_ptr").exists()
+
+cursor_install.remove("Neon")
+assert not (icons / "Neon").exists()
+(icons / "WhiteCat/cursors").mkdir(parents=True)
+try:
+    cursor_install.remove("WhiteCat")
+    raise AssertionError("удалён курсор райса")
+except ValueError:
+    pass
+PY
+}
+
+# A wallpaper from a moment of a GIF (by frame) or a video (by second, when ffmpeg is there).
+test_wallpaper_frames() {
+    python3 - "$REPO/home/.config/hypr/scripts" "$HOME" <<'PY' || fail "кадр вынут не так"
+import shutil, subprocess, sys
+from pathlib import Path
+from PIL import Image
+sys.path.insert(0, sys.argv[1])
+from apptheme import frames
+home = Path(sys.argv[2])
+pictures = [Image.new("RGB", (40, 20), color) for color in ((200, 0, 0), (0, 200, 0), (0, 0, 200))]
+pictures[0].save(home / "a.gif", save_all=True, append_images=pictures[1:], duration=100)
+assert frames.length(home / "a.gif") == {"kind": "gif", "frames": 3}
+frames.frame(home / "a.gif", 1, home / "frame.png")
+assert Image.open(home / "frame.png").convert("RGB").getpixel((5, 5))[1] > 150, "не второй кадр"
+frames.frame(home / "a.gif", 2, home / "small.png", 20)
+assert Image.open(home / "small.png").size == (20, 10)
+if shutil.which("ffmpeg"):
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=blue:s=64x36:d=2", str(home / "v.mp4")], check=True)
+    assert 1.5 < frames.length(home / "v.mp4")["seconds"] < 2.5
+    frames.frame(home / "v.mp4", 1.0, home / "v.png")
+    assert Image.open(home / "v.png").size == (64, 36)
+try:
+    frames.length(home / "frame.png")
+    raise AssertionError("кадр из картинки")
+except ValueError:
+    pass
 PY
 }
 

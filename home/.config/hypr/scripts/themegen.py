@@ -19,6 +19,11 @@
                                                  install, as JSON, for the settings window
   themegen.py cursor-themes                      installed cursor themes with pictures of a few cursors and
                                                  the ones to install, as JSON, for the settings window
+  themegen.py cursor-add <file>                  a cursor theme from an archive or an osu! skin (.osk);
+                                                 prints the names installed, as JSON
+  themegen.py cursor-remove <name>               removes a cursor theme the user added
+  themegen.py frame-length <file>                how long a GIF (frames) or a video (seconds) is, as JSON
+  themegen.py frame <file> <at> <out.png> [width]  that moment of it as a PNG (a preview when width is given)
   themegen.py new <label> --from <theme>         a theme of the user's own (~/.config/hypr-rice/themes):
                                                  a copy of <theme> with its edits written in; prints its name
   themegen.py import <file.zip>                  a theme from an archive made by export; prints its name
@@ -40,10 +45,10 @@ import sys
 import zipfile
 from pathlib import Path
 
-from apptheme import (bar_preview, battery, chromium, css_palette, cursor_theme, cursor_themes, drift, factory_reset,
-                      firefox, glyphs, gtk, hypr, hyprlock, icon_theme, icon_themes, kitty, neohtop, obsidian,
-                      removed_themes, system, telegram, user_themes, vesktop, vscode, wallpaper_still, waybar,
-                      windows)
+from apptheme import (bar_preview, battery, chromium, css_palette, cursor_install, cursor_theme, cursor_themes, drift,
+                      factory_reset, firefox, frames, glyphs, gtk, hypr, hyprlock, icon_theme, icon_themes, kitty,
+                      neohtop, obsidian, removed_themes, system, telegram, user_themes, vesktop, vscode,
+                      wallpaper_still, waybar, windows)
 from apptheme.paths import HYPR
 from apptheme.theme import all_names, load
 
@@ -134,6 +139,8 @@ def main(argv):
         print(json.dumps(bar_preview.preview(load(argv[1])), ensure_ascii=False))
     elif argv[:1] == ["removed-themes"]:
         print(json.dumps(removed_themes.listing(), ensure_ascii=False))
+    elif argv[:1] in (["cursor-add"], ["cursor-remove"], ["frame-length"], ["frame"]):
+        return files_from_user(argv)
     elif argv[:1] in (["new"], ["import"], ["export"], ["delete"], ["restore"], ["factory"], ["promote"]):
         return manage_themes(argv)
     else:
@@ -172,6 +179,28 @@ def manage_themes(argv):
     # goes to stderr: stdout carries only the new theme's name.
     with contextlib.redirect_stdout(sys.stderr):
         build()
+    return 0
+
+
+def files_from_user(argv):
+    """Cursors and wallpaper frames from files the user picked. 1 with the reason on stderr when the
+    file does not fit."""
+    command, rest = argv[0], argv[1:]
+    try:
+        if command == "cursor-add" and len(rest) == 1:
+            print(json.dumps(cursor_install.install(rest[0]), ensure_ascii=False))
+        elif command == "cursor-remove" and len(rest) == 1:
+            cursor_install.remove(rest[0])
+        elif command == "frame-length" and len(rest) == 1:
+            print(json.dumps(frames.length(rest[0])))
+        elif command == "frame" and len(rest) in (3, 4):
+            frames.frame(rest[0], float(rest[1]), rest[2], int(rest[3]) if len(rest) == 4 else 0)
+        else:
+            print(__doc__.strip(), file=sys.stderr)
+            return 2
+    except (ValueError, OSError) as error:
+        print(error, file=sys.stderr)
+        return 1
     return 0
 
 
