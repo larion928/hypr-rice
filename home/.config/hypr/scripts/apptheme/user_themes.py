@@ -11,7 +11,7 @@ import zipfile
 from pathlib import Path
 
 from . import bake
-from .paths import RICE_CONF, THEMES
+from .paths import HOME, RICE_CONF, THEMES
 from .theme import COLOR, forget_edits, load
 
 USER_THEMES = RICE_CONF / "themes"
@@ -52,6 +52,7 @@ def create(label, source):
     bake.copy_theme(THEMES / source, folder)
     bake.bake(load(source), folder)
     rename(folder, name, label)
+    replace_in_text(folder, theme_path(source), theme_path(name))
     link()
     return name
 
@@ -62,6 +63,7 @@ def export(name, archive):
         folder = Path(temporary) / name
         bake.copy_theme(THEMES / name, folder)
         bake.bake(load(name), folder)
+        replace_in_text(folder, str(HOME), HOME_PLACEHOLDER)
         with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as out:
             for path in sorted(folder.rglob("*")):
                 out.write(path, path.relative_to(folder.parent))
@@ -76,6 +78,8 @@ def import_archive(archive):
         folder = Path(temporary) / top
         palette = check_theme(folder)
         name = free_name(slug(palette.get("name") or top))
+        replace_in_text(folder, theme_path(palette.get("name") or top), theme_path(name))
+        replace_in_text(folder, HOME_PLACEHOLDER, str(HOME))
         USER_THEMES.mkdir(parents=True, exist_ok=True)
         shutil.move(folder, USER_THEMES / name)
     rename(USER_THEMES / name, name, palette.get("label") or name)
@@ -137,6 +141,25 @@ def promote(name):
     (THEMES / name).unlink()
     shutil.move(USER_THEMES / name, THEMES / name)
     forget_edits(name)
+
+
+# A theme's files name its own folder by full path (waybar's style.css: file:// URLs of the battery
+# pictures), so a copy under another name, or on another machine, has to have them rewritten.
+# An exported theme carries the rice's placeholder for the home folder, as the rice's repository does.
+HOME_PLACEHOLDER = "__HOME__"
+TEXT_SUFFIXES = (".css", ".qml", ".conf", ".lua", ".json", ".frag", ".py")
+
+
+def theme_path(name):
+    return f"/.config/hypr/themes/{name}/"
+
+
+def replace_in_text(folder, old, new):
+    for path in folder.rglob("*"):
+        if path.suffix in TEXT_SUFFIXES and path.is_file():
+            text = path.read_text()
+            if old in text:
+                path.write_text(text.replace(old, new))
 
 
 def rename(folder, name, label):

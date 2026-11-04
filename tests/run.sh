@@ -696,6 +696,7 @@ user_theme_home() {
     cp -r "$REPO/home/.config/hypr/scripts" "$HOME/.config/hypr/"
     cp -r "$REPO/home/.config/hypr/themes/coffee" "$REPO/home/.config/hypr/themes/night" "$HOME/.config/hypr/themes/"
     cp "$REPO/home/.config/hypr-rice/waybar/config.base.json" "$HOME/.config/hypr-rice/waybar/"
+    sed -i "s|__HOME__|$HOME|g" "$HOME"/.config/hypr/themes/*/style.css  # as rice installs them
     cp "$(ls "$HOME"/.config/hypr/themes/night/*.png | head -1)" "$HOME/Pictures/mine.png"
     local off
     off=$(ls "$HOME"/.config/hypr/themes/coffee/*.png | head -1)
@@ -741,10 +742,19 @@ assert "X" in json.dumps(waybar.config_for(made)["memory"]), waybar.config_for(m
 assert windows.own(made)["gaps_in"] == 3, windows.own(made)
 assert "animations = { enabled = false }" in (made.dir / "hypr.lua").read_text()
 
+style = (made.dir / "style.css").read_text()
+assert f"{home}/.config/hypr/themes/moya-tema/assets/battery-0.svg" in style and "themes/coffee/" not in style, \
+    "копия ссылается на картинки исходной темы"
+
 archive = home / "moya.zip"
 user_themes.export(name, archive)
+import zipfile
+packed = zipfile.ZipFile(archive).read("moya-tema/style.css").decode()
+assert str(home) not in packed and "__HOME__/.config/hypr/themes/moya-tema/" in packed, "в архиве путь этой машины"
 again = user_themes.import_archive(archive)
 assert again == "moya-tema-2" and load(again).colors == made.colors, again
+style = (load(again).dir / "style.css").read_text()
+assert f"{home}/.config/hypr/themes/moya-tema-2/assets/" in style and "__HOME__" not in style, "пути после импорта не те"
 
 user_themes.promote(again)
 promoted = home / ".config/hypr/themes" / again
