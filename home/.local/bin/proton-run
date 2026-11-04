@@ -1,37 +1,329 @@
-#!/bin/bash
-# proton-run FILE.exe — run a Windows program through Proton (umu); what a double-click on .exe,
-# .msi, .bat and .lnk files calls. The Proton version is picked with `rice proton`
-# (~/.config/hypr-rice/proton.conf: the path of its folder, or, as older rice wrote it, a folder name
-# in compatibilitytools.d); without one umu takes the latest UMU-Proton and downloads it on first use. Output goes to ~/.cache/hypr-rice/proton/<program>.log.
-CONF="$HOME/.config/hypr-rice/proton.conf"
-COMPAT="$HOME/.local/share/Steam/compatibilitytools.d"
-[ $# -gt 0 ] || { echo "usage: proton-run FILE.exe [args]" >&2; exit 2; }
+#!/usr/bin/env python3
+"""proton-run FILE.exe [ARGS] — run a Windows program through Proton (umu): what opening a .exe,
+.msi, .bat or .lnk file calls, and what the kernel calls for a .exe with the execute bit.
 
-name=$(basename "$1")
-log="$HOME/.cache/hypr-rice/proton/${name%.*}.log"
-mkdir -p "$(dirname "$log")"
+While the program starts, a card on screen (~/.config/quickshell/launch) shows how far the start has
+got and what is happening now. umu's first run downloads the Steam runtime and Proton (hundreds of
+MB) and Wine's first start creates a prefix: minutes with nothing else on screen. The card closes
+when the program's window appears.
 
-proton=$(sed -n 's/^proton=//p' "$CONF" 2>/dev/null)
-case "$proton" in
-    ""|/*) ;;
-    *) proton="$COMPAT/$proton" ;;
-esac
-if [ -n "$proton" ] && [ -d "$proton" ]; then
-    export PROTONPATH="$proton"  # the directory itself, not just its name
-    notify-send -a proton-run -i wine "Запускаю через Proton" "$name · $(basename "$proton")"
-elif ls -d "$COMPAT"/UMU-Proton-* >/dev/null 2>&1; then
-    notify-send -a proton-run -i wine "Запускаю через Proton" "$name"
-else
-    notify-send -a proton-run -i wine "Первый запуск Proton" \
-        "Скачиваю UMU-Proton (несколько сотен МБ), $name откроется после загрузки"
-fi
+The Proton version is picked with `rice proton` (~/.config/hypr-rice/proton.conf: the path of its
+folder, or, as older rice wrote it, a folder name in compatibilitytools.d); without one umu takes the
+latest UMU-Proton. umu's output goes to ~/.cache/hypr-rice/proton/<program>.log."""
+import importlib
+import json
+import os
+import re
+import secrets
+import subprocess
+import sys
+import threading
+import time
+from collections import deque
+from pathlib import Path
 
-started=$(date +%s)
-umu-run "$@" >"$log" 2>&1
-code=$?
-# A program that ran for a while and then exits non-zero is usually just closing; one that dies
-# within seconds did not start.
-if [ "$code" -ne 0 ] && [ $(($(date +%s) - started)) -lt 30 ]; then
-    notify-send -a proton-run -u critical -i wine "$name не запустился" "Код $code, подробности: $log"
-fi
-exit "$code"
+HOME = Path.home()
+LOGS = HOME / ".cache/hypr-rice/proton"
+DOWNLOAD_MARK = "@@download"
+# Every process of the launch inherits this variable, so a window is recognised as the program's
+# even when the Steam container has re-parented its process.
+RUN_ID_VARIABLE = "PROTON_RUN_ID"
+
+
+def main():
+    if len(sys.argv) < 2:
+        sys.exit("usage: proton-run FILE.exe [args]")
+    if sys.argv[1] == "--umu":
+        run_umu(sys.argv[2:])
+    sys.exit(launch(sys.argv[1:]))
+
+
+def launch(args):
+    """Runs umu with the card on screen; umu's exit status."""
+    program = Path(args[0])
+    run_id = secrets.token_hex(4)
+    folders = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "proton-run"
+    folders.mkdir(exist_ok=True)
+    state_file = folders / f"{run_id}.json"
+
+    env = {**os.environ, RUN_ID_VARIABLE: run_id}
+    proton = picked_proton()
+    if proton:
+        env["PROTONPATH"] = str(proton)  # the directory itself, not just its name
+    title = f"{program.name} · {proton.name}" if proton else program.name
+    progress = Progress(state_file, title)
+    open_card(state_file)
+    known_windows = {client["address"] for client in windows()}
+
+    LOGS.mkdir(parents=True, exist_ok=True)
+    started = time.monotonic()
+    with (LOGS / f"{program.stem}.log").open("w") as log, \
+         subprocess.Popen([sys.executable, __file__, "--umu", *args], env=env, text=True, errors="replace",
+                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as umu:
+        reader = threading.Thread(target=read_output, args=(umu.stdout, log, progress), daemon=True)
+        reader.start()
+        watch_start(umu, progress, known_windows, f"{RUN_ID_VARIABLE}={run_id}")
+        code = umu.wait()
+        reader.join(timeout=5)
+
+    if not progress.finished:
+        if code == 0:
+            progress.finish("Программа завершилась")
+        else:
+            report_failure(program.name, code, progress)
+    elif code != 0 and time.monotonic() - started < FAILED_START_SECONDS:
+        report_failure(program.name, code, progress)
+    state_file.unlink(missing_ok=True)
+    return code
+
+
+# A program that ran for a while and then exits non-zero is usually just closing; one that ends
+# within this many seconds did not start.
+FAILED_START_SECONDS = 30
+
+
+def report_failure(name, code, progress):
+    log = LOGS / f"{Path(name).stem}.log"
+    progress.fail(f"Не запустилось (код {code})", f"подробности: {log}")
+    subprocess.run(["notify-send", "-a", "proton-run", "-u", "critical", "-i", "wine",
+                    f"{name} не запустился", f"Код {code}, подробности: {log}"], check=False)
+
+
+def picked_proton():
+    """The Proton folder picked in `rice proton`, or None for umu's own choice."""
+    try:
+        lines = (HOME / ".config/hypr-rice/proton.conf").read_text().splitlines()
+    except OSError:
+        return None
+    for line in lines:
+        value = line.removeprefix("proton=")
+        if value == line or not value:
+            continue
+        folder = Path(value)
+        if not folder.is_absolute():
+            folder = HOME / ".local/share/Steam/compatibilitytools.d" / value
+        return folder if folder.is_dir() else None
+    return None
+
+
+def open_card(state_file):
+    """The card on screen; it reads state_file and closes itself (or when this process ends)."""
+    try:
+        theme = (HOME / ".config/hypr/current-theme").read_text().strip()
+    except OSError:
+        theme = "claude"
+    env = {**os.environ, "LAUNCH_STATE": str(state_file), "LAUNCH_PID": str(os.getpid()),
+           "RICE_THEME_DIR": str(HOME / ".config/hypr/themes" / theme)}
+    try:
+        subprocess.Popen(["quickshell", "-n", "-p", str(HOME / ".config/quickshell/launch")], env=env,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True)
+    except OSError:
+        pass  # without Quickshell the program still starts, only without the card
+
+
+def read_output(stream, log, progress):
+    for line in stream:
+        if not line.startswith(DOWNLOAD_MARK):
+            log.write(line)
+            log.flush()
+        progress.line(line.rstrip("\n"))
+
+
+# The card waits this long for a window after Wine has started: a program without a window, or
+# one this script fails to recognise, must not leave it on screen.
+WINDOW_WAIT_SECONDS = 120
+
+
+def watch_start(umu, progress, known_windows, run_marker):
+    """Updates the card until the program's window appears, umu ends, or the wait runs out."""
+    while umu.poll() is None:
+        progress.tick()
+        if program_window(known_windows, umu.pid, run_marker):
+            progress.finish("Запущено")
+            return
+        if progress.seconds_waiting_for_window() > WINDOW_WAIT_SECONDS:
+            progress.finish("Окно не появилось за 2 минуты: программа без окна или ещё грузится")
+            return
+        time.sleep(0.5)
+
+
+def windows():
+    try:
+        output = subprocess.run(["hyprctl", "clients", "-j"], capture_output=True, text=True, timeout=3).stdout
+        return json.loads(output)
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
+        return []
+
+
+def program_window(known_windows, umu_pid, run_marker):
+    """A window that appeared since the start and is the program's. Wine's windows come through
+    XWayland, where the pid Hyprland reports may be one from inside the container; so a new
+    XWayland window counts as well."""
+    for client in windows():
+        if client["address"] in known_windows:
+            continue
+        pid = client.get("pid", -1)
+        if client.get("xwayland") or has_marker(pid, run_marker) or descends_from(pid, umu_pid):
+            return True
+    return False
+
+
+def has_marker(pid, run_marker):
+    try:
+        return run_marker.encode() in Path(f"/proc/{pid}/environ").read_bytes()
+    except OSError:
+        return False
+
+
+def descends_from(pid, ancestor):
+    while pid > 1:
+        if pid == ancestor:
+            return True
+        try:
+            # The parent is the 2nd field after the command name, which may itself hold spaces.
+            pid = int(Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[1])
+        except (OSError, ValueError, IndexError):
+            return False
+    return False
+
+
+# Lines of umu's and Proton's output that start a stage: the line, how far the start is then (in
+# percent), and what the card says. A download inside a stage fills the span up to the next stage.
+STAGES = [
+    (re.compile(r"umu-launcher version"), 2, "Запускаю umu"),
+    (re.compile(r"Setting up Unified Launcher"), 4, "Первый запуск: готовлю среду Steam"),
+    (re.compile(r"Downloading steamrt|Updating steamrt"), 5, "Скачиваю среду Steam"),
+    (re.compile(r"Verifying integrity|Restoring Runtime"), 45, "Проверяю среду Steam"),
+    (re.compile(r"Downloading \S+\.tar\.\w+\.\.\."), 50, "Скачиваю Proton"),
+    (re.compile(r"Extracting "), 80, "Распаковываю Proton"),
+    (re.compile(r"Running '.*' using runtime"), 85, "Запускаю контейнер Steam"),
+    (re.compile(r"pv-locale-gen: Generating"), 87, "Готовлю языки контейнера"),
+    (re.compile(r"Upgrading prefix|created the configuration directory"), 90,
+     "Готовлю префикс Wine (при первом запуске до минуты)"),
+    (re.compile(r"[ef]sync: up and running"), 95, "Wine запущен, жду окно программы"),
+]
+WINDOW_STAGE = len(STAGES) - 1
+
+
+class Progress:
+    """How far the start has got, read from umu's output, kept in a JSON file the card watches."""
+
+    def __init__(self, state_file, title):
+        self.file = state_file
+        self.lock = threading.Lock()
+        self.state = {"title": title, "percent": 0, "stage": "Запускаю", "detail": "",
+                      "status": "running", "started": time.time()}
+        self.stage = -1
+        self.download = None  # (file being written, its full size, span start, span end)
+        self.samples = deque(maxlen=6)  # (time, bytes) of the last ticks, for the speed
+        self.window_wait_from = None
+        self.write()
+
+    @property
+    def finished(self):
+        return self.state["status"] != "running"
+
+    def line(self, text):
+        with self.lock:
+            if text.startswith(DOWNLOAD_MARK):
+                self.start_download(text)
+                return
+            for index, (pattern, percent, stage) in enumerate(STAGES):
+                if index >= self.stage and pattern.search(text):
+                    self.enter_stage(index, percent, stage)
+                    return
+
+    def enter_stage(self, index, percent, stage):
+        self.stage = index
+        self.download = None
+        if index == WINDOW_STAGE:
+            self.window_wait_from = time.monotonic()
+        self.update(percent=max(percent, self.state["percent"]), stage=stage, detail="")
+
+    def start_download(self, text):
+        _, total, path = text.split(" ", 2)
+        start = STAGES[self.stage][1] if self.stage >= 0 else 0
+        end = STAGES[self.stage + 1][1] if self.stage + 1 < len(STAGES) else 100
+        self.download = (Path(path), int(total), start, end)
+        self.samples.clear()
+
+    def tick(self):
+        """Download progress from the size of the file being written."""
+        with self.lock:
+            if not self.download:
+                return
+            path, total, start, end = self.download
+            try:
+                done = path.stat().st_size
+            except OSError:
+                return  # finished and moved; the next stage line follows
+            self.samples.append((time.monotonic(), done))
+            share = min(1, done / total) if total else 0
+            detail = f"{megabytes(done)} из {megabytes(total)} МБ" + self.speed()
+            self.update(percent=start + (end - start) * share, detail=detail)
+
+    def speed(self):
+        if len(self.samples) < 2:
+            return ""
+        (first_time, first_bytes), (last_time, last_bytes) = self.samples[0], self.samples[-1]
+        per_second = (last_bytes - first_bytes) / max(last_time - first_time, 0.001)
+        return f" · {megabytes(per_second)} МБ/с"
+
+    def seconds_waiting_for_window(self):
+        return time.monotonic() - self.window_wait_from if self.window_wait_from else 0
+
+    def finish(self, stage):
+        with self.lock:
+            self.update(status="done", percent=100, stage=stage, detail="")
+
+    def fail(self, stage, detail):
+        with self.lock:
+            self.update(status="failed", stage=stage, detail=detail)
+
+    def update(self, **changes):
+        changes["percent"] = round(changes.get("percent", self.state["percent"]))
+        if any(self.state.get(key) != value for key, value in changes.items()):
+            self.state.update(changes)
+            self.write()
+
+    def write(self):
+        temporary = self.file.with_suffix(".tmp")
+        temporary.write_text(json.dumps(self.state, ensure_ascii=False))
+        temporary.replace(self.file)  # the card never reads a half-written file
+
+
+def megabytes(size):
+    return f"{size / 1048576:.0f}".replace(".", ",")
+
+
+def run_umu(args):
+    """umu itself, in this process, telling about each download it starts: file and full size."""
+    for name in ("umu.umu_runtime", "umu.umu_proton"):
+        try:
+            module = importlib.import_module(name)
+        except ImportError:
+            continue
+        if hasattr(module, "write_file_chunks"):
+            module.write_file_chunks = reporting_download(module.write_file_chunks)
+    from umu.__main__ import main as umu_main
+    sys.argv = ["umu-run", *args]
+    sys.exit(umu_main())
+
+
+def reporting_download(write_file_chunks):
+    """umu's writer of a download, which first prints DOWNLOAD_MARK, the full size and the file."""
+    def write(path, response, *args, **kwargs):
+        try:
+            remaining = int(response.headers.get("Content-Length", 0))
+            already = path.stat().st_size if path.exists() else 0
+            if remaining:
+                print(f"{DOWNLOAD_MARK} {already + remaining} {path}", file=sys.stderr, flush=True)
+        except (AttributeError, OSError, ValueError):
+            pass  # no progress for this download; it still runs
+        return write_file_chunks(path, response, *args, **kwargs)
+    return write
+
+
+if __name__ == "__main__":
+    main()
