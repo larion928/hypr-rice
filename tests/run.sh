@@ -581,6 +581,46 @@ assert last == f"set org.gnome.desktop.interface gtk-theme {gtk.base_theme()}", 
 PY
 }
 
+# rice proton offers the downloaded Proton versions and Steam's own from every Steam library;
+# a folder without the proton script is not a Proton.
+test_proton_versions() {
+    load_rice
+    local steam="$HOME/.local/share/Steam" other="$HOME/games/SteamLibrary"
+    mkdir -p "$steam/compatibilitytools.d/GE-Proton10-1" "$steam/compatibilitytools.d/broken" \
+        "$steam/steamapps/common/Proton - Experimental" "$other/steamapps/common/Proton 9.0" \
+        "$other/steamapps/common/Half-Life"
+    touch "$steam/compatibilitytools.d/GE-Proton10-1/proton" "$steam/steamapps/common/Proton - Experimental/proton" \
+        "$other/steamapps/common/Proton 9.0/proton"
+    printf '"libraryfolders"\n{\n\t"0"\n\t{\n\t\t"path"\t\t"%s"\n\t}\n\t"1"\n\t{\n\t\t"path"\t\t"%s"\n\t}\n}\n' \
+        "$steam" "$other" > "$steam/steamapps/libraryfolders.vdf"
+
+    local expected="GE-Proton10-1=$steam/compatibilitytools.d/GE-Proton10-1
+Proton - Experimental (Steam)=$steam/steamapps/common/Proton - Experimental
+Proton 9.0 (Steam)=$other/steamapps/common/Proton 9.0"
+    [ "$(proton_versions)" = "$expected" ] || fail "найдено: $(proton_versions)"
+}
+
+# proton-run hands umu the Proton picked in rice proton: a path (Steam's Proton too), or a folder
+# name in compatibilitytools.d as older rice wrote it.
+test_proton_run_uses_picked_proton() {
+    local steam="$HOME/.local/share/Steam" conf="$HOME/.config/hypr-rice/proton.conf"
+    mkdir -p "$HOME/bin" "$HOME/.config/hypr-rice" "$steam/compatibilitytools.d/GE-Proton10-1" \
+        "$steam/steamapps/common/Proton - Experimental"
+    printf '#!/bin/sh\necho "$PROTONPATH" > "%s/protonpath"\n' "$HOME" > "$HOME/bin/umu-run"
+    printf '#!/bin/sh\n:\n' > "$HOME/bin/notify-send"
+    chmod +x "$HOME/bin/umu-run" "$HOME/bin/notify-send"
+
+    echo "proton=$steam/steamapps/common/Proton - Experimental" > "$conf"
+    PATH="$HOME/bin:$PATH" "$REPO/home/.local/bin/proton-run" game.exe
+    [ "$(cat "$HOME/protonpath")" = "$steam/steamapps/common/Proton - Experimental" ] \
+        || fail "по пути: $(cat "$HOME/protonpath")"
+
+    echo "proton=GE-Proton10-1" > "$conf"
+    PATH="$HOME/bin:$PATH" "$REPO/home/.local/bin/proton-run" game.exe
+    [ "$(cat "$HOME/protonpath")" = "$steam/compatibilitytools.d/GE-Proton10-1" ] \
+        || fail "по имени: $(cat "$HOME/protonpath")"
+}
+
 tests=("$@")
 [ ${#tests[@]} -gt 0 ] || mapfile -t tests < <(declare -F | awk '{print $3}' | grep '^test_')
 for name in "${tests[@]}"; do

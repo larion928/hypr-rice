@@ -1090,18 +1090,38 @@ install_missing_packages() {
     mark_rice_packages_explicit
 }
 
-cmd_proton() {  # which Proton runs .exe files (proton-run reads ~/.config/hypr-rice/proton.conf)
-    local compat="$HOME/.local/share/Steam/compatibilitytools.d" conf="$HOME/.config/hypr-rice/proton.conf"
-    local current dir name choice
-    local options=("Автоматически: последняя UMU-Proton=auto")
-    current=$(sed -n 's/^proton=//p' "$conf" 2>/dev/null || true)
-    for dir in "$compat"/*/; do
-        [ -f "$dir/proton" ] || continue
-        name=$(basename "$dir")
-        options+=("$name=$name")
+STEAM_DIR="$HOME/.local/share/Steam"
+
+proton_versions() {  # "name=path" for every Proton here: downloaded (ProtonPlus, umu), then Steam's own
+    local dir library
+    for dir in "$STEAM_DIR/compatibilitytools.d"/*/; do
+        if [ -f "$dir/proton" ]; then
+            echo "$(basename "$dir")=${dir%/}"
+        fi
     done
+    # Steam keeps its own Proton versions next to the games, in each of its library folders.
+    while IFS= read -r library; do
+        for dir in "$library/steamapps/common"/Proton*/; do
+            if [ -f "$dir/proton" ]; then
+                echo "$(basename "$dir") (Steam)=${dir%/}"
+            fi
+        done
+    done < <(sed -n 's/^\s*"path"\s*"\(.*\)"\s*$/\1/p' "$STEAM_DIR/steamapps/libraryfolders.vdf" 2>/dev/null)
+}
+
+cmd_proton() {  # which Proton runs .exe files (proton-run reads ~/.config/hypr-rice/proton.conf)
+    local conf="$HOME/.config/hypr-rice/proton.conf"
+    local current choice found=()
+    local options=("Автоматически: последняя UMU-Proton=auto")
+    mapfile -t found < <(proton_versions)
+    options+=("${found[@]}")
     step "Proton для .exe"
-    info "сейчас: ${current:-автоматически (последняя UMU-Proton)}"
+    current=$(sed -n 's/^proton=//p' "$conf" 2>/dev/null || true)
+    if [ -n "$current" ]; then
+        info "сейчас: $(basename "$current")"
+    else
+        info "сейчас: автоматически (последняя UMU-Proton)"
+    fi
     [ ${#options[@]} -gt 1 ] || info "других версий нет; поставь их в ProtonPlus (раздел Steam), они появятся здесь"
     if have_tty && fetch_gum; then
         choice=$("$GUM" choose --height 12 --header "Какой Proton запускает .exe?" --cursor "› " "${GUM_STYLE[@]}" \
@@ -1115,7 +1135,7 @@ cmd_proton() {  # which Proton runs .exe files (proton-run reads ~/.config/hypr-
         ok "автоматически: последняя UMU-Proton"
     else
         echo "proton=$choice" > "$conf"
-        ok "$choice"
+        ok "$(basename "$choice")"
     fi
 }
 

@@ -1,8 +1,8 @@
 #!/bin/bash
 # proton-run FILE.exe — run a Windows program through Proton (umu); what a double-click on .exe,
 # .msi, .bat and .lnk files calls. The Proton version is picked with `rice proton`
-# (~/.config/hypr-rice/proton.conf); without one umu takes the latest UMU-Proton and downloads it
-# on first use. Output goes to ~/.cache/hypr-rice/proton/<program>.log.
+# (~/.config/hypr-rice/proton.conf: the path of its folder, or, as older rice wrote it, a folder name
+# in compatibilitytools.d); without one umu takes the latest UMU-Proton and downloads it on first use. Output goes to ~/.cache/hypr-rice/proton/<program>.log.
 CONF="$HOME/.config/hypr-rice/proton.conf"
 COMPAT="$HOME/.local/share/Steam/compatibilitytools.d"
 [ $# -gt 0 ] || { echo "usage: proton-run FILE.exe [args]" >&2; exit 2; }
@@ -12,9 +12,13 @@ log="$HOME/.cache/hypr-rice/proton/${name%.*}.log"
 mkdir -p "$(dirname "$log")"
 
 proton=$(sed -n 's/^proton=//p' "$CONF" 2>/dev/null)
-if [ -n "$proton" ] && [ -d "$COMPAT/$proton" ]; then
-    export PROTONPATH="$COMPAT/$proton"  # the directory itself, not just its name
-    notify-send -a proton-run -i wine "Запускаю через Proton" "$name · $proton"
+case "$proton" in
+    ""|/*) ;;
+    *) proton="$COMPAT/$proton" ;;
+esac
+if [ -n "$proton" ] && [ -d "$proton" ]; then
+    export PROTONPATH="$proton"  # the directory itself, not just its name
+    notify-send -a proton-run -i wine "Запускаю через Proton" "$name · $(basename "$proton")"
 elif ls -d "$COMPAT"/UMU-Proton-* >/dev/null 2>&1; then
     notify-send -a proton-run -i wine "Запускаю через Proton" "$name"
 else
