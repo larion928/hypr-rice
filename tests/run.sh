@@ -306,6 +306,24 @@ assert waybar.cpu_sensor() == {}, "with thermal_zone0 the module keeps its defau
 PY
 }
 
+# The settings window's bar fills a module's own format the way waybar does, and tells a script that
+# printed nothing (shown only at times) from one that never answered.
+test_bar_preview_formats() {
+    python3 - "$REPO/home/.config/hypr/scripts" <<'PY' || fail "превью панели собрано не так"
+import sys
+sys.path.insert(0, sys.argv[1])
+from apptheme import bar_preview as bar
+assert bar.render("{icon} {volume}%", {"volume": 70}, ["low", "mid", "high"], 70) == "high 70%"
+assert bar.render("{icon} {volume}%", {"volume": 10}, {"default": ["low", "mid", "high"]}, 10) == "low 10%"
+assert bar.render(" {}", {"": "96"}) == "96"
+assert bar.from_script("custom/updates", {"return-type": "json", "format": "{}"}, '{"text": "13"}') == bar.shown("13")
+empty = bar.from_script("custom/updates", {"return-type": "json"}, "")
+assert empty["state"] == "sometimes" and "обновлен" in empty["note"], empty
+silent = bar.from_script("custom/x", {}, None)
+assert silent["state"] == "sometimes" and "не ответил" in silent["note"], silent
+PY
+}
+
 # themegen builds and applies every theme in a fake $HOME; tests/themegen_snapshot.sh records it all.
 test_themegen_applies_every_theme() {
     "$REPO/tests/themegen_snapshot.sh" "$HOME/snapshot" >/dev/null || fail "themegen упал, вывод выше"

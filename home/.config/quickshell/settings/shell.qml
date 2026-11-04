@@ -10,6 +10,8 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import Quickshell.Widgets
+import Quickshell.Services.SystemTray
 import "common"
 import "common/color.js" as Color
 
@@ -420,6 +422,19 @@ ShellRoot {
         property var edit: ({})        // {fonts, colors, wallpapers: {added, off}}
         property string saved: ""      // edit as last saved, to see what changed
         property string section: "fonts"
+        // What each module shows on this machine now (themegen.py bar-preview): {module: {text, state, note}};
+        // state is shown, sometimes or missing. Asked for when the «Панель» section opens; until it comes,
+        // the modules show samples.
+        property var live: ({})
+        property string liveFor: ""
+        onSectionChanged: themeEdit.askLive()
+        function askLive() {
+            if (themeEdit.section !== "waybar" || !themeEdit.editing || themeEdit.liveFor === themeEdit.editing.name) return;
+            themeEdit.live = {};
+            themeEdit.liveFor = themeEdit.editing.name;
+            barPreviewProc.command = ["python3", root.home + "/.config/hypr/scripts/themegen.py", "bar-preview", themeEdit.editing.name];
+            barPreviewProc.running = true;
+        }
         property string fontSlot: "font"
         property string colorKey: "accent"
         property var installedFonts: []
@@ -445,6 +460,7 @@ ShellRoot {
             themeEdit.fontSlot = "font";
             themeEdit.fontQuery = "";
             themeEdit.editing = entry;
+            themeEdit.askLive();
             if (!themeEdit.installedFonts.length) fontsProc.running = true;
         }
 
@@ -528,7 +544,15 @@ ShellRoot {
             return themeEdit.moduleNames[module] || module;
         }
         function preview(module) {
+            const now = themeEdit.live[module];
+            if (now && now.text) return now.text;
             return (themeEdit.editing && themeEdit.editing.waybar.preview[module]) || themeEdit.moduleName(module);
+        }
+        function moduleState(module) {
+            return (themeEdit.live[module] || {}).state || "shown";
+        }
+        function moduleNote(module) {
+            return (themeEdit.live[module] || {}).note || "";
         }
         function setPosition(position) {
             themeEdit.change("waybar", Object.assign(themeEdit.panelCopy(), { position: position }));
@@ -618,6 +642,14 @@ ShellRoot {
         id: fontsProc
         command: ["sh", "-c", "fc-list : family | cut -d, -f1 | sort -u"]
         stdout: StdioCollector { onStreamFinished: themeEdit.installedFonts = this.text.split("\n").filter(name => name) }
+    }
+    Process {
+        id: barPreviewProc
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try { themeEdit.live = JSON.parse(this.text); } catch (e) { themeEdit.live = {}; }
+            }
+        }
     }
     Process {
         id: wallpaperPicker
@@ -1594,6 +1626,7 @@ ShellRoot {
             id: panelHint
             anchors { left: parent.left; top: panelTop.bottom; topMargin: 14 }
             text: "Перетаскивай значки: по панели — переставить, с панели вниз — убрать, из набора снизу на панель — добавить."
+                  + (barPreviewProc.running ? "   · обновляю данные панели…" : "")
             font.family: theme.bodyFont; font.pixelSize: 13
             color: theme.c.muted || "grey"
         }
@@ -1668,7 +1701,9 @@ ShellRoot {
             anchors { left: parent.left; top: mockBar.bottom; topMargin: 30 }
             text: panelEditor.drag ? (panelEditor.target ? "Отпусти — встанет " + panelEditor.sideNames[panelEditor.target.side]
                                                           : panelEditor.drag.side ? "Отпусти здесь, чтобы убрать с панели" : "Тащи на панель")
-                  : panelEditor.hovered ? themeEdit.moduleName(panelEditor.hovered) : " "
+                  : panelEditor.hovered ? themeEdit.moduleName(panelEditor.hovered)
+                                          + (themeEdit.moduleNote(panelEditor.hovered) ? " — " + themeEdit.moduleNote(panelEditor.hovered) : "")
+                  : " "
             font.family: theme.bodyFont; font.pixelSize: 14
             color: panelEditor.drag && panelEditor.drag.side && !panelEditor.target ? (theme.c.crit || "red") : (theme.c.fg || "white")
         }
@@ -1701,7 +1736,7 @@ ShellRoot {
             Text {
                 id: ghostText
                 anchors.centerIn: parent
-                text: panelEditor.drag ? themeEdit.preview(panelEditor.drag.module) : ""
+                text: panelEditor.drag ? (themeEdit.preview(panelEditor.drag.module) || themeEdit.moduleName(panelEditor.drag.module)) : ""
                 font.family: theme.font; font.pixelSize: 16
                 color: theme.c.fg || "white"
             }
@@ -1719,17 +1754,44 @@ ShellRoot {
         property bool showName: false
         readonly property string pillModule: modelData
         readonly property bool lifted: editor.drag !== null && editor.drag.side === side && editor.drag.index === index && side !== ""
-        width: moduleText.implicitWidth + 22; height: 36
+        readonly property string shows: themeEdit.moduleState(modelData)  // shown, sometimes or missing
+        readonly property bool tray: modelData === "tray"
+        width: moduleContent.implicitWidth + 22; height: 36
         radius: 8
         color: moduleArea.containsMouse ? Color.withAlpha(theme.c.accent, 0.18) : Color.withAlpha(theme.c.bg2, 0.9)
-        border.color: Color.withAlpha(theme.c.muted, 0.3)
-        opacity: lifted ? 0.25 : 1
-        Text {
-            id: moduleText
+        border.color: shows === "missing" ? Color.withAlpha(theme.c.crit, 0.6) : Color.withAlpha(theme.c.muted, 0.3)
+        opacity: lifted ? 0.25 : shows === "missing" ? 0.4 : shows === "sometimes" ? 0.6 : 1
+        Row {
+            id: moduleContent
             anchors.centerIn: parent
-            text: themeEdit.preview(barModule.modelData) + (barModule.showName ? "  " + themeEdit.moduleName(barModule.modelData) : "")
-            font.family: theme.font; font.pixelSize: 15
-            color: theme.c.fg || "white"
+            spacing: 6
+            // The tray's real icons; waybar draws nothing for an empty tray.
+            Repeater {
+                model: barModule.tray ? SystemTray.items : []
+                IconImage {
+                    required property var modelData
+                    anchors.verticalCenter: parent.verticalCenter
+                    implicitSize: 16
+                    source: modelData.icon
+                }
+            }
+            // The theme's battery icon, which its CSS puts in front of the percentage.
+            Image {
+                visible: barModule.modelData === "custom/battery" && themeEdit.editing !== null
+                anchors.verticalCenter: parent.verticalCenter
+                width: visible ? 16 : 0; height: 16
+                sourceSize: Qt.size(32, 32)
+                source: visible ? "file://" + themeEdit.editing.dir + "/assets/battery-0.svg" : ""
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: (barModule.tray && SystemTray.items.values.length === 0 ? "трей пуст"
+                       : barModule.tray ? "" : themeEdit.preview(barModule.modelData))
+                      + (barModule.showName ? "  " + themeEdit.moduleName(barModule.modelData) : "")
+                visible: text !== ""
+                font.family: theme.font; font.pixelSize: 15
+                color: theme.c.fg || "white"
+            }
         }
         MouseArea {
             id: moduleArea

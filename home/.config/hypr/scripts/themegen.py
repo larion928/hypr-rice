@@ -11,14 +11,17 @@
                                                  opens its full-screen preview; changetheme runs it last
   themegen.py wallpapers <theme>                 the wallpapers changetheme picks from, one per line
                                                  (the theme's own and the user's, minus those switched off)
+  themegen.py bar-preview <theme>                what each waybar module shows on this machine now, as JSON,
+                                                 for the bar in the settings window
 
 Each program has its module in apptheme/.
 """
+import json
 import os
 import sys
 from pathlib import Path
 
-from apptheme import (battery, chromium, css_palette, drift, firefox, gtk, hypr, hyprlock, kitty, neohtop,
+from apptheme import (bar_preview, battery, chromium, css_palette, drift, firefox, gtk, hypr, hyprlock, kitty, neohtop,
                       obsidian, system, telegram, vesktop, vscode, waybar)
 from apptheme.paths import HYPR
 from apptheme.theme import all_names, load
@@ -93,6 +96,8 @@ def main(argv):
         telegram.offer(load(argv[1]))
     elif len(argv) >= 2 and argv[0] == "wallpapers":
         print(*load(argv[1]).wallpapers, sep="\n")
+    elif len(argv) >= 2 and argv[0] == "bar-preview":
+        print(json.dumps(bar_preview.preview(load(argv[1])), ensure_ascii=False))
     else:
         print(__doc__.strip(), file=sys.stderr)
         return 2
