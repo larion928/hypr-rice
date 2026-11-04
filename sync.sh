@@ -69,6 +69,7 @@ PATHS=(
     .local/bin/power-mode
     .local/bin/network-panel
     .local/bin/proton-run
+    .local/bin/rice-install-package
     .claude/statusline.sh
 )
 

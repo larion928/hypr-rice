@@ -1,0 +1,36 @@
+#!/bin/bash
+# rice-install-package PACKAGE — install a package from the repos or the AUR without a terminal, for
+# windows that ask for the sudo password themselves (the theme settings install icon themes with it).
+# The password comes as the first line on stdin, never as an argument (arguments are visible to every
+# user in the process list). It is kept only in a 0600 file inside a 0700 folder in $XDG_RUNTIME_DIR
+# (in RAM), which goes when this script ends however it ends; every sudo call, yay's too, goes through
+# a wrapper that hands it to sudo -S. Exit status: 0 installed, 2 wrong password, 1 anything else.
+set -u
+package=${1:?usage: rice-install-package PACKAGE}
+
+IFS= read -r password
+private=$(umask 077 && mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/rice-sudo.XXXXXX") || exit 1
+trap 'rm -rf "$private"' EXIT
+(umask 077 && printf '%s\n' "$password" > "$private/password")
+unset password
+printf '#!/bin/sh\nexec sudo -S -p "" "$@" < "%s"\n' "$private/password" > "$private/sudo"
+chmod 700 "$private/sudo"
+
+if ! "$private/sudo" -v 2>/dev/null; then
+    echo "Пароль не подошёл."
+    exit 2
+fi
+if pacman -Si "$package" >/dev/null 2>&1; then
+    echo "Ставлю $package из репозитория…"
+    "$private/sudo" pacman -S --needed --noconfirm "$package" 2>&1
+else
+    echo "Собираю $package из AUR…"
+    yay -S --needed --noconfirm --answerdiff None --answerclean None --sudo "$private/sudo" "$package" 2>&1
+fi
+status=$?
+if [ "$status" -eq 0 ] && pacman -Q "$package" >/dev/null 2>&1; then
+    echo "Готово: $package установлен."
+    exit 0
+fi
+echo "Не установилось (код $status)."
+exit 1

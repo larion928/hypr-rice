@@ -54,7 +54,9 @@ ShellRoot {
     // Writes a file, then optionally runs a command (all detached, in that order).
     // Esc: out of the icon picker, then out of a theme's settings, then the window closes.
     function back() {
-        if (themeEdit.iconFor) themeEdit.iconFor = "";
+        if (themeEdit.installing && themeEdit.installState !== "running") themeEdit.installing = null;
+        else if (themeEdit.installing) return;
+        else if (themeEdit.iconFor) themeEdit.iconFor = "";
         else if (themeEdit.editing) themeEdit.editing = null;
         else root.close();
     }
@@ -616,9 +618,22 @@ ShellRoot {
         function iconThemeNow() {
             return themeEdit.edit.iconTheme || themeEdit.defaultIconTheme;
         }
-        function installIconTheme(pkg) {
-            installProc.command = ["kitty", "--title", "Установка темы значков", "-e", "sh", "-c",
-                                   'yay -S --needed "$1"; echo; read -r -p "Enter — закрыть " _', "sh", pkg];
+        // ---- installing an icon theme: the window asks for the sudo password and shows the output
+        property var installing: null      // {package, title, source} being installed
+        property string installState: ""   // ask, running, done, failed
+        property string installMessage: ""
+        property var installLog: []
+        function askInstall(item) {
+            themeEdit.installing = item;
+            themeEdit.installState = "ask";
+            themeEdit.installMessage = "";
+            themeEdit.installLog = [];
+        }
+        function startInstall(password) {
+            installProc.password = password;
+            installProc.command = [root.home + "/.local/bin/rice-install-package", themeEdit.installing.package];
+            themeEdit.installState = "running";
+            themeEdit.installLog = [];
             installProc.running = true;
         }
         function askIcons() {
@@ -740,10 +755,32 @@ ShellRoot {
             }
         }
     }
-    // An icon theme being installed in a terminal; the list is read again once it closes.
+    // A package being installed by rice-install-package; the sudo password goes on its stdin, never in
+    // its arguments, and is forgotten here as soon as it is written.
     Process {
         id: installProc
-        onExited: iconThemesProc.running = true
+        property string password: ""
+        stdinEnabled: true
+        onStarted: {
+            installProc.write(installProc.password + "\n");
+            installProc.password = "";
+        }
+        stdout: SplitParser {
+            onRead: line => themeEdit.installLog = themeEdit.installLog.concat([line]).slice(-14)
+        }
+        onExited: exitCode => {
+            if (exitCode === 0) {
+                themeEdit.installState = "done";
+                themeEdit.installMessage = "Установлено. Тема появилась в списке.";
+            } else if (exitCode === 2) {
+                themeEdit.installState = "ask";
+                themeEdit.installMessage = "Пароль не подошёл, попробуй ещё раз.";
+            } else {
+                themeEdit.installState = "failed";
+                themeEdit.installMessage = "Не установилось, подробности выше.";
+            }
+            iconThemesProc.running = true;
+        }
     }
     Process {
         id: iconsProc
@@ -2158,9 +2195,9 @@ ShellRoot {
                 Chip {
                     visible: !themeRow.installed
                     anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
-                    text: installProc.running ? "Ставится…" : "Установить"
+                    text: "Установить"
                     enabled: !installProc.running
-                    onClicked: themeEdit.installIconTheme(themeRow.modelData.package)
+                    onClicked: themeEdit.askInstall(themeRow.modelData)
                 }
             }
         }
@@ -2170,6 +2207,93 @@ ShellRoot {
             text: "читаю темы значков…"
             font.family: theme.bodyFont; font.pixelSize: 13
             color: theme.c.muted || "grey"
+        }
+
+        // Installing an icon theme: the password, then the installer's output.
+        Rectangle {
+            visible: themeEdit.installing !== null
+            anchors.fill: parent
+            z: 30
+            color: Color.withAlpha(theme.c.bg, 0.92)
+            MouseArea { anchors.fill: parent }
+            Rectangle {
+                anchors.centerIn: parent
+                width: Math.min(parent.width - 40, 720); height: installColumn.implicitHeight + 48
+                radius: root.r
+                color: theme.c.bg2 || "black"
+                border.color: theme.c.accent || "white"
+                Column {
+                    id: installColumn
+                    anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
+                    spacing: 12
+                    SectionTitle {
+                        text: themeEdit.installing ? "Установка «" + themeEdit.installing.title + "»" : ""
+                    }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: !themeEdit.installing ? ""
+                              : (themeEdit.installing.source === "aur" ? "Из AUR: пакет соберётся на этой машине, это может занять пару минут. "
+                                                                       : "Из репозитория Arch. ")
+                                + "Нужен пароль администратора (sudo): он передаётся установщику напрямую и нигде не сохраняется."
+                        font.family: theme.bodyFont; font.pixelSize: 14
+                        color: theme.c.fg || "white"
+                    }
+                    Row {
+                        visible: themeEdit.installState === "ask"
+                        spacing: 10
+                        Field {
+                            id: passwordField
+                            width: 300
+                            echoMode: TextInput.Password
+                            placeholder: "пароль sudo"
+                            onAccepted: if (text) { themeEdit.startInstall(text); text = ""; }
+                        }
+                        Chip {
+                            text: "Установить"
+                            primary: true
+                            enabled: passwordField.text !== ""
+                            onClicked: { themeEdit.startInstall(passwordField.text); passwordField.text = ""; }
+                        }
+                        Chip { text: "Отмена"; onClicked: themeEdit.installing = null }
+                    }
+                    Rectangle {
+                        visible: themeEdit.installState !== "ask"
+                        width: parent.width; height: 260
+                        radius: 8
+                        color: theme.c.bg || "black"
+                        Text {
+                            anchors { fill: parent; margins: 12 }
+                            text: themeEdit.installLog.join("\n")
+                            font.family: theme.font; font.pixelSize: 12
+                            color: theme.c.muted || "grey"
+                            wrapMode: Text.WrapAnywhere
+                            clip: true
+                            verticalAlignment: Text.AlignBottom
+                        }
+                    }
+                    Text {
+                        visible: themeEdit.installMessage !== ""
+                        text: themeEdit.installMessage
+                        font.family: theme.bodyFont; font.pixelSize: 14; font.bold: true
+                        color: themeEdit.installState === "done" ? (theme.c.good || "green") : (theme.c.crit || "red")
+                    }
+                    Row {
+                        visible: themeEdit.installState === "running"
+                        spacing: 10
+                        Text {
+                            text: "Идёт установка…"
+                            font.family: theme.bodyFont; font.pixelSize: 14
+                            color: theme.c.accent || "white"
+                        }
+                    }
+                    Chip {
+                        visible: themeEdit.installState === "done" || themeEdit.installState === "failed"
+                        text: "Закрыть"
+                        onClicked: themeEdit.installing = null
+                    }
+                }
+            }
         }
 
         SectionTitle {
@@ -2296,6 +2420,7 @@ ShellRoot {
     component Field: Rectangle {
         id: fld
         property alias text: input.text
+        property alias echoMode: input.echoMode
         property string placeholder
         signal accepted()
         height: 34

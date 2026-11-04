@@ -401,6 +401,38 @@ assert silent["state"] == "sometimes" and "не ответил" in silent["note"
 PY
 }
 
+# rice-install-package takes the sudo password on stdin: a wrong one ends with status 2, a right one
+# installs (repo package through pacman, AUR one through yay with the sudo wrapper); the password is in
+# no command's arguments, and nothing of it is left behind.
+test_install_package_password() {
+    local bin="$HOME/bin" calls="$HOME/calls"
+    mkdir -p "$bin" "$HOME/run"
+    cat > "$bin/sudo" <<'EOF'
+#!/bin/sh
+# The fake sudo: -S reads the password from stdin; only "right" passes.
+echo "sudo $*" >> "$CALLS"
+[ "$1" = -S ] || exit 1
+IFS= read -r given
+[ "$given" = right ] || exit 1
+shift 3  # -S -p ""
+[ "$1" = -v ] && exit 0
+"$@"
+EOF
+    printf '#!/bin/sh\necho "pacman $*" >> "$CALLS"\ncase "$1" in -Si) [ "$2" = repo-pkg ] ;; -Q) exit 0 ;; esac\n' > "$bin/pacman"
+    printf '#!/bin/sh\necho "yay $*" >> "$CALLS"\n' > "$bin/yay"
+    chmod +x "$bin"/*
+    export CALLS="$calls" XDG_RUNTIME_DIR="$HOME/run" PATH="$bin:$PATH"
+    local tool="$REPO/home/.local/bin/rice-install-package" status
+    echo wrong | "$tool" repo-pkg >/dev/null; status=$?
+    [ "$status" -eq 2 ] || fail "неверный пароль дал код $status"
+    echo right | "$tool" repo-pkg >/dev/null || fail "пакет из репозитория не поставился"
+    grep -q "^sudo -S -p  pacman -S --needed --noconfirm repo-pkg$" "$calls" || fail "pacman вызван не через sudo -S: $(cat "$calls")"
+    echo right | "$tool" aur-pkg >/dev/null || fail "пакет из AUR не поставился"
+    grep -q "^yay -S .*--sudo $HOME/run/rice-sudo\.[^ ]*/sudo aur-pkg$" "$calls" || fail "yay вызван без обёртки sudo: $(grep yay "$calls")"
+    ! grep -q "right\|wrong" "$calls" || fail "пароль попал в аргументы команд"
+    [ -z "$(ls -A "$HOME/run")" ] || fail "остались файлы с паролем: $(ls "$HOME/run")"
+}
+
 # themegen builds and applies every theme in a fake $HOME; tests/themegen_snapshot.sh records it all.
 test_themegen_applies_every_theme() {
     "$REPO/tests/themegen_snapshot.sh" "$HOME/snapshot" >/dev/null || fail "themegen упал, вывод выше"
