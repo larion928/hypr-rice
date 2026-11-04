@@ -73,6 +73,9 @@ def config_for(theme):
         config = deep_merge(config, json.loads(over.read_text()))
     for layout in (theme.shared.get("waybar", {}), theme.edits.get("waybar", {})):
         config.update({key: value for key, value in layout.items() if key in (*SIDES, "position")})
+    for module, glyph in {**theme.shared.get("icons", {}), **theme.edits.get("icons", {})}.items():
+        if icon_key(module, config.get(module)) and glyph:
+            config[module] = with_icon(module, config[module], glyph)
     if config.get("position") == "bottom" and "margin-top" in config:
         config["margin-bottom"] = config.pop("margin-top")
     # A layout saved for every theme may carry a module only one theme defines (claude's usage meter).
@@ -80,6 +83,36 @@ def config_for(theme):
         if side in config:
             config[side] = [module for module in config[side] if defined(module, config)]
     return config
+
+
+# Modules whose icon says something (which workspace, inhibited or not, the power profile) keep it.
+ICON_SAYS_SOMETHING = ("hyprland/workspaces", "idle_inhibitor", "power-profiles-daemon")
+
+
+def icon_key(module, options):
+    """The format key whose icon the settings window can change: an {icon} or a glyph in front; None
+    for modules without one, those whose script prints the icon, and ICON_SAYS_SOMETHING."""
+    if module in ICON_SAYS_SOMETHING or not isinstance(options, dict):
+        return None
+    key = "format-wifi" if module == "network" else "format"
+    look = options.get(key)
+    if not isinstance(look, str):
+        return None
+    return key if "{icon}" in look or starts_with_glyph(look) else None
+
+
+def starts_with_glyph(text):
+    return bool(text) and ord(text[0]) >= 0xE000 and not text.startswith("{")
+
+
+def with_icon(module, options, glyph):
+    """options with glyph in place of the module's icon: the one {icon} stood for (every level gets
+    the same then) or the glyph its format starts with."""
+    key = icon_key(module, options)
+    look = options[key].replace("{icon}", glyph)
+    if starts_with_glyph(look):
+        look = glyph + look[1:]
+    return {**options, key: look}
 
 
 def defined(module, config):
@@ -96,7 +129,10 @@ def layout(theme):
                      | set(BUILT_IN))
     return {"current": pick_layout(config), "withoutOwn": pick_layout(without_own),
             "themesOwn": pick_layout(themes_own), "available": modules,
-            "preview": {module: preview(module, config.get(module)) for module in modules}}
+            "preview": {module: preview(module, config.get(module)) for module in modules},
+            # Judged on the theme's own formats: an icon already replaced must stay replaceable.
+            "iconEditable": [module for module in modules
+                             if icon_key(module, themes_own.get(module) or config.get(module))]}
 
 
 # How a module looks on the bar in the settings window: its own "format" with sample values, or this

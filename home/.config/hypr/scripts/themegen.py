@@ -13,6 +13,8 @@
                                                  (the theme's own and the user's, minus those switched off)
   themegen.py bar-preview <theme>                what each waybar module shows on this machine now, as JSON,
                                                  for the bar in the settings window
+  themegen.py icons                              every icon of the Nerd Font with its name, as JSON, for
+                                                 the icon picker in the settings window
 
 Each program has its module in apptheme/.
 """
@@ -21,8 +23,8 @@ import os
 import sys
 from pathlib import Path
 
-from apptheme import (bar_preview, battery, chromium, css_palette, drift, firefox, gtk, hypr, hyprlock, kitty, neohtop,
-                      obsidian, system, telegram, vesktop, vscode, waybar)
+from apptheme import (bar_preview, battery, chromium, css_palette, drift, firefox, glyphs, gtk, hypr, hyprlock, kitty,
+                      neohtop, obsidian, system, telegram, vesktop, vscode, waybar)
 from apptheme.paths import HYPR
 from apptheme.theme import all_names, load
 
@@ -96,6 +98,8 @@ def main(argv):
         telegram.offer(load(argv[1]))
     elif len(argv) >= 2 and argv[0] == "wallpapers":
         print(*load(argv[1]).wallpapers, sep="\n")
+    elif argv[:1] == ["icons"]:
+        print(json.dumps(glyphs.all_icons(), ensure_ascii=False))
     elif len(argv) >= 2 and argv[0] == "bar-preview":
         print(json.dumps(bar_preview.preview(load(argv[1])), ensure_ascii=False))
     else:

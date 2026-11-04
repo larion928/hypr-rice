@@ -306,6 +306,28 @@ assert waybar.cpu_sensor() == {}, "with thermal_zone0 the module keeps its defau
 PY
 }
 
+# An icon picked for a module replaces the glyph its format starts with, or what {icon} stood for;
+# modules whose icon says something (the workspaces) keep theirs.
+test_waybar_icon_edits() {
+    local themes="$HOME/.config/hypr/themes"
+    mkdir -p "$themes" "$HOME/.config/hypr-rice/waybar"
+    cp -r "$REPO/home/.config/hypr/themes/coffee" "$themes/"
+    cp "$REPO/home/.config/hypr-rice/waybar/config.base.json" "$HOME/.config/hypr-rice/waybar/"
+    echo '{"themes": {"coffee": {"icons": {"cpu": "X", "pulseaudio": "V", "hyprland/workspaces": "W"}}}}' \
+        > "$HOME/.config/hypr-rice/theme-edits.json"
+    python3 - "$REPO/home/.config/hypr/scripts" <<'PY' || fail "значки заменены не так"
+import sys
+sys.path.insert(0, sys.argv[1])
+from apptheme import waybar
+from apptheme.theme import load
+config = waybar.config_for(load("coffee"))
+assert config["cpu"]["format"] == "X {usage}%", config["cpu"]["format"]
+assert config["pulseaudio"]["format"] == "V {volume}%", config["pulseaudio"]["format"]
+assert config["hyprland/workspaces"]["format"] == "{icon}", "the workspaces' icon must stay"
+assert "cpu" in waybar.layout(load("coffee"))["iconEditable"]
+PY
+}
+
 # The settings window's bar fills a module's own format the way waybar does, and tells a script that
 # printed nothing (shown only at times) from one that never answered.
 test_bar_preview_formats() {

@@ -45,6 +45,7 @@ zenity          # file dialog for the theme settings (Alt+F2, Тема → Об�
 pacman-contrib
 python
 python-pillow
+python-fonttools  # themegen.py icons: the icon names of the Nerd Font, for the icon picker
 grim
 wl-clipboard
 libnotify
