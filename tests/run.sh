@@ -563,6 +563,24 @@ test_update_reruns_installed_hooks() {
     [ "$(cat "$HOME/ran")" = first ] || fail "выполнились шаги: $(cat "$HOME/ran" 2>/dev/null)"
 }
 
+# Reloading GTK ends on the base theme gtk.css is written over, whatever theme the setting held:
+# restoring the held one kept a wrong base (light Adwaita's grey dividers in Thunar) for good.
+test_gtk_reload_lands_on_base_theme() {
+    mkdir -p "$HOME/bin"
+    printf '#!/bin/sh\n[ "$1" = get ] && { echo "'"'"'Adwaita-dark'"'"'"; exit 0; }\necho "$*" >> "%s/calls"\n' "$HOME" \
+        > "$HOME/bin/gsettings"
+    printf '#!/bin/sh\n:\n' > "$HOME/bin/systemctl"
+    chmod +x "$HOME/bin/gsettings" "$HOME/bin/systemctl"
+    PATH="$HOME/bin:$PATH" python3 - "$REPO/home/.config/hypr/scripts" "$HOME/calls" <<'PY' || fail "тема GTK не та"
+import sys
+sys.path.insert(0, sys.argv[1])
+from apptheme import gtk
+gtk.reload()
+last = open(sys.argv[2]).read().splitlines()[-1]
+assert last == f"set org.gnome.desktop.interface gtk-theme {gtk.base_theme()}", last
+PY
+}
+
 tests=("$@")
 [ ${#tests[@]} -gt 0 ] || mapfile -t tests < <(declare -F | awk '{print $3}' | grep '^test_')
 for name in "${tests[@]}"; do

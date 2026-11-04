@@ -1,6 +1,7 @@
 """GTK 3 and 4 apps: the palette over the Graphite-Dark base theme."""
 import subprocess
 import time
+from pathlib import Path
 
 from .colors import css_rgba, mix
 from .files import GENERATED, write
@@ -60,6 +61,10 @@ toolbar, .toolbar, .primary-toolbar, .inline-toolbar, .location-button, .path-ba
 }}
 .path-bar button:checked, .pathbar button:checked {{ background-color: {sel}; }}
 toolbar entry, .location-bar entry, .location-entry {{ background-color: {bg}; color: {fg}; }}
+/* Pane dividers and frame borders (Thunar's sidebar edge, the lines above and below its file list)
+   take the base theme's colour otherwise: light grey with Adwaita. */
+paned > separator {{ background-image: image({border}); }}
+frame > border, .frame {{ border-color: {border}; }}
 """
 
 
@@ -104,17 +109,22 @@ def apply(theme):
               head + f'@import url("file://{gtk4_base}/{file_name}");\n' + gtk4_defines + rules)
 
 
+def base_theme():
+    """The GTK theme gtk.css is written over; the rice installer falls back to Adwaita-dark the same way."""
+    return "Graphite-Dark" if Path("/usr/share/themes/Graphite-Dark").is_dir() else "Adwaita-dark"
+
+
 def reload():
-    # GTK3 only rereads the user gtk.css when the theme name changes, so bounce it.
+    # GTK3 only rereads the user gtk.css when the theme name changes, so bounce it. It lands on the
+    # base theme, not on the name found in the setting: once the setting held another theme (the
+    # stand-in, after a bounce cut short), every later bounce restored that one.
     try:
-        current = subprocess.run(["gsettings", "get", "org.gnome.desktop.interface", "gtk-theme"],
-                                 capture_output=True, text=True, timeout=5).stdout.strip().strip("'")
-        if current:
-            # A dark stand-in: bouncing through light Adwaita left white toolbars in open windows.
-            bounce = "Adwaita-dark" if current != "Adwaita-dark" else "Adwaita"
-            subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "gtk-theme", bounce], timeout=5)
-            time.sleep(0.3)
-            subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "gtk-theme", current], timeout=5)
+        base = base_theme()
+        # A dark stand-in: bouncing through light Adwaita left white toolbars in open windows.
+        bounce = "Adwaita-dark" if base != "Adwaita-dark" else "Adwaita"
+        subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "gtk-theme", bounce], timeout=5)
+        time.sleep(0.3)
+        subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "gtk-theme", base], timeout=5)
         # File chooser dialogs (Code - OSS, browsers, ...) come from this portal; it does not
         # follow the bounce above, so restart it. It is D-Bus activated, nothing is lost.
         subprocess.run(["systemctl", "--user", "try-restart", "xdg-desktop-portal-gtk.service"], timeout=10)
