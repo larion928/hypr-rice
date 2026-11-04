@@ -10,5 +10,6 @@
   "folders": "red",
   "powerStyle": "terminal",
   "glow": true,
-  "batteryStep": 0.16
+  "batteryStep": 0.16,
+  "telegramSlug": "MRrobotThemes"
 }
