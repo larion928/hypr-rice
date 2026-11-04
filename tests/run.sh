@@ -946,6 +946,39 @@ assert all(g["kind"] != "native" for g in games.games())
 PY
 }
 
+# A game without a cover gets one found for it: the store's cover of a game of the very same name
+# (a similar name is another game), else an icon from the game's folder; looked for only once.
+test_games_find_pictures() {
+    mkdir -p "$HOME/games/Pinball" "$HOME/store"
+    printf 'MZ' > "$HOME/games/Pinball/pinball.exe"
+    printf 'PNG' > "$HOME/games/Pinball/icon.png"
+    printf '\xff\xd8 a jpeg' > "$HOME/store/cover.jpg"
+    echo '{"items": [{"id": 1, "name": "Balatro"}, {"id": 2, "name": "McOsu"}]}' > "$HOME/store/search.json"
+    python3 - "$REPO/home/.config/hypr/scripts" "$HOME" <<'PY' || fail "картинки для игр найдены не так"
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import games
+home = Path(sys.argv[2])
+games.STORE_SEARCH = f"file://{home}/store/search.json?{{}}"
+games.STORE_COVERS = (f"file://{home}/store/missing-{{}}.jpg", f"file://{home}/store/cover.jpg?{{}}")
+pinball = games.add_file(home / "games/Pinball/pinball.exe")
+balatro = games.add({"kind": "app", "target": "Balatro", "name": "Balatro", "icon": "balatro"})
+osu = games.add({"kind": "app", "target": "osu", "name": "osu!", "icon": "osu"})
+games.find_pictures()
+assert games.game(pinball["id"]).get("icon") == str(home / "games/Pinball/icon.png"), games.game(pinball["id"])
+assert Path(games.game(balatro["id"])["cover"]).read_bytes().startswith(b"\xff\xd8"), games.game(balatro["id"])
+assert not games.game(osu["id"]).get("cover"), "osu! получила обложку чужой игры (McOsu)"
+assert all(entry.get("looked") for entry in games.games())
+
+(home / "store/search.json").write_text('{"items": [{"id": 3, "name": "osu!"}]}')
+games.find_pictures()
+assert not games.game(osu["id"]).get("cover"), "поиск повторился для уже просмотренной игры"
+games.uncover(balatro["id"])
+assert games.game(balatro["id"])["cover"] == "" and not list((home / ".local/share/hypr-rice/game-covers").glob(balatro["id"] + ".*"))
+PY
+}
+
 tests=("$@")
 [ ${#tests[@]} -gt 0 ] || mapfile -t tests < <(declare -F | awk '{print $3}' | grep '^test_')
 for name in "${tests[@]}"; do

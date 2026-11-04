@@ -36,7 +36,10 @@ ShellRoot {
     }
     readonly property var kindNames: ({ exe: "Proton", appimage: "AppImage", native: "Linux", app: "программа", steam: "Steam" })
 
-    Component.onCompleted: listProc.running = true
+    Component.onCompleted: {
+        listProc.running = true;
+        findProc.running = true;
+    }
 
     function close() {
         if (closing) return;
@@ -71,6 +74,7 @@ ShellRoot {
         const code = parseInt(lines.pop().replace("@@exit ", ""));
         if (code !== 0) root.message = lines.join(" ") || "не вышло (код " + code + ")";
         listProc.running = true;
+        if (!findProc.running) findProc.running = true;  // a new game gets its picture
     }
     // zenity, then games.py with the picked file: "add-file" or "cover".
     property string pickFor: ""
@@ -109,6 +113,12 @@ ShellRoot {
                 root.current = Math.min(root.current, Math.max(0, root.shown.length - 1));
             }
         }
+    }
+    // Pictures for games that have none: found in the background, then the shelf is read again.
+    Process {
+        id: findProc
+        command: ["python3", root.backend, "find"]
+        onExited: listProc.running = true
     }
     Process {
         id: steamProc
@@ -291,14 +301,15 @@ ShellRoot {
                 asynchronous: true
             }
             IconImage {
+                id: iconImage
                 anchors.centerIn: parent
-                visible: !coverImage.visible && card.modelData.kind === "app"
-                implicitSize: 88
-                source: card.modelData.kind === "app" ? root.iconSource(card.modelData.icon) : ""
+                visible: !coverImage.visible && source != ""
+                implicitSize: 96
+                source: root.iconSource(card.modelData.icon)
             }
             Text {
                 anchors.centerIn: parent
-                visible: !coverImage.visible && card.modelData.kind !== "app"
+                visible: !coverImage.visible && !iconImage.visible
                 text: card.modelData.name.charAt(0).toUpperCase()
                 font.family: theme.titleFont; font.pixelSize: 96
                 color: theme.c.accent || "white"
@@ -506,7 +517,7 @@ ShellRoot {
 
         Rectangle {
             anchors.centerIn: parent
-            width: 520; height: editColumn.implicitHeight + 44
+            width: 700; height: editColumn.implicitHeight + 44
             radius: root.r
             color: theme.c.bg2 || "black"
             border.color: Color.withAlpha(theme.c.accent, 0.5)
@@ -537,6 +548,11 @@ ShellRoot {
                     spacing: 10
                     Chip { id: saveName; text: "Сохранить название"; primary: true; onClicked: { root.run(["rename", root.editing.id, nameField.text]); root.dialog = ""; } }
                     Chip { text: "Обложка…"; onClicked: root.pickFile("cover") }
+                    Chip {
+                        visible: root.editing !== null && root.editing.cover !== ""
+                        text: "Убрать обложку"
+                        onClicked: { root.run(["uncover", root.editing.id]); root.dialog = ""; }
+                    }
                     Chip { text: "Убрать из списка"; onClicked: { root.run(["remove", root.editing.id]); root.dialog = ""; } }
                 }
             }
