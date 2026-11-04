@@ -252,13 +252,19 @@ hl.layer_rule({
 -- Per-device input settings; rewritten by ~/.local/bin/mouse-sens.
 require("devices")
 require("keybind")
+local function load_if_present(path)
+    local file = io.open(path, "r")
+    if file then
+        file:close()
+        dofile(path)
+    end
+end
+
 -- Symlink to themes/<name>/hypr.lua, switched by ~/.local/bin/changetheme.
 require("theme")
+-- What the user changed in the theme's windows in the settings window (Alt+F2 → Тема → Окна),
+-- written by themegen on every theme change.
+load_if_present(os.getenv("HOME") .. "/.config/hypr/theme-edits.lua")
 -- The user's own additions, loaded last so they can override anything above. Not part of the
 -- rice repo: rice update leaves it alone.
-local user_lua = os.getenv("HOME") .. "/.config/hypr/user.lua"
-local user_f = io.open(user_lua, "r")
-if user_f then
-    user_f:close()
-    dofile(user_lua)
-end
+load_if_present(os.getenv("HOME") .. "/.config/hypr/user.lua")

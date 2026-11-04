@@ -13,7 +13,7 @@ from PIL import Image
 
 # themegen's loader, so each theme comes with the user's edits.
 sys.path.insert(0, str(Path.home() / ".config/hypr/scripts"))
-from apptheme import waybar
+from apptheme import waybar, windows
 from apptheme.theme import all_names, load
 
 HYPR = Path.home() / ".config/hypr"
@@ -43,7 +43,7 @@ def main():
                        "wallpapers": [{"path": str(path), "thumb": thumbnail(path), "added": path in added,
                                        "on": path in theme.wallpapers}
                                       for path in theme.own_wallpapers + added],
-                       "waybar": waybar.layout(theme)})
+                       "waybar": waybar.layout(theme), "windows": windows.own(theme)})
     Path(sys.argv[1]).write_text(json.dumps(themes, ensure_ascii=False))
 
 

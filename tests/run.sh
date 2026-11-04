@@ -450,6 +450,30 @@ install_finished() {
     fail "фоновая установка $1 не закончилась: $(cat "$log" 2>/dev/null)"
 }
 
+# Window edits go to theme-edits.lua: only what was changed, the theme's animations rescaled for
+# «быстрее»; the theme's own values are read from its hypr.lua.
+test_window_edits() {
+    local themes="$HOME/.config/hypr/themes"
+    mkdir -p "$themes" "$HOME/.config/hypr-rice"
+    cp -r "$REPO/home/.config/hypr/themes/coffee" "$themes/"
+    echo '{"themes": {"coffee": {"windows": {"gaps_in": 2, "blur": false, "active_opacity": 0.9, "animations": "fast"}}}}' \
+        > "$HOME/.config/hypr-rice/theme-edits.json"
+    python3 - "$REPO/home/.config/hypr/scripts" <<'PY' || fail "правки окон записаны не так"
+import sys
+sys.path.insert(0, sys.argv[1])
+from apptheme import windows
+from apptheme.theme import load
+coffee = load("coffee")
+own = windows.own(coffee)
+assert (own["gaps_in"], own["gaps_out"], own["border_size"], own["rounding"]) == (5, 10, 3, 6), own
+windows.apply(coffee)
+lua = windows.EDITS_LUA.read_text()
+assert "hl.config({ general = { gaps_in = 2 }, decoration = { active_opacity = 0.9, blur = { enabled = false } } })" in lua, lua
+assert 'leaf = "windowsIn",   enabled = true, speed = 1.8' in lua, lua   # 3 × 0.6
+assert "gaps_out" not in lua and "rounding" not in lua, "only what was changed"
+PY
+}
+
 # Every member the settings window uses on its main objects (themeEdit.save, panelEditor.slots, ...) is
 # defined; QML only notices a missing one when that line runs, e.g. on the first drag.
 test_settings_members_defined() {

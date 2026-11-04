@@ -26,7 +26,8 @@ import sys
 from pathlib import Path
 
 from apptheme import (bar_preview, battery, chromium, css_palette, drift, firefox, glyphs, gtk, hypr, hyprlock,
-                      icon_theme, icon_themes, kitty, neohtop, obsidian, system, telegram, vesktop, vscode, waybar)
+                      icon_theme, icon_themes, kitty, neohtop, obsidian, system, telegram, vesktop, vscode, waybar,
+                      windows)
 from apptheme.paths import HYPR
 from apptheme.theme import all_names, load
 
@@ -36,6 +37,7 @@ def apply(name, wallpaper=None):
     # changetheme reloads Hyprland, which drops any screen shader; keep screen-fx in sync.
     (Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "screen-fx-on").unlink(missing_ok=True)
     hypr.apply(theme)
+    windows.apply(theme)
     css_palette.apply(theme)
     waybar.apply(theme)
     kitty.apply(theme)

@@ -404,7 +404,15 @@ ShellRoot {
         readonly property string path: root.home + "/.config/hypr-rice/theme-edits.json"
         readonly property string wallpaperDir: root.home + "/.local/share/hypr-rice/wallpapers"
         readonly property var sections: [["fonts", "Шрифты"], ["colors", "Цвета"], ["wallpapers", "Обои"],
-                                         ["waybar", "Панель"], ["icons", "Значки"]]
+                                         ["waybar", "Панель"], ["icons", "Значки"], ["windows", "Окна"]]
+        // The window settings the «Окна» section offers: key, what it is, range, step, and how it reads.
+        readonly property var windowSettings: [
+            ["gaps_in", "Отступ между окнами", 0, 30, 1, "px"], ["gaps_out", "Отступ от краёв экрана", 0, 40, 1, "px"],
+            ["border_size", "Толщина рамки", 0, 8, 1, "px"], ["rounding", "Скругление углов", 0, 30, 1, "px"],
+            ["active_opacity", "Непрозрачность активного окна", 0.5, 1, 0.05, "%"],
+            ["inactive_opacity", "Непрозрачность остальных окон", 0.5, 1, 0.05, "%"],
+            ["blur_size", "Сила размытия", 1, 16, 1, ""]
+        ]
         // papirus-folders' colours; each has its folder icon in Papirus.
         readonly property var folderColors: ["adwaita", "black", "blue", "bluegrey", "breeze", "brown", "carmine", "cyan",
                                              "darkcyan", "deeporange", "green", "grey", "indigo", "magenta", "nordic",
@@ -489,7 +497,8 @@ ShellRoot {
                                wallpapers: { added: (walls.added || []).slice(), off: (walls.off || []).slice() },
                                waybar: mine.waybar ? JSON.parse(JSON.stringify(mine.waybar)) : null,
                                icons: Object.assign({}, mine.icons || {}),
-                               folders: mine.folders || "", iconTheme: mine.iconTheme || "", battery: mine.battery || "" };
+                               folders: mine.folders || "", iconTheme: mine.iconTheme || "", battery: mine.battery || "",
+                               windows: Object.assign({}, mine.windows || {}) };
             themeEdit.saved = JSON.stringify(themeEdit.edit);
             themeEdit.section = "fonts";
             themeEdit.fontSlot = "font";
@@ -624,6 +633,18 @@ ShellRoot {
         property string installState: ""   // ask, checking (the password), running, done, failed
         property string installMessage: ""
         property var installLog: []
+        // ---- windows: a value set here, or the theme's own
+        function windowValue(key) {
+            const own = themeEdit.editing ? themeEdit.editing.windows[key] : undefined;
+            return key in themeEdit.edit.windows ? themeEdit.edit.windows[key] : own;
+        }
+        // The theme's own value takes the edit away: «как в теме» is the absence of one.
+        function setWindow(key, value) {
+            const windows = Object.assign({}, themeEdit.edit.windows);
+            if (themeEdit.editing && themeEdit.editing.windows[key] === value) delete windows[key];
+            else windows[key] = value;
+            themeEdit.change("windows", windows);
+        }
         function askInstall(item) {
             themeEdit.installing = item;
             themeEdit.installState = "ask";
@@ -688,6 +709,7 @@ ShellRoot {
             if (themeEdit.section === "waybar") return themeEdit.edit.waybar !== null || Object.keys(themeEdit.edit.icons).length > 0;
             if (themeEdit.section === "colors") return Object.keys(themeEdit.edit.colors).length > 0 || !!themeEdit.edit.folders;
             if (themeEdit.section === "icons") return !!themeEdit.edit.iconTheme || !!themeEdit.edit.battery;
+            if (themeEdit.section === "windows") return Object.keys(themeEdit.edit.windows).length > 0;
             return Object.values(part).some(value => !!value);
         }
         function resetSection() {
@@ -696,6 +718,7 @@ ShellRoot {
             themeEdit.change(themeEdit.section, empty[themeEdit.section]);
             if (themeEdit.section === "waybar") themeEdit.change("icons", {});
             if (themeEdit.section === "colors") themeEdit.change("folders", "");
+            if (themeEdit.section === "windows") themeEdit.change("windows", {});
             if (themeEdit.section === "icons") {
                 themeEdit.change("iconTheme", "");
                 themeEdit.change("battery", "");
@@ -753,6 +776,7 @@ ShellRoot {
             if (Object.keys(edit.icons).length) out.icons = edit.icons;
             for (const key of ["folders", "iconTheme", "battery"])
                 if (edit[key]) out[key] = edit[key];
+            if (Object.keys(edit.windows).length) out.windows = edit.windows;
             return out;
         }
     }
@@ -1416,6 +1440,7 @@ ShellRoot {
             WallpapersSection { anchors.fill: parent; visible: themeEdit.section === "wallpapers" }
             PanelSection { anchors.fill: parent; visible: themeEdit.section === "waybar" }
             IconsSection { anchors.fill: parent; visible: themeEdit.section === "icons" }
+            WindowsSection { anchors.fill: parent; visible: themeEdit.section === "windows" }
         }
     }
 
@@ -2400,6 +2425,183 @@ ShellRoot {
                     }
                 }
             }
+        }
+    }
+
+    // Hyprland's windows: sliders on the left, two windows drawn with those values on the right.
+    component WindowsSection: Item {
+        Column {
+            id: windowControls
+            width: 700
+            spacing: 10
+            Repeater {
+                model: themeEdit.windowSettings
+                Item {
+                    id: settingRow
+                    required property var modelData
+                    readonly property string key: modelData[0]
+                    readonly property bool percent: modelData[5] === "%"
+                    readonly property bool edited: themeEdit.editing !== null && settingRow.key in themeEdit.edit.windows
+                    width: windowControls.width; height: 34
+                    function shown(value) {
+                        return settingRow.percent ? Math.round(value * 100) + "%" : value + (settingRow.modelData[5] ? " " + settingRow.modelData[5] : "");
+                    }
+                    Text {
+                        width: 250; anchors.verticalCenter: parent.verticalCenter
+                        text: settingRow.modelData[1]
+                        font.family: theme.bodyFont; font.pixelSize: 14
+                        color: theme.c.fg || "white"
+                    }
+                    NumberSlider {
+                        id: rowSlider
+                        x: 255; width: 200; anchors.verticalCenter: parent.verticalCenter
+                        from: settingRow.modelData[2]; to: settingRow.modelData[3]; step: settingRow.modelData[4]
+                        value: themeEdit.editing ? themeEdit.windowValue(settingRow.key) : 0
+                        onMoved: value => themeEdit.setWindow(settingRow.key, value)
+                    }
+                    Text {
+                        x: 470; anchors.verticalCenter: parent.verticalCenter
+                        text: themeEdit.editing ? settingRow.shown(themeEdit.windowValue(settingRow.key)) : ""
+                        font.family: theme.font; font.pixelSize: 14
+                        color: settingRow.edited ? (theme.c.accent || "white") : (theme.c.fg || "white")
+                    }
+                    Text {
+                        x: 535; anchors.verticalCenter: parent.verticalCenter
+                        text: settingRow.edited ? "↺ тема: " + settingRow.shown(themeEdit.editing.windows[settingRow.key]) : ""
+                        font.family: theme.bodyFont; font.pixelSize: 12
+                        color: theme.c.muted || "grey"
+                        MouseArea { anchors.fill: parent; onClicked: themeEdit.setWindow(settingRow.key, themeEdit.editing.windows[settingRow.key]) }
+                    }
+                }
+            }
+            Row {
+                spacing: 8
+                Text {
+                    width: 250; anchors.verticalCenter: parent.verticalCenter
+                    text: "Размытие под окнами"
+                    font.family: theme.bodyFont; font.pixelSize: 14
+                    color: theme.c.fg || "white"
+                }
+                Chip { text: "Вкл"; active: themeEdit.editing !== null && !!themeEdit.windowValue("blur"); onClicked: themeEdit.setWindow("blur", true) }
+                Chip { text: "Выкл"; active: themeEdit.editing !== null && !themeEdit.windowValue("blur"); onClicked: themeEdit.setWindow("blur", false) }
+            }
+            Row {
+                spacing: 8
+                Text {
+                    width: 250; anchors.verticalCenter: parent.verticalCenter
+                    text: "Анимации"
+                    font.family: theme.bodyFont; font.pixelSize: 14
+                    color: theme.c.fg || "white"
+                }
+                Repeater {
+                    model: [["", "Как в теме"], ["fast", "Быстрее"], ["slow", "Медленнее"], ["off", "Выключить"]]
+                    Chip {
+                        required property var modelData
+                        text: modelData[1]
+                        active: themeEdit.editing !== null && (themeEdit.edit.windows.animations || "") === modelData[0]
+                        onClicked: {
+                            const windows = Object.assign({}, themeEdit.edit.windows);
+                            if (modelData[0]) windows.animations = modelData[0];
+                            else delete windows.animations;
+                            themeEdit.change("windows", windows);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Two windows over the theme's wallpaper, at the real gaps, border and rounding.
+        Rectangle {
+            id: windowsPreview
+            anchors { left: windowControls.right; right: parent.right; top: parent.top; leftMargin: 28 }
+            height: 320
+            radius: 8
+            clip: true
+            color: theme.c.bg2 || "black"
+            Image {
+                anchors.fill: parent
+                source: themeEdit.editing && themeEdit.editing.thumb ? "file://" + themeEdit.editing.thumb : ""
+                fillMode: Image.PreserveAspectCrop
+            }
+            Repeater {
+                model: 2
+                Rectangle {
+                    required property int index
+                    readonly property real outer: themeEdit.editing ? themeEdit.windowValue("gaps_out") : 0
+                    readonly property real inner: themeEdit.editing ? themeEdit.windowValue("gaps_in") : 0
+                    readonly property real half: (windowsPreview.width - 2 * outer - 2 * inner) / 2
+                    x: outer + index * (half + 2 * inner); y: outer + 26
+                    width: half; height: windowsPreview.height - 2 * outer - 26
+                    radius: themeEdit.editing ? themeEdit.windowValue("rounding") : 0
+                    color: Color.withAlpha(theme.c.bg, themeEdit.editing ? themeEdit.windowValue(index === 0 ? "active_opacity" : "inactive_opacity") : 1)
+                    border.width: themeEdit.editing ? themeEdit.windowValue("border_size") : 0
+                    border.color: index === 0 ? (theme.c.accent || "white") : Color.withAlpha(theme.c.muted, 0.67)
+                    Text {
+                        anchors.centerIn: parent
+                        text: index === 0 ? "активное окно" : "окно"
+                        font.family: theme.bodyFont; font.pixelSize: 13
+                        color: theme.c.fg || "white"
+                    }
+                }
+            }
+            Rectangle {
+                x: 8; y: 4; width: parent.width - 16; height: 18; radius: 5
+                color: Color.withAlpha(theme.c.bg, 0.85)
+                Text {
+                    anchors.centerIn: parent
+                    text: "панель"
+                    font.family: theme.bodyFont; font.pixelSize: 10
+                    color: theme.c.muted || "grey"
+                }
+            }
+        }
+        Text {
+            anchors { left: windowsPreview.left; right: windowsPreview.right; top: windowsPreview.bottom; topMargin: 10 }
+            wrapMode: Text.WordWrap
+            text: "Образец в настоящих пикселях. Размытие и анимации видны только на экране: сохрани, тема применится заново."
+            font.family: theme.bodyFont; font.pixelSize: 12
+            color: theme.c.muted || "grey"
+        }
+    }
+
+    // A number on a track; moved(value) on every drag, rounded to step.
+    component NumberSlider: Item {
+        id: slider
+        property real from: 0
+        property real to: 10
+        property real step: 1
+        property real value: 0
+        signal moved(real value)
+        implicitHeight: 24
+        readonly property real fraction: Math.max(0, Math.min(1, (value - from) / (to - from)))
+        Rectangle {
+            anchors.verticalCenter: parent.verticalCenter
+            width: parent.width; height: 6; radius: 3
+            color: Color.withAlpha(theme.c.bg2, 0.9)
+            border.color: Color.withAlpha(theme.c.muted, 0.35)
+        }
+        Rectangle {
+            anchors.verticalCenter: parent.verticalCenter
+            width: slider.fraction * (parent.width - 18) + 9; height: 6; radius: 3
+            color: theme.c.accent || "white"
+        }
+        Rectangle {
+            anchors.verticalCenter: parent.verticalCenter
+            x: slider.fraction * (parent.width - 18)
+            width: 18; height: 18; radius: 9
+            color: theme.c.accent || "white"
+            border.color: theme.c.bg || "black"
+        }
+        MouseArea {
+            anchors.fill: parent
+            preventStealing: true
+            function set(x) {
+                const share = Math.max(0, Math.min(1, (x - 9) / (width - 18)));
+                const raw = slider.from + share * (slider.to - slider.from);
+                slider.moved(Number((Math.round(raw / slider.step) * slider.step).toFixed(2)));
+            }
+            onPressed: mouse => set(mouse.x)
+            onPositionChanged: mouse => { if (pressed) set(mouse.x); }
         }
     }
 
