@@ -98,6 +98,7 @@ EXCLUDES=(
     --exclude=.config/hypr/themes/whitecat-cursor.osk
     --exclude=.config/hypr/.rice-installed  # this machine's install marker
     --exclude='.config/hypr/themes/*/assets/battery-*.svg'  # themegen build draws them, in the user's colours
+    --exclude='.config/hypr/themes/*/.stills'               # first frames of animated wallpapers, made by themegen
     --exclude=.config/fish/functions/neohtop-dev.fish
     --exclude=__pycache__
     --exclude='*.bak*'

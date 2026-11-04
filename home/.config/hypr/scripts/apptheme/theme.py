@@ -21,7 +21,7 @@ from .paths import RICE_CONF, THEMES
 # "everywhere" holds what was saved for all themes; a theme's own edit wins over it. An empty font or
 # a missing key keeps the theme's own.
 EDITS = RICE_CONF / "theme-edits.json"
-WALLPAPER_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")
+WALLPAPER_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp", ".gif")  # a GIF plays on the desktop
 COLOR = re.compile(r"#[0-9a-fA-F]{6}")
 BATTERY_ANIMATION = ("batteryAnim", "batteryStep")  # ui.json keys that go with a battery drawing
 

@@ -23,7 +23,7 @@ changetheme — переключение темы Hyprland-окружения
   $(ls ~/.config/hypr/themes/ 2>/dev/null | tr '\n' ' ')
 
 ЧТО ДЕЛАЕТ (по шагам)
-  1. Обои     — берёт случайную картинку (*.png/jpg/jpeg/webp) из
+  1. Обои     — берёт случайную картинку (*.png/jpg/jpeg/webp/gif) из
                 ~/.config/hypr/themes/<тема>/ и ставит через awww
   2. Палитра  — themegen.py apply берёт themes/<тема>/palette.json и пишет:
                   ~/.config/hypr/palette.lua, palette.json, current-theme
@@ -50,7 +50,8 @@ changetheme — переключение темы Hyprland-окружения
                 --theme <тема> в histuid.service и рестартует демон
 
 СТРУКТУРА ПАПКИ ТЕМЫ (~/.config/hypr/themes/<имя>/)
-  *.png/jpg/jpeg/webp   обои (можно несколько — выбор случайный)
+  *.png/jpg/jpeg/webp   обои (можно несколько — выбор случайный); *.gif — анимированные,
+                        экраны блокировки и входа берут их первый кадр
   assets/               иконки и прочие картинки темы, в выбор обоев не попадают
   hypr.lua              hl.config{general, decoration} — только структура,
                         цвета через local c = require("palette")

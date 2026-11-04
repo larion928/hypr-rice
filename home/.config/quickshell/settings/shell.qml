@@ -571,7 +571,7 @@ ShellRoot {
         function pickWallpaper() {
             root.picking = true;
             wallpaperPicker.command = ["sh", "-c",
-                'f=$(zenity --file-selection --title="Обои для темы" --file-filter="Картинки | *.png *.jpg *.jpeg *.webp") '
+                'f=$(zenity --file-selection --title="Обои для темы" --file-filter="Картинки и GIF | *.png *.jpg *.jpeg *.webp *.gif") '
                 + '&& mkdir -p "$1" && cp "$f" "$1/" && printf "%s" "$1/$(basename "$f")"',
                 "sh", themeEdit.wallpaperDir + "/" + themeEdit.editing.name];
             wallpaperPicker.running = true;

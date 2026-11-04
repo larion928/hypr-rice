@@ -10,7 +10,7 @@ from .theme import battery_theme
 from .paths import THEMES
 
 # themegen build draws these from battery.py in the user's colours; a copy needs none.
-GENERATED_FILES = ("__pycache__", "battery-*.svg")
+GENERATED_FILES = ("__pycache__", "battery-*.svg", ".stills")  # .stills: animated wallpapers' first frames
 
 
 def copy_theme(source, folder):

@@ -42,13 +42,16 @@ from pathlib import Path
 
 from apptheme import (bar_preview, battery, chromium, css_palette, cursor_theme, cursor_themes, drift, factory_reset,
                       firefox, glyphs, gtk, hypr, hyprlock, icon_theme, icon_themes, kitty, neohtop, obsidian,
-                      removed_themes, system, telegram, user_themes, vesktop, vscode, waybar, windows)
+                      removed_themes, system, telegram, user_themes, vesktop, vscode, wallpaper_still, waybar,
+                      windows)
 from apptheme.paths import HYPR
 from apptheme.theme import all_names, load
 
 
 def apply(name, wallpaper=None):
     theme = load(name)
+    # awww already plays an animated wallpaper; the lock and login screens and the browsers get a still.
+    wallpaper = wallpaper_still.still(wallpaper) if wallpaper else None
     # changetheme reloads Hyprland, which drops any screen shader; keep screen-fx in sync.
     (Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "screen-fx-on").unlink(missing_ok=True)
     hypr.apply(theme)
@@ -92,6 +95,7 @@ def refresh():
     obsidian.apply(theme)
     vesktop.apply(theme)
     wallpaper = current_wallpaper()
+    wallpaper = wallpaper_still.still(wallpaper) if wallpaper else None
     firefox.apply(theme, wallpaper)
     chromium.apply(theme, wallpaper)
 

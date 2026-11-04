@@ -12,7 +12,7 @@ from pathlib import Path
 
 from . import bake
 from .paths import HOME, RICE_CONF, THEMES
-from .theme import COLOR, forget_edits, load
+from .theme import COLOR, WALLPAPER_SUFFIXES, forget_edits, load
 
 USER_THEMES = RICE_CONF / "themes"
 NEEDED_FILES = ("palette.json", "hypr.lua", "style.css")
@@ -118,7 +118,7 @@ def check_theme(folder):
         raise ValueError("в palette.json нет цветов " + ", ".join(missing))
     if not palette.get("font") or not palette.get("display"):
         raise ValueError("в palette.json нет шрифтов")
-    if not any(path.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp") for path in folder.iterdir()):
+    if not any(path.suffix.lower() in WALLPAPER_SUFFIXES for path in folder.iterdir()):
         raise ValueError("в теме нет обоев")
     return palette
 

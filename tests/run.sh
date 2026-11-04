@@ -1074,6 +1074,34 @@ assert games.command_for({"kind": "steam", "target": "881100"}) == ["steam", "st
 PY
 }
 
+# An animated GIF is a wallpaper like any other; what cannot play it (lock and login screens,
+# browsers) gets its first frame from .stills/, which a copy of the theme leaves out.
+test_gif_wallpaper() {
+    user_theme_home
+    python3 - "$HOME/.config/hypr/scripts" "$HOME" <<'PY' || fail "GIF-обои не так"
+import sys
+from pathlib import Path
+from PIL import Image
+sys.path.insert(0, sys.argv[1])
+from apptheme import bake, wallpaper_still
+from apptheme.theme import load
+home = Path(sys.argv[2])
+coffee = home / ".config/hypr/themes/coffee"
+frames = [Image.new("RGB", (8, 8), color) for color in ((200, 0, 0), (0, 0, 200))]
+frames[0].save(coffee / "zz-animated.gif", save_all=True, append_images=frames[1:], duration=100, loop=0)
+
+assert coffee / "zz-animated.gif" in load("coffee").own_wallpapers
+still = Path(wallpaper_still.still(coffee / "zz-animated.gif"))
+assert still == coffee / ".stills/zz-animated.png", still
+assert Image.open(still).convert("RGB").getpixel((0, 0)) == (200, 0, 0), "кадр не первый"
+plain = next(p for p in load("coffee").own_wallpapers if p.suffix == ".png")
+assert wallpaper_still.still(plain) == str(plain)
+
+bake.copy_theme(coffee, home / "copy")
+assert (home / "copy/zz-animated.gif").exists() and not (home / "copy/.stills").exists()
+PY
+}
+
 tests=("$@")
 [ ${#tests[@]} -gt 0 ] || mapfile -t tests < <(declare -F | awk '{print $3}' | grep '^test_')
 for name in "${tests[@]}"; do
