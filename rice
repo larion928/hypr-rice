@@ -292,10 +292,31 @@ app_installed() {
 PICKED=()
 picked() { local id; for id in "${PICKED[@]}"; do [ "$id" = "$1" ] && return 0; done; return 1; }
 
-# pick_apps MODE: "install" (what to add; installed ones start ticked on an update)
+# The catalog lines pick_apps offers ("group · name=id"): to install, what is not installed yet; to
+# remove, what is.
+catalog_choices() {
+    local mode=$1 id
+    for id in "${APP_IDS[@]}"; do
+        if app_installed "$id"; then
+            [ "$mode" = remove ] || continue
+        elif [ "$mode" = remove ]; then
+            continue
+        fi
+        echo "${APP_GROUP[$id]} · ${APP_NAME[$id]}=$id"
+    done
+}
+
+installed_app_names() {
+    local id
+    for id in "${APP_IDS[@]}"; do
+        if app_installed "$id"; then echo "${APP_NAME[$id]}"; fi
+    done
+}
+
+# pick_apps MODE: "install" (what to add; the installed ones are only listed above the menu)
 #                 "remove"  (only installed programs are offered)
 pick_apps() {
-    local mode=${1:-install} id label opts=() pre=() out
+    local mode=${1:-install} id label opts=() out
     PICKED=()
     if [ "$mode" = install ] && [ -n "${RICE_APPS:-}" ]; then
         case "$RICE_APPS" in
@@ -307,24 +328,23 @@ pick_apps() {
         return
     fi
     have_tty || { info "нет терминала, программы не выбираю"; return; }
-    for id in "${APP_IDS[@]}"; do
-        label="${APP_GROUP[$id]} · ${APP_NAME[$id]}"
-        if [ "$mode" = remove ]; then
-            app_installed "$id" || continue
-        elif [ -f "$MARKER" ] && app_installed "$id"; then
-            pre+=("$label")
+    mapfile -t opts < <(catalog_choices "$mode")
+    if [ "$mode" = install ]; then
+        local installed=() joined
+        mapfile -t installed < <(installed_app_names)
+        if [ ${#installed[@]} -gt 0 ]; then
+            joined=$(printf '%s, ' "${installed[@]}")
+            info "Уже установлены: ${joined%, }"
         fi
-        opts+=("$label=$id")
-    done
+    fi
     if [ ${#opts[@]} -eq 0 ]; then
-        info "из каталога ничего не установлено"
+        if [ "$mode" = remove ]; then info "из каталога ничего не установлено"; else info "всё из каталога уже установлено"; fi
         return
     fi
     local header="Какие программы поставить?  пробел — отметить · enter — готово"
     [ "$mode" = remove ] && header="Какие программы удалить?  пробел — отметить · enter — готово"
     if fetch_gum; then
         out=$("$GUM" choose --no-limit --height 22 --label-delimiter="=" --header "$header" \
-            --selected "$(IFS=,; echo "${pre[*]}")" \
             --cursor "› " --cursor-prefix "[ ] " --selected-prefix "[✓] " --unselected-prefix "[ ] " \
             "${GUM_STYLE[@]}" "${opts[@]}" </dev/tty) || out=""
         mapfile -t PICKED <<<"$out"
@@ -1227,4 +1247,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
         -h|--help|help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' ;;
         *) die "неизвестная команда: $1 (rice help)" ;;
     esac
+    # Bash reads a script as it runs it: past this point it would read whatever the file holds now,
+    # and an update or an edit made while rice was running changes it under its feet.
+    exit
 fi

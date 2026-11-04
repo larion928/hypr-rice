@@ -163,6 +163,18 @@ test_rice_packages_marked_explicit() {
         || fail "пакеты райса не отмечены: $(grep -- -D "$HOME/calls" || echo нет вызова)"
 }
 
+# The program menu offers to install only what is not installed, and to remove only what is.
+test_catalog_choices() {
+    load_rice
+    APP_IDS=(firefox zen)
+    declare -gA APP_GROUP=([firefox]=Браузеры [zen]=Браузеры) APP_NAME=([firefox]=Firefox [zen]="Zen Browser")
+    declare -gA APP_SRC=([firefox]="firefox browser" [zen]="aur:zen-browser-bin browser")
+    pacman() { [ "$1" = -Qq ] && [ "$2" = zen-browser-bin ]; }
+    [ "$(catalog_choices install)" = "Браузеры · Firefox=firefox" ] || fail "к установке предложено: $(catalog_choices install)"
+    [ "$(catalog_choices remove)" = "Браузеры · Zen Browser=zen" ] || fail "к удалению предложено: $(catalog_choices remove)"
+    [ "$(installed_app_names)" = "Zen Browser" ] || fail "установленными названы: $(installed_app_names)"
+}
+
 # A package that does not exist is not a network problem: one try, mirrors untouched.
 test_pac_gives_up_on_non_network_error() {
     load_rice
