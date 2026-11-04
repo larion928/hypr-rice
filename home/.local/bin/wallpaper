@@ -1,0 +1,37 @@
+#!/bin/bash
+# wallpaper FILE — puts FILE on the desktop: a picture through awww; an animation (a GIF or a video)
+# as an mp4 played by mpvpaper, decoded by the GPU, looping, paused while windows or a fullscreen game
+# cover it. Under the animation awww shows its first frame: what is seen while the video loads, and
+# if mpvpaper stops. Without mpvpaper a GIF is played by awww and a video shows its first frame.
+# changetheme, the settings window and the Hyprland autostart all set wallpapers through this.
+set -u
+file=${1:?usage: wallpaper FILE}
+THEMEGEN="$HOME/.config/hypr/scripts/themegen.py"
+PLAYER=${WALLPAPER_PLAYER:-mpvpaper}  # the tests put a stand-in here, so they never start the real one
+
+case "${file,,}" in
+    *.gif|*.mp4|*.webm|*.mkv|*.mov|*.avi|*.m4v) animated=1 ;;
+    *) animated=0 ;;
+esac
+
+pkill -x "$(basename "$PLAYER")" 2>/dev/null
+if [ "$animated" = 0 ]; then
+    awww img "$file"
+    exit
+fi
+
+mapfile -t play < <(python3 "$THEMEGEN" wallpaper-play "$file")
+still=${play[0]:-}
+video=${play[1]:-}
+if ! command -v "$PLAYER" >/dev/null; then
+    case "${file,,}" in
+        *.gif) awww img "$file" ;;
+        *) [ -n "$still" ] && awww img "$still" ;;
+    esac
+    notify-send -a hypr-rice "Видеообои без mpvpaper" "Показан первый кадр. Поставить: rice repair" 2>/dev/null
+    exit
+fi
+[ -n "$still" ] && awww img "$still"
+[ -n "$video" ] || exit 1
+# The bottom layer: above awww's background, below every window and the bar.
+exec "$PLAYER" -f -p -a FULL -l bottom -o "no-audio loop hwdec=auto panscan=1.0" ALL "$video"

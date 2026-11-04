@@ -1200,6 +1200,77 @@ except ValueError:
 PY
 }
 
+# Animated wallpapers play from one format: an H.264 mp4 in yuv420p, no wider than the screen, at most
+# 30 frames a second, no sound; one already like that plays as it is.
+test_animated_wallpapers_one_format() {
+    command -v ffmpeg >/dev/null || { echo "нет ffmpeg, пропускаю"; return 0; }
+    mkdir -p "$HOME/w"
+    ffmpeg -v error -f lavfi -i testsrc2=s=1280x720:r=60:d=1 -f lavfi -i sine=d=1 -shortest -c:v libx264 -c:a aac "$HOME/w/clip.mkv"
+    ffmpeg -v error -f lavfi -i testsrc2=s=320x180:r=10:d=1 "$HOME/w/anim.gif"
+    python3 - "$REPO/home/.config/hypr/scripts" "$HOME" <<'PY' || fail "анимированные обои не в одном формате"
+import json, subprocess, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from apptheme import animated, wallpaper_still
+home = Path(sys.argv[2])
+animated.screen_width = lambda: 640
+
+def streams(video):
+    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,codec_name,pix_fmt,width,avg_frame_rate",
+                          "-of", "json", video], capture_output=True, text=True).stdout
+    return json.loads(out)["streams"]
+
+clip = animated.playable(home / "w/clip.mkv")
+assert clip == str(home / "w/.animated/clip.mp4"), clip
+[video] = streams(clip)  # one stream: the sound is gone
+assert (video["codec_name"], video["pix_fmt"], video["width"], video["avg_frame_rate"]) == ("h264", "yuv420p", 640, "30/1"), video
+assert animated.playable(clip) == clip, "подходящий mp4 переделан заново"
+gif = animated.playable(home / "w/anim.gif")
+assert streams(gif)[0]["avg_frame_rate"] == "10/1", "у GIF прибавились кадры"
+
+kept = animated.import_into(home / "w/clip.mkv", home / "added")
+assert kept == str(home / "added/clip.mp4") and animated.fits(Path(kept))
+assert animated.import_into(kept, home / "added2") == str(home / "added2/clip.mp4")
+
+still = Path(wallpaper_still.still(home / "w/clip.mkv"))
+assert still == home / "w/.stills/clip.png" and still.stat().st_size > 0
+PY
+}
+
+# ~/.local/bin/wallpaper: a picture through awww, an animation through mpvpaper over its first frame;
+# without mpvpaper a GIF plays in awww and a video shows its first frame.
+test_wallpaper_command() {
+    command -v ffmpeg >/dev/null || { echo "нет ffmpeg, пропускаю"; return 0; }
+    mkdir -p "$HOME/bin" "$HOME/.config/hypr" "$HOME/w"
+    cp -r "$REPO/home/.config/hypr/scripts" "$HOME/.config/hypr/"
+    for name in awww pkill notify-send hyprctl; do
+        printf '#!/bin/sh\necho "%s $*" >> "%s/calls"\n' "$name" "$HOME" > "$HOME/bin/$name"
+    done
+    chmod +x "$HOME/bin"/*
+    ffmpeg -v error -f lavfi -i testsrc2=s=320x180:r=10:d=1 "$HOME/w/anim.gif"
+    ffmpeg -v error -f lavfi -i testsrc2=s=320x180:r=10:d=1 -c:v libx264 -pix_fmt yuv420p "$HOME/w/clip.mp4"
+    touch "$HOME/w/pic.png"
+    run_wallpaper() {
+        : > "$HOME/calls"
+        WALLPAPER_PLAYER="$HOME/bin/player" PATH="$HOME/bin:/usr/bin" "$REPO/home/.local/bin/wallpaper" "$1"
+    }
+
+    run_wallpaper "$HOME/w/pic.png"
+    grep -qx "awww img $HOME/w/pic.png" "$HOME/calls" || fail "картинка: $(cat "$HOME/calls")"
+
+    run_wallpaper "$HOME/w/anim.gif"  # no player yet
+    grep -qx "awww img $HOME/w/anim.gif" "$HOME/calls" || fail "GIF без mpvpaper: $(cat "$HOME/calls")"
+    run_wallpaper "$HOME/w/clip.mp4"
+    grep -qx "awww img $HOME/w/.stills/clip.png" "$HOME/calls" && grep -q '^notify-send' "$HOME/calls" \
+        || fail "видео без mpvpaper: $(cat "$HOME/calls")"
+
+    printf '#!/bin/sh\necho "mpvpaper $*" >> "%s/calls"\n' "$HOME" > "$HOME/bin/player"
+    chmod +x "$HOME/bin/player"
+    run_wallpaper "$HOME/w/anim.gif"
+    grep -qx "awww img $HOME/w/.stills/anim.png" "$HOME/calls" \
+        && grep -q "^mpvpaper .* ALL $HOME/w/.animated/anim.mp4$" "$HOME/calls" || fail "GIF через mpvpaper: $(cat "$HOME/calls")"
+}
+
 tests=("$@")
 [ ${#tests[@]} -gt 0 ] || mapfile -t tests < <(declare -F | awk '{print $3}' | grep '^test_')
 for name in "${tests[@]}"; do

@@ -70,6 +70,7 @@ PATHS=(
     .local/bin/network-panel
     .local/bin/proton-run
     .local/bin/games
+    .local/bin/wallpaper
     .local/bin/rice-install-package
     .claude/statusline.sh
 )
@@ -99,6 +100,7 @@ EXCLUDES=(
     --exclude=.config/hypr/.rice-installed  # this machine's install marker
     --exclude='.config/hypr/themes/*/assets/battery-*.svg'  # themegen build draws them, in the user's colours
     --exclude='.config/hypr/themes/*/.stills'               # first frames of animated wallpapers, made by themegen
+    --exclude='.config/hypr/themes/*/.animated'             # their mp4s for mpvpaper, made by themegen
     --exclude=.config/fish/functions/neohtop-dev.fish
     --exclude=__pycache__
     --exclude='*.bak*'

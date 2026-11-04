@@ -31,7 +31,7 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("OSD_BACKLIGHT=$(ls -d /sys/class/backlight/* 2>/dev/null | head -n1) quickshell -d -p ~/.config/quickshell/osd")
     hl.exec_cmd("awww-daemon")
     -- The theme's wallpaper as written by changetheme (also covers a theme set offline).
-    hl.exec_cmd("sleep 1; [ -f ~/.config/hypr/current-wallpaper ] && awww img \"$(cat ~/.config/hypr/current-wallpaper)\"")
+    hl.exec_cmd("sleep 1; [ -f ~/.config/hypr/current-wallpaper ] && ~/.local/bin/wallpaper \"$(cat ~/.config/hypr/current-wallpaper)\"")
 end)
 
 hl.on("hyprland.shutdown", function()

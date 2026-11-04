@@ -6,6 +6,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .animated import ANIMATED_SUFFIXES
 from .paths import RICE_CONF, THEMES
 
 # What the user changed per theme in the settings window (Alt+F2, «Тема»); the user's own file, not
@@ -21,7 +22,8 @@ from .paths import RICE_CONF, THEMES
 # "everywhere" holds what was saved for all themes; a theme's own edit wins over it. An empty font or
 # a missing key keeps the theme's own.
 EDITS = RICE_CONF / "theme-edits.json"
-WALLPAPER_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp", ".gif")  # a GIF plays on the desktop
+# Pictures, and animations (GIF, video) that ~/.local/bin/wallpaper plays on the desktop.
+WALLPAPER_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp", *ANIMATED_SUFFIXES)
 COLOR = re.compile(r"#[0-9a-fA-F]{6}")
 BATTERY_ANIMATION = ("batteryAnim", "batteryStep")  # ui.json keys that go with a battery drawing
 

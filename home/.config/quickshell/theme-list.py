@@ -13,7 +13,7 @@ from PIL import Image
 
 # themegen's loader, so each theme comes with the user's edits.
 sys.path.insert(0, str(Path.home() / ".config/hypr/scripts"))
-from apptheme import waybar, windows
+from apptheme import wallpaper_still, waybar, windows
 from apptheme.theme import all_names, load
 from apptheme.user_themes import is_user_theme
 
@@ -25,7 +25,7 @@ def thumbnail(wallpaper):
     """A small copy of the wallpaper for the cards, cached under a name made from its path."""
     thumb = THUMBS / (hashlib.sha1(str(wallpaper).encode()).hexdigest()[:16] + ".jpg")
     if not thumb.exists() or thumb.stat().st_mtime < wallpaper.stat().st_mtime:
-        image = Image.open(wallpaper).convert("RGB")
+        image = Image.open(wallpaper_still.still(wallpaper)).convert("RGB")
         image.thumbnail((640, 360))
         image.save(thumb, quality=88)
     return str(thumb)

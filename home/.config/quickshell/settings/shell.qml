@@ -575,9 +575,13 @@ ShellRoot {
         function pickWallpaper() {
             root.picking = true;
             wallpaperPicker.command = ["sh", "-c",
-                'f=$(zenity --file-selection --title="Обои для темы" --file-filter="Картинки и GIF | *.png *.jpg *.jpeg *.webp *.gif") '
-                + '&& mkdir -p "$1" && cp "$f" "$1/" && printf "%s" "$1/$(basename "$f")"',
-                "sh", themeEdit.wallpaperDir + "/" + themeEdit.editing.name];
+                // A picture is copied as it is; an animation is kept as the mp4 it plays from.
+                'f=$(zenity --file-selection --title="Обои для темы" '
+                + '--file-filter="Картинки, GIF и видео | *.png *.jpg *.jpeg *.webp *.gif *.mp4 *.webm *.mkv *.mov *.avi *.m4v") '
+                + '&& mkdir -p "$1" && case "$(printf %s "$f" | tr A-Z a-z)" in '
+                + '*.gif|*.mp4|*.webm|*.mkv|*.mov|*.avi|*.m4v) python3 "$2" wallpaper-import "$f" "$1" | tr -d "\n" ;; '
+                + '*) cp "$f" "$1/" && printf "%s" "$1/$(basename "$f")" ;; esac',
+                "sh", themeEdit.wallpaperDir + "/" + themeEdit.editing.name, root.home + "/.config/hypr/scripts/themegen.py"];
             wallpaperPicker.running = true;
         }
         // The current theme only: the edits are saved (a just-added wallpaper has to be in the list
@@ -585,7 +589,7 @@ ShellRoot {
         // lock screen, login screen and browsers get it too.
         function showWallpaper(path) {
             themeEdit.write("printf '%s\\n' " + root.quote(path) + " > " + root.quote(root.home + "/.config/hypr/current-wallpaper")
-                            + " && awww img " + root.quote(path)
+                            + " && " + root.quote(root.home + "/.local/bin/wallpaper") + " " + root.quote(path)
                             + " && changetheme --keep-wallpaper " + themeEdit.editing.name);
         }
 
@@ -3322,6 +3326,21 @@ ShellRoot {
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
                         opacity: wallTile.modelData.on ? 1 : 0.3
+                    }
+                    // A GIF or a video plays on the desktop (a new one shows its picture once the theme is saved).
+                    Rectangle {
+                        visible: /\.(gif|mp4|webm|mkv|mov|avi|m4v)$/i.test(wallTile.modelData.path)
+                        anchors { left: parent.left; top: parent.top; margins: 8 }
+                        width: animatedText.implicitWidth + 14; height: 22
+                        radius: 6
+                        color: Color.withAlpha(theme.c.bg, 0.85)
+                        Text {
+                            id: animatedText
+                            anchors.centerIn: parent
+                            text: "\u{f040a} анимация"
+                            font.family: theme.bodyFont; font.pixelSize: 12
+                            color: theme.c.accent || "white"
+                        }
                     }
                     Text {
                         visible: !wallTile.modelData.on

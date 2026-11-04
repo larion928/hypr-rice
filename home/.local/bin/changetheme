@@ -24,7 +24,8 @@ changetheme — переключение темы Hyprland-окружения
 
 ЧТО ДЕЛАЕТ (по шагам)
   1. Обои     — берёт случайную картинку (*.png/jpg/jpeg/webp/gif) из
-                ~/.config/hypr/themes/<тема>/ и ставит через awww
+                ~/.config/hypr/themes/<тема>/ и ставит через ~/.local/bin/wallpaper
+                (картинки — awww, GIF и видео — mpvpaper)
   2. Палитра  — themegen.py apply берёт themes/<тема>/palette.json и пишет:
                   ~/.config/hypr/palette.lua, palette.json, current-theme
                   ~/.config/hypr-rice/waybar/wallust-colors.css, ~/.config/histui/colors.css
@@ -50,7 +51,8 @@ changetheme — переключение темы Hyprland-окружения
                 --theme <тема> в histuid.service и рестартует демон
 
 СТРУКТУРА ПАПКИ ТЕМЫ (~/.config/hypr/themes/<имя>/)
-  *.png/jpg/jpeg/webp   обои (можно несколько — выбор случайный); *.gif — анимированные,
+  *.png/jpg/jpeg/webp   обои (можно несколько — выбор случайный); *.gif, *.mp4, *.webm,
+                        *.mkv, *.mov — анимированные (играются из mp4, см. ~/.local/bin/wallpaper),
                         экраны блокировки и входа берут их первый кадр
   assets/               иконки и прочие картинки темы, в выбор обоев не попадают
   hypr.lua              hl.config{general, decoration} — только структура,
@@ -72,6 +74,7 @@ changetheme — переключение темы Hyprland-окружения
 
 ЗАВИСИМОСТИ
   awww       — демон обоев (обязателен)
+  mpvpaper   — анимированные обои (GIF и видео); без него виден первый кадр
   systemctl --user — управляет histuid.service
 
 ФАЙЛ
@@ -132,7 +135,7 @@ else
     echo "Устанавливаю обои: $SELECTED_WALL"
     # Restored by the autostart in hyprland.lua, so a theme set offline gets its wallpaper too.
     echo "$SELECTED_WALL" > "$HOME/.config/hypr/current-wallpaper"
-    [ "$OFFLINE" = 1 ] || awww img "$SELECTED_WALL"
+    [ "$OFFLINE" = 1 ] || "$HOME/.local/bin/wallpaper" "$SELECTED_WALL"
 fi
 
 # --- 2. Палитра и конфиги приложений из themes/<тема>/palette.json ---

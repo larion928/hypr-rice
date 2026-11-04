@@ -3,3 +3,4 @@ histui-bin
 sddm-sugar-candy-git
 papirus-folders
 graphite-gtk-theme
+mpvpaper  # animated wallpapers (GIF, video): ~/.local/bin/wallpaper plays them

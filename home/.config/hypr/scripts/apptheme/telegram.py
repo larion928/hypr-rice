@@ -5,6 +5,7 @@ import zipfile
 
 from PIL import Image, ImageEnhance, ImageFilter
 
+from . import wallpaper_still
 from .colors import mix
 from .files import GENERATED
 from .paths import HOME
@@ -108,7 +109,7 @@ def chat_background(theme):
     """The theme's first wallpaper, blurred and darkened, as JPEG bytes; None without wallpapers."""
     if not theme.wallpapers:
         return None
-    image = Image.open(theme.wallpapers[0]).convert("RGB")
+    image = Image.open(wallpaper_still.still(theme.wallpapers[0])).convert("RGB")
     image.thumbnail((1920, 1080))
     image = ImageEnhance.Brightness(image.filter(ImageFilter.GaussianBlur(14))).enhance(0.45)
     buffer = io.BytesIO()
