@@ -408,7 +408,8 @@ ShellRoot {
         readonly property string path: root.home + "/.config/hypr-rice/theme-edits.json"
         readonly property string wallpaperDir: root.home + "/.local/share/hypr-rice/wallpapers"
         readonly property var sections: [["fonts", "Шрифты"], ["colors", "Цвета"], ["wallpapers", "Обои"],
-                                         ["waybar", "Панель"], ["icons", "Значки"], ["windows", "Окна"]]
+                                         ["waybar", "Панель"], ["icons", "Значки"], ["cursor", "Курсор"],
+                                         ["windows", "Окна"]]
         // The window settings the «Окна» section offers: key, what it is, range, step, and how it reads.
         readonly property var windowSettings: [
             ["gaps_in", "Отступ между окнами", 0, 30, 1, "px"], ["gaps_out", "Отступ от краёв экрана", 0, 40, 1, "px"],
@@ -456,6 +457,10 @@ ShellRoot {
         property string iconQuery: ""
         // Installed icon themes with sample icons, and the ones to install (themegen.py icon-themes).
         property var iconThemes: ({ installed: [], downloadable: [] })
+        // Installed cursor themes with pictures of a few cursors, and the ones to install (themegen.py cursor-themes).
+        property var cursorThemes: ({ installed: [], downloadable: [] })
+        readonly property string defaultCursor: "WhiteCat"  // what the rice ships
+        readonly property var cursorSizes: [24, 32, 40, 48]
         // What each module shows on this machine now (themegen.py bar-preview): {module: {text, state, note}};
         // state is shown, sometimes or missing. Asked for when the «Панель» section opens; until it comes,
         // the modules show samples.
@@ -472,6 +477,7 @@ ShellRoot {
         onSectionChanged: {
             themeEdit.askLive();
             if (themeEdit.section === "icons" && !themeEdit.iconThemes.installed.length) iconThemesProc.running = true;
+            if (themeEdit.section === "cursor" && !themeEdit.cursorThemes.installed.length) cursorThemesProc.running = true;
         }
         function askLive() {
             if (themeEdit.section !== "waybar" || !themeEdit.editing || themeEdit.liveFor === themeEdit.editing.name) return;
@@ -502,6 +508,7 @@ ShellRoot {
                                waybar: mine.waybar ? JSON.parse(JSON.stringify(mine.waybar)) : null,
                                icons: Object.assign({}, mine.icons || {}),
                                folders: mine.folders || "", iconTheme: mine.iconTheme || "", battery: mine.battery || "",
+                               cursor: mine.cursor || "", cursorSize: mine.cursorSize || 0,
                                windows: Object.assign({}, mine.windows || {}) };
             themeEdit.saved = JSON.stringify(themeEdit.edit);
             themeEdit.section = "fonts";
@@ -635,6 +642,26 @@ ShellRoot {
         function iconThemeNow() {
             return themeEdit.edit.iconTheme || themeEdit.themesIconTheme();
         }
+        // ---- cursor: a pick here, or the theme's own (written into its ui.json, or the rice's)
+        function themesCursor() {
+            return (themeEdit.editing && themeEdit.editing.ui.cursor) || themeEdit.defaultCursor;
+        }
+        function themesCursorSize() {
+            return (themeEdit.editing && themeEdit.editing.ui.cursorSize) || 24;
+        }
+        function cursorNow() {
+            return themeEdit.edit.cursor || themeEdit.themesCursor();
+        }
+        function cursorSizeNow() {
+            return themeEdit.edit.cursorSize || themeEdit.themesCursorSize();
+        }
+        // The theme's own takes the pick away: «как в теме» is the absence of one.
+        function pickCursor(name) {
+            themeEdit.change("cursor", name === themeEdit.themesCursor() ? "" : name);
+        }
+        function pickCursorSize(pixels) {
+            themeEdit.change("cursorSize", pixels === themeEdit.themesCursorSize() ? 0 : pixels);
+        }
         // ---- installing an icon theme: the window asks for the sudo password; the install itself runs
         // in the background (rice-install-package), so this window may close. Its log is shown here.
         property var installing: null      // {package, title, source} whose install the dialog shows
@@ -679,6 +706,7 @@ ShellRoot {
                 themeEdit.installState = done[1] === "0" ? "done" : "failed";
                 themeEdit.installMessage = done[1] === "0" ? "Установлено. Тема появилась в списке." : "Не установилось, подробности выше.";
                 iconThemesProc.running = true;
+                cursorThemesProc.running = true;
             }
         }
         function askIcons() {
@@ -717,6 +745,7 @@ ShellRoot {
             if (themeEdit.section === "waybar") return themeEdit.edit.waybar !== null || Object.keys(themeEdit.edit.icons).length > 0;
             if (themeEdit.section === "colors") return Object.keys(themeEdit.edit.colors).length > 0 || !!themeEdit.edit.folders;
             if (themeEdit.section === "icons") return !!themeEdit.edit.iconTheme || !!themeEdit.edit.battery;
+            if (themeEdit.section === "cursor") return !!themeEdit.edit.cursor || !!themeEdit.edit.cursorSize;
             if (themeEdit.section === "windows") return Object.keys(themeEdit.edit.windows).length > 0;
             return Object.values(part).some(value => !!value);
         }
@@ -730,6 +759,10 @@ ShellRoot {
             if (themeEdit.section === "icons") {
                 themeEdit.change("iconTheme", "");
                 themeEdit.change("battery", "");
+            }
+            if (themeEdit.section === "cursor") {
+                themeEdit.change("cursor", "");
+                themeEdit.change("cursorSize", 0);
             }
         }
 
@@ -782,7 +815,7 @@ ShellRoot {
             if (Object.keys(walls).length) out.wallpapers = walls;
             if (edit.waybar) out.waybar = edit.waybar;
             if (Object.keys(edit.icons).length) out.icons = edit.icons;
-            for (const key of ["folders", "iconTheme", "battery"])
+            for (const key of ["folders", "iconTheme", "battery", "cursor", "cursorSize"])
                 if (edit[key]) out[key] = edit[key];
             if (Object.keys(edit.windows).length) out.windows = edit.windows;
             return out;
@@ -838,6 +871,15 @@ ShellRoot {
         onLoaded: themeEdit.readInstallLog(text())
     }
     Process {
+        id: cursorThemesProc
+        command: ["python3", root.home + "/.config/hypr/scripts/themegen.py", "cursor-themes"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try { themeEdit.cursorThemes = JSON.parse(this.text); } catch (e) {}
+            }
+        }
+    }
+    Process {
         id: iconsProc
         command: ["python3", root.home + "/.config/hypr/scripts/themegen.py", "icons"]
         stdout: StdioCollector {
@@ -866,6 +908,10 @@ ShellRoot {
         property string done: ""       // where the export went
         property string openAfter: ""  // the theme to open once the list is read again
         property string picking: ""    // "import" or "export": what the file dialog is for
+        property var removed: []       // the rice's themes the user removed: [{name, label}]
+        property int themePage: 0      // the tab of the theme list shown
+        readonly property int perPage: 8
+        readonly property int pages: Math.max(1, Math.ceil(root.themes.length / ownThemes.perPage))
 
         function ask(kind, entry) {
             ownThemes.subject = entry;
@@ -875,6 +921,9 @@ ShellRoot {
         }
         function create(label) {
             if (label.trim()) ownThemes.run("Создаю тему…", ["new", label.trim(), "--from", ownThemes.subject.name]);
+        }
+        function restore(name) {
+            ownThemes.run("Возвращаю тему…", ["restore", name]);
         }
         function remove() {
             if (themeEdit.editing && themeEdit.editing.name === ownThemes.subject.name) themeEdit.editing = null;
@@ -916,20 +965,38 @@ ShellRoot {
                 return;
             }
             ownThemes.dialog = "";
-            ownThemes.openAfter = manageProc.args[0] === "delete" ? "" : lines[0];
+            const command = manageProc.args[0];
+            // new and import print the theme's name first; restore brings back the one it was given.
+            ownThemes.openAfter = command === "new" || command === "import" ? lines[0]
+                                  : command === "restore" ? manageProc.args[1] : "";
             themeListProc.running = true;
         }
         function listRead() {
             themeListFile.reload();
             try { root.themes = JSON.parse(themeListFile.text()); } catch (e) {}
-            const made = root.themes.find(t => t.name === ownThemes.openAfter);
-            if (made) themeEdit.open(made);
+            removedProc.running = true;
+            const made = root.themes.findIndex(t => t.name === ownThemes.openAfter);
+            if (made >= 0) {
+                ownThemes.themePage = Math.floor(made / ownThemes.perPage);
+                themeEdit.open(root.themes[made]);
+            }
+            ownThemes.themePage = Math.min(ownThemes.themePage, ownThemes.pages - 1);
         }
     }
     Process {
         id: manageProc
         property var args: []
         stdout: StdioCollector { onStreamFinished: ownThemes.finished(this.text) }
+    }
+    Process {
+        id: removedProc
+        command: ["python3", root.home + "/.config/hypr/scripts/themegen.py", "removed-themes"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try { ownThemes.removed = JSON.parse(this.text); } catch (e) { ownThemes.removed = []; }
+            }
+        }
     }
     Process {
         id: themeListProc
@@ -1359,12 +1426,39 @@ ShellRoot {
                     }
 
                     // ---------------- Тема ----------------
+                    // What adds or brings back themes, and the tabs of the list: 8 themes to a tab.
+                    Row {
+                        id: themeTools
+                        visible: root.page === "theme"
+                        spacing: 10
+                        Chip { text: "Новая из текущей"; onClicked: ownThemes.ask("new", root.themes.find(t => t.current) || root.themes[0]) }
+                        Chip { text: "Из файла…"; onClicked: ownThemes.ask("import", null) }
+                        Chip {
+                            visible: ownThemes.removed.length > 0
+                            text: "Вернуть удалённые (" + ownThemes.removed.length + ")"
+                            onClicked: ownThemes.ask("restore", null)
+                        }
+                    }
+                    Row {
+                        anchors { right: parent.right; verticalCenter: themeTools.verticalCenter }
+                        visible: root.page === "theme" && ownThemes.pages > 1
+                        spacing: 8
+                        Repeater {
+                            model: ownThemes.pages
+                            TabButton {
+                                required property int index
+                                text: String(index + 1)
+                                active: ownThemes.themePage === index
+                                onClicked: ownThemes.themePage = index
+                            }
+                        }
+                    }
                     Flow {
-                        anchors.fill: parent
+                        anchors { left: parent.left; right: parent.right; top: themeTools.bottom; bottom: parent.bottom; topMargin: 16 }
                         visible: root.page === "theme"
                         spacing: 16
                         Repeater {
-                            model: root.themes
+                            model: root.themes.slice(ownThemes.themePage * ownThemes.perPage, (ownThemes.themePage + 1) * ownThemes.perPage)
                             Rectangle {
                                 id: tcard
                                 required property var modelData
@@ -1415,33 +1509,6 @@ ShellRoot {
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     onClicked: themeEdit.open(tcard.modelData)
-                                }
-                            }
-                        }
-                        // A theme of the user's own: a copy of the current one, or one from a file.
-                        Rectangle {
-                            width: 280; height: 230
-                            radius: Math.min(root.r, 14)
-                            color: "transparent"
-                            border.color: Color.withAlpha(theme.c.muted, 0.5)
-                            Column {
-                                anchors.centerIn: parent
-                                spacing: 12
-                                Text {
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    text: "Своя тема"
-                                    font.family: theme.titleFont; font.pixelSize: 22
-                                    color: theme.c.fg || "white"
-                                }
-                                Chip {
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    text: "Новая из текущей"
-                                    onClicked: ownThemes.ask("new", root.themes.find(t => t.current) || root.themes[0])
-                                }
-                                Chip {
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    text: "Из файла…"
-                                    onClicked: ownThemes.ask("import", null)
                                 }
                             }
                         }
@@ -1544,7 +1611,7 @@ ShellRoot {
             Chip { text: "Копия…"; enabled: themeEdit.editing !== null; onClicked: ownThemes.ask("new", themeEdit.editing) }
             Chip { text: "Экспорт…"; enabled: themeEdit.editing !== null; onClicked: ownThemes.ask("export", themeEdit.editing) }
             Chip {
-                visible: themeEdit.editing !== null && themeEdit.editing.user && !themeEdit.editing.current
+                visible: themeEdit.editing !== null && !themeEdit.editing.current
                 text: "Удалить"
                 onClicked: ownThemes.ask("delete", themeEdit.editing)
             }
@@ -1582,6 +1649,198 @@ ShellRoot {
             PanelSection { anchors.fill: parent; visible: themeEdit.section === "waybar" }
             IconsSection { anchors.fill: parent; visible: themeEdit.section === "icons" }
             WindowsSection { anchors.fill: parent; visible: themeEdit.section === "windows" }
+            CursorSection { anchors.fill: parent; visible: themeEdit.section === "cursor" }
+            InstallDialog { anchors.fill: parent; z: 30; visible: themeEdit.installing !== null }
+        }
+    }
+
+    // Cursor themes (installed ones with a few cursors drawn, missing ones to install) and the size.
+    component CursorSection: Item {
+        SectionTitle {
+            id: cursorTitle
+            text: "Курсор"
+        }
+        Text {
+            anchors { left: cursorTitle.right; leftMargin: 12; verticalCenter: cursorTitle.verticalCenter }
+            text: themeEdit.editing && !themeEdit.edit.cursor ? "как в теме: " + themeEdit.themesCursor() : ""
+            font.family: theme.bodyFont; font.pixelSize: 13
+            color: theme.c.muted || "grey"
+        }
+        Row {
+            id: cursorSizeRow
+            anchors { right: parent.right; verticalCenter: cursorTitle.verticalCenter }
+            spacing: 8
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Размер"
+                font.family: theme.bodyFont; font.pixelSize: 14
+                color: theme.c.fg || "white"
+            }
+            Repeater {
+                model: themeEdit.cursorSizes
+                Chip {
+                    required property int modelData
+                    text: modelData + " px"
+                    active: themeEdit.editing !== null && themeEdit.cursorSizeNow() === modelData
+                    onClicked: themeEdit.pickCursorSize(modelData)
+                }
+            }
+        }
+        ListView {
+            id: cursorList
+            anchors { left: parent.left; right: parent.right; top: cursorTitle.bottom; bottom: parent.bottom; topMargin: 14 }
+            clip: true
+            spacing: 4
+            boundsBehavior: Flickable.StopAtBounds
+            model: themeEdit.cursorThemes.installed.concat(themeEdit.cursorThemes.downloadable.filter(item => !item.installed))
+            delegate: Rectangle {
+                id: cursorRow
+                required property var modelData
+                readonly property bool installed: modelData.name !== undefined
+                readonly property bool chosen: installed && themeEdit.cursorNow() === modelData.name
+                width: ListView.view.width; height: 60
+                radius: root.r > 4 ? 8 : 0
+                color: chosen ? Color.withAlpha(theme.c.accent, 0.2) : (cursorHover.containsMouse ? Color.withAlpha(theme.c.accent, 0.08) : Color.withAlpha(theme.c.bg2, 0.9))
+                border.color: chosen ? (theme.c.accent || "white") : "transparent"
+                MouseArea {
+                    id: cursorHover
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    enabled: cursorRow.installed
+                    onClicked: themeEdit.pickCursor(cursorRow.modelData.name)
+                }
+                Text {
+                    id: cursorName
+                    x: 14; anchors.verticalCenter: parent.verticalCenter
+                    width: 220
+                    elide: Text.ElideRight
+                    text: cursorRow.installed ? cursorRow.modelData.label : cursorRow.modelData.title
+                    font.family: theme.bodyFont; font.pixelSize: 15
+                    color: theme.c.fg || "white"
+                }
+                Row {
+                    visible: cursorRow.installed
+                    anchors { left: cursorName.right; leftMargin: 10; verticalCenter: parent.verticalCenter }
+                    spacing: 14
+                    Repeater {
+                        model: cursorRow.installed ? cursorRow.modelData.previews : []
+                        Image {
+                            required property string modelData
+                            width: 40; height: 40
+                            source: "file://" + modelData
+                            asynchronous: true
+                        }
+                    }
+                }
+                Text {
+                    visible: !cursorRow.installed
+                    anchors { left: cursorName.right; leftMargin: 10; verticalCenter: parent.verticalCenter }
+                    text: (cursorRow.modelData.source === "aur" ? "из AUR" : "из репозитория") + " · не установлен"
+                    font.family: theme.bodyFont; font.pixelSize: 13
+                    color: theme.c.muted || "grey"
+                }
+                Chip {
+                    visible: !cursorRow.installed
+                    anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                    text: "Установить"
+                    enabled: !installProc.running
+                    onClicked: themeEdit.askInstall(cursorRow.modelData)
+                }
+            }
+        }
+        Text {
+            visible: !themeEdit.cursorThemes.installed.length
+            anchors { left: cursorList.left; top: cursorList.top }
+            text: "читаю курсоры…"
+            font.family: theme.bodyFont; font.pixelSize: 13
+            color: theme.c.muted || "grey"
+        }
+    }
+
+    // Installing an icon or cursor theme: the password, then the installer's output.
+    component InstallDialog: Rectangle {
+        color: Color.withAlpha(theme.c.bg, 0.92)
+        MouseArea { anchors.fill: parent }
+        Rectangle {
+            anchors.centerIn: parent
+            width: Math.min(parent.width - 40, 720); height: installColumn.implicitHeight + 48
+            radius: root.r
+            color: theme.c.bg2 || "black"
+            border.color: theme.c.accent || "white"
+            Column {
+                id: installColumn
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
+                spacing: 12
+                SectionTitle {
+                    text: themeEdit.installing ? "Установка «" + themeEdit.installing.title + "»" : ""
+                }
+                Text {
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    text: !themeEdit.installing ? ""
+                          : (themeEdit.installing.source === "aur" ? "Из AUR: пакет соберётся на этой машине, это может занять пару минут. "
+                                                                   : "Из репозитория Arch. ")
+                            + "Нужен пароль администратора (sudo): он передаётся установщику напрямую и нигде не сохраняется."
+                    font.family: theme.bodyFont; font.pixelSize: 14
+                    color: theme.c.fg || "white"
+                }
+                Row {
+                    visible: themeEdit.installState === "ask"
+                    spacing: 10
+                    Field {
+                        id: passwordField
+                        width: 300
+                        echoMode: TextInput.Password
+                        placeholder: "пароль sudo"
+                        onAccepted: if (text) { themeEdit.startInstall(text); text = ""; }
+                    }
+                    Chip {
+                        text: "Установить"
+                        primary: true
+                        enabled: passwordField.text !== ""
+                        onClicked: { themeEdit.startInstall(passwordField.text); passwordField.text = ""; }
+                    }
+                    Chip { text: "Отмена"; onClicked: themeEdit.installing = null }
+                }
+                Rectangle {
+                    visible: themeEdit.installState === "running" || themeEdit.installState === "done" || themeEdit.installState === "failed"
+                    width: parent.width; height: 260
+                    radius: 8
+                    color: theme.c.bg || "black"
+                    Text {
+                        anchors { fill: parent; margins: 12 }
+                        text: themeEdit.installLog.join("\n")
+                        font.family: theme.font; font.pixelSize: 12
+                        color: theme.c.muted || "grey"
+                        wrapMode: Text.WrapAnywhere
+                        clip: true
+                        verticalAlignment: Text.AlignBottom
+                    }
+                }
+                Text {
+                    visible: themeEdit.installMessage !== ""
+                    text: themeEdit.installMessage
+                    font.family: theme.bodyFont; font.pixelSize: 14; font.bold: true
+                    color: themeEdit.installState === "done" ? (theme.c.good || "green")
+                           : themeEdit.installState === "running" ? (theme.c.accent || "white") : (theme.c.crit || "red")
+                }
+                Text {
+                    visible: themeEdit.installState === "checking"
+                    text: "Проверяю пароль…"
+                    font.family: theme.bodyFont; font.pixelSize: 14
+                    color: theme.c.accent || "white"
+                }
+                Chip {
+                    visible: themeEdit.installState === "running"
+                    text: "Скрыть (установка продолжится)"
+                    onClicked: themeEdit.installing = null
+                }
+                Chip {
+                    visible: themeEdit.installState === "done" || themeEdit.installState === "failed"
+                    text: "Закрыть"
+                    onClicked: themeEdit.installing = null
+                }
+            }
         }
     }
 
@@ -1597,7 +1856,10 @@ ShellRoot {
             "new": ["Новая тема", "Копия темы «" + label + "» со всеми её правками из этого окна. Дальше настраивай её здесь же; обновления райса её не трогают." + unsaved, "Создать"],
             "import": ["Тема из файла", "Архив .zip, сохранённый кнопкой «Экспорт…». В теме есть и программы (hypr.lua, battery.py, screenshot.qml): добавляй темы только от тех, кому доверяешь.", "Выбрать файл…"],
             "export": ["Экспорт темы", "Тема «" + label + "» со всеми правками в одном архиве .zip. Друг добавит её кнопкой «Из файла…» в списке тем." + unsaved, "Сохранить как…"],
-            "delete": ["Удалить тему", "Тема «" + label + "» и её правки удалятся насовсем.", "Удалить"]
+            "delete": ["Удалить тему", ownThemes.subject && ownThemes.subject.user
+                       ? "Тема «" + label + "» и её правки удалятся насовсем."
+                       : "Тема «" + label + "» уйдёт из списка, обновления райса её не вернут. Вернуть её можно кнопкой «Вернуть удалённые» над списком тем, вместе с твоими правками.", "Удалить"],
+            "restore": ["Вернуть удалённые темы", "Темы райса, которые ты удалил: нажми на тему, и она вернётся из копии райса на этом компьютере вместе с твоими правками.", ""]
         })
         readonly property var wording: texts[ownThemes.dialog] || ["", "", ""]
         function act() {
@@ -1631,6 +1893,20 @@ ShellRoot {
                     font.family: theme.bodyFont; font.pixelSize: 14
                     color: theme.c.fg || "white"
                 }
+                Flow {
+                    visible: ownThemes.dialog === "restore"
+                    width: parent.width
+                    spacing: 8
+                    Repeater {
+                        model: ownThemes.removed
+                        Chip {
+                            required property var modelData
+                            text: modelData.label
+                            enabled: !ownThemes.busy
+                            onClicked: ownThemes.restore(modelData.name)
+                        }
+                    }
+                }
                 Field {
                     id: nameField
                     visible: ownThemes.dialog === "new"
@@ -1651,7 +1927,7 @@ ShellRoot {
                     spacing: 10
                     Chip { text: ownThemes.done ? "Закрыть" : "Отмена"; enabled: !ownThemes.busy; onClicked: ownThemes.dialog = "" }
                     Chip {
-                        visible: !ownThemes.done
+                        visible: !ownThemes.done && ownDialog.wording[2] !== ""
                         primary: true
                         enabled: !ownThemes.busy && (ownThemes.dialog !== "new" || nameField.text.trim() !== "")
                         text: ownDialog.wording[2]
@@ -2505,96 +2781,6 @@ ShellRoot {
             text: "читаю темы значков…"
             font.family: theme.bodyFont; font.pixelSize: 13
             color: theme.c.muted || "grey"
-        }
-
-        // Installing an icon theme: the password, then the installer's output.
-        Rectangle {
-            visible: themeEdit.installing !== null
-            anchors.fill: parent
-            z: 30
-            color: Color.withAlpha(theme.c.bg, 0.92)
-            MouseArea { anchors.fill: parent }
-            Rectangle {
-                anchors.centerIn: parent
-                width: Math.min(parent.width - 40, 720); height: installColumn.implicitHeight + 48
-                radius: root.r
-                color: theme.c.bg2 || "black"
-                border.color: theme.c.accent || "white"
-                Column {
-                    id: installColumn
-                    anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
-                    spacing: 12
-                    SectionTitle {
-                        text: themeEdit.installing ? "Установка «" + themeEdit.installing.title + "»" : ""
-                    }
-                    Text {
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: !themeEdit.installing ? ""
-                              : (themeEdit.installing.source === "aur" ? "Из AUR: пакет соберётся на этой машине, это может занять пару минут. "
-                                                                       : "Из репозитория Arch. ")
-                                + "Нужен пароль администратора (sudo): он передаётся установщику напрямую и нигде не сохраняется."
-                        font.family: theme.bodyFont; font.pixelSize: 14
-                        color: theme.c.fg || "white"
-                    }
-                    Row {
-                        visible: themeEdit.installState === "ask"
-                        spacing: 10
-                        Field {
-                            id: passwordField
-                            width: 300
-                            echoMode: TextInput.Password
-                            placeholder: "пароль sudo"
-                            onAccepted: if (text) { themeEdit.startInstall(text); text = ""; }
-                        }
-                        Chip {
-                            text: "Установить"
-                            primary: true
-                            enabled: passwordField.text !== ""
-                            onClicked: { themeEdit.startInstall(passwordField.text); passwordField.text = ""; }
-                        }
-                        Chip { text: "Отмена"; onClicked: themeEdit.installing = null }
-                    }
-                    Rectangle {
-                        visible: themeEdit.installState === "running" || themeEdit.installState === "done" || themeEdit.installState === "failed"
-                        width: parent.width; height: 260
-                        radius: 8
-                        color: theme.c.bg || "black"
-                        Text {
-                            anchors { fill: parent; margins: 12 }
-                            text: themeEdit.installLog.join("\n")
-                            font.family: theme.font; font.pixelSize: 12
-                            color: theme.c.muted || "grey"
-                            wrapMode: Text.WrapAnywhere
-                            clip: true
-                            verticalAlignment: Text.AlignBottom
-                        }
-                    }
-                    Text {
-                        visible: themeEdit.installMessage !== ""
-                        text: themeEdit.installMessage
-                        font.family: theme.bodyFont; font.pixelSize: 14; font.bold: true
-                        color: themeEdit.installState === "done" ? (theme.c.good || "green")
-                               : themeEdit.installState === "running" ? (theme.c.accent || "white") : (theme.c.crit || "red")
-                    }
-                    Text {
-                        visible: themeEdit.installState === "checking"
-                        text: "Проверяю пароль…"
-                        font.family: theme.bodyFont; font.pixelSize: 14
-                        color: theme.c.accent || "white"
-                    }
-                    Chip {
-                        visible: themeEdit.installState === "running"
-                        text: "Скрыть (установка продолжится)"
-                        onClicked: themeEdit.installing = null
-                    }
-                    Chip {
-                        visible: themeEdit.installState === "done" || themeEdit.installState === "failed"
-                        text: "Закрыть"
-                        onClicked: themeEdit.installing = null
-                    }
-                }
-            }
         }
 
         SectionTitle {

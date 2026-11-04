@@ -114,9 +114,19 @@ for p in "${PATHS[@]}"; do
 done
 [ ${#missing[@]} -eq 0 ] || printf 'нет на этой машине, пропускаю: %s\n' "${missing[@]}"
 
+# Themes removed on this machine (~/.config/hypr-rice/removed-themes) stay in the rice for everyone else.
+kept=$(mktemp -d)
+while IFS= read -r theme; do
+    if [ -n "$theme" ] && [ -d "$DST/.config/hypr/themes/$theme" ]; then
+        mv "$DST/.config/hypr/themes/$theme" "$kept/"
+    fi
+done < <(cat "$HOME/.config/hypr-rice/removed-themes" 2>/dev/null)
+
 rm -rf "$DST"
 mkdir -p "$DST"
 tar -cf - "${EXCLUDES[@]}" "${present[@]}" | tar -C "$DST" -xf -
+find "$kept" -mindepth 1 -maxdepth 1 -exec mv -t "$DST/.config/hypr/themes/" {} +
+rmdir "$kept"
 
 # Absolute paths (waybar CSS needs file:// URLs) become a placeholder the installer fills in.
 grep -rIl --null "$HOME" "$DST" | xargs -0 -r sed -i "s|$HOME|__HOME__|g"

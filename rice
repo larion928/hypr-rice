@@ -707,6 +707,13 @@ copy_rice_files() {  # copies home/ to ~, backing up what is replaced; MODE, DO_
         keep_theirs "$f" && excl+=(--exclude="./$f")
     done
     for j in "${merged[@]}"; do excl+=(--exclude="./$j"); done
+    # Themes the user removed (Alt+F2 → Тема) stay removed until they bring them back there.
+    local theme
+    while IFS= read -r theme; do
+        if [ -n "$theme" ]; then
+            excl+=(--exclude="./.config/hypr/themes/$theme")
+        fi
+    done < <(cat "$HOME/.config/hypr-rice/removed-themes" 2>/dev/null)
     tar -cf - "${excl[@]}" . | tar -C "$HOME" -xf -
     for j in "${merged[@]}"; do mv "$HOME/$j.rice-tmp" "$HOME/$j"; done
     [ "${MODE:-replace}" = coexist ] && [ "$HAD_FISH" = 1 ] && info "fish: оставлен твой конфиг"

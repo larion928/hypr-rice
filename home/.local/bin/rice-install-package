@@ -36,7 +36,7 @@ if [ "${1:-}" = --run ]; then
     trap - EXIT
     if pacman -Q "$package" >/dev/null 2>&1; then
         echo "Готово: $package установлен."
-        notify-send -a hypr-rice "Установлено: $package" "Тема появилась в настройках (Alt+F2 → Тема → Значки)" 2>/dev/null
+        notify-send -a hypr-rice "Установлено: $package" "Появилась в настройках: Alt+F2 → Тема → Значки или Курсор" 2>/dev/null
         echo "@@done 0"
     else
         echo "Не установилось."

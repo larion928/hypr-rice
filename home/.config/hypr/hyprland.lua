@@ -42,7 +42,6 @@ end)
 --- ENVIRONMENT VARIABLES ---
 -----------------------------
 
--- Cursor built from the osu! WhiteCat skin by scripts/build-cursor.py.
 -- The rice's scripts live in ~/.local/bin, which a fresh Arch login does not put on PATH.
 local local_bin = os.getenv("HOME") .. "/.local/bin"
 if not (os.getenv("PATH") or ""):find(local_bin, 1, true) then
@@ -52,6 +51,8 @@ end
 -- The rice keeps its kitty and waybar configs in ~/.config/hypr-rice, so another desktop on the
 -- same account keeps its own ~/.config/kitty and ~/.config/waybar.
 hl.env("KITTY_CONFIG_DIRECTORY", os.getenv("HOME") .. "/.config/hypr-rice/kitty")
+-- Cursor built from the osu! WhiteCat skin by scripts/build-cursor.py; the one picked for the theme
+-- (Alt+F2 → Тема → Курсор) comes from cursor.lua below.
 hl.env("XCURSOR_THEME", "WhiteCat")
 hl.env("XCURSOR_SIZE", "24")
 hl.env("HYPRCURSOR_THEME", "WhiteCat")
@@ -68,6 +69,15 @@ hl.env("XDG_SESSION_DESKTOP", "Hyprland")
 hl.config({
     animations = {
         enabled = true,
+    },
+})
+
+-- Cursors in the XCursor format, as programs read them. A theme switched while Hyprland runs (hyprctl
+-- setcursor, from Alt+F2 → Тема → Курсор) drew no cursor outside programs from the hyprcursor format of
+-- the rice's WhiteCat; from XCursor it does.
+hl.config({
+    cursor = {
+        enable_hyprcursor = false,
     },
 })
 
@@ -265,6 +275,7 @@ require("theme")
 -- What the user changed in the theme's windows in the settings window (Alt+F2 → Тема → Окна),
 -- written by themegen on every theme change.
 load_if_present(os.getenv("HOME") .. "/.config/hypr/theme-edits.lua")
+load_if_present(os.getenv("HOME") .. "/.config/hypr/cursor.lua")
 -- The user's own additions, loaded last so they can override anything above. Not part of the
 -- rice repo: rice update leaves it alone.
 load_if_present(os.getenv("HOME") .. "/.config/hypr/user.lua")

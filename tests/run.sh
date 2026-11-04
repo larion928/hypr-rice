@@ -810,6 +810,50 @@ PY
     grep -q 'скрыта' "$HOME/err" || fail "нет предупреждения о совпадении имён"
 }
 
+# A theme of the rice the user removed does not come back with an update; the others do.
+test_update_keeps_removed_theme_away() {
+    load_rice
+    mkdir -p "$HOME/.config/hypr" "$HOME/.config/hypr-rice"
+    echo installed > "$HOME/.config/hypr/.rice-installed"
+    echo coffee > "$HOME/.config/hypr-rice/removed-themes"
+    inspect_existing_desktop >/dev/null
+    copy_rice_files >/dev/null
+
+    [ ! -e "$HOME/.config/hypr/themes/coffee" ] || fail "удалённая тема вернулась с обновлением"
+    [ -f "$HOME/.config/hypr/themes/night/palette.json" ] || fail "остальные темы не скопированы"
+}
+
+# A theme of the rice is removed (not the current one) and comes back from the rice's copy of its
+# repository.
+test_rice_theme_removed_and_restored() {
+    user_theme_home
+    mkdir -p "$HOME/.local/bin"
+    ln -s "$REPO/rice" "$HOME/.local/bin/rice"
+    echo night > "$HOME/.config/hypr/current-theme"
+    python3 - "$HOME/.config/hypr/scripts" "$HOME" <<'PY' || fail "удаление или возврат темы райса не так"
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import themegen
+from apptheme import removed_themes
+from apptheme.theme import all_names
+home = Path(sys.argv[2])
+
+try:
+    themegen.delete_theme("night")
+    raise AssertionError("удалилась включённая тема")
+except ValueError:
+    pass
+themegen.delete_theme("coffee")
+assert "coffee" not in all_names() and removed_themes.names() == ["coffee"]
+assert removed_themes.listing() == [{"name": "coffee", "label": "Coffee"}], removed_themes.listing()
+assert "coffee" in __import__("json").loads((home / ".config/hypr-rice/theme-edits.json").read_text())["themes"], \
+    "правки удалённой темы пропали"
+removed_themes.restore("coffee")
+assert "coffee" in all_names() and removed_themes.names() == []
+PY
+}
+
 tests=("$@")
 [ ${#tests[@]} -gt 0 ] || mapfile -t tests < <(declare -F | awk '{print $3}' | grep '^test_')
 for name in "${tests[@]}"; do

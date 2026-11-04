@@ -5,7 +5,7 @@
 # rewrite of themegen is checked: tests/themegen_snapshot.sh before; (rewrite); ... after;
 # diff -r before after.
 # The programs it themes are faked as installed (Firefox, Zen, Obsidian, Vesktop, Code - OSS,
-# drift, Chromium, neoHtop); sudo, gsettings, systemctl, pkill and pgrep only record their calls.
+# drift, Chromium, neoHtop); sudo, gsettings, systemctl, pkill, hyprctl and pgrep only record their calls.
 # SRC_HOME (default: the repo's home/) is where themegen.py and the themes are taken from.
 set -euo pipefail
 
@@ -45,7 +45,7 @@ fake_installed_programs() {
 make_stubs() {
     mkdir -p "$STUBS"
     local name
-    for name in sudo gsettings systemctl pkill code-oss chromium AyuGram Telegram; do
+    for name in sudo gsettings systemctl pkill hyprctl code-oss chromium AyuGram Telegram; do
         printf '#!/bin/sh\necho "%s $*" >> "%s"\n' "$name" "$CALLS" > "$STUBS/$name"
     done
     printf '#!/bin/sh\necho "pgrep $*" >> "%s"\nexit 1\n' "$CALLS" > "$STUBS/pgrep"

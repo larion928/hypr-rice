@@ -22,8 +22,9 @@ def bake(theme, folder):
     """Writes theme's edits into folder, a copy of theme's files."""
     write_json(folder / "palette.json", theme.palette)
     ui = dict(theme.ui)
-    if theme.edits.get("iconTheme"):
-        ui["iconTheme"] = theme.edits["iconTheme"]
+    for key in ("iconTheme", "cursor", "cursorSize"):
+        if theme.edits.get(key):
+            ui[key] = theme.edits[key]
     if ui:
         write_json(folder / "ui.json", ui)
     source = battery_theme(theme.name, theme.edits)
