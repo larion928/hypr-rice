@@ -1,0 +1,47 @@
+@import url("colors.css");
+
+/* Mr. Robot: a black card with a red bar on the left, white summary, grey text; critical ones red. */
+.notification-popup {
+    background-color: alpha(@bg, 0.96);
+    border-left: 4px solid @accent;
+    border-radius: 0px;
+    padding: 8px 12px;
+    min-width: 275px;
+    min-height: 60px;
+    font-family: "JetBrainsMono Nerd Font", monospace;
+}
+
+.notification-image {
+    width: 32px;
+    height: 32px;
+    border-radius: 0px;
+    margin-right: 10px;
+}
+
+.notification-summary {
+    color: @fg;
+    font-weight: bold;
+    font-size: 1.1em;
+}
+
+.notification-body {
+    color: @muted;
+    font-size: 0.95em;
+}
+
+progressbar {
+    height: 3px;
+    background-color: alpha(@fg, 0.12);
+}
+progressbar progress {
+    background-color: @accent;
+}
+
+.notification-popup.critical {
+    background-color: @accent;
+    border-left-color: @fg;
+}
+.notification-popup.critical .notification-summary,
+.notification-popup.critical .notification-body {
+    color: @bg;
+}

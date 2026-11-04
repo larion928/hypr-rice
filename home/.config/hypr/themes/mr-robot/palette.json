@@ -1,0 +1,30 @@
+{
+  "name": "mr-robot",
+  "label": "Mr. Robot",
+  "font": "JetBrainsMono Nerd Font",
+  "display": "IBM Plex Mono",
+  "colors": {
+    "bg": "#09090a",
+    "bg2": "#141518",
+    "fg": "#e8e8e8",
+    "accent": "#e8191c",
+    "accent2": "#f5f5f5",
+    "accent3": "#8c1215",
+    "muted": "#6f7a86",
+    "warn": "#d9a066",
+    "crit": "#ff5f3d",
+    "good": "#8aa88f"
+  },
+  "code": {
+    "bg": "#0c0c0d",
+    "bg2": "#151618",
+    "fg": "#d6d6d6",
+    "muted": "#6f7a86",
+    "accent": "#e8474a",
+    "accent2": "#c9ced4",
+    "accent3": "#a3585b",
+    "good": "#9db8a2",
+    "warn": "#d6aa76",
+    "crit": "#e57a63"
+  }
+}

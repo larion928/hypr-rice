@@ -1,0 +1,67 @@
+{
+  "cpu": {
+    "format": "󱂟 {usage}%",
+    "tooltip": false
+  },
+  "memory": {
+    "format": "󰆘 {}% "
+  },
+  "pulseaudio": {
+    "format": "󰝚 {volume}%",
+    "format-bluetooth": "{volume}% {icon} {format_source}",
+    "format-bluetooth-muted": " {icon} {format_source}",
+    "format-muted": " {format_source}",
+    "format-icons": {
+      "headphone": "",
+      "hands-free": "",
+      "headset": "",
+      "phone": "",
+      "portable": "",
+      "car": "",
+      "default": [
+        "",
+        "",
+        ""
+      ]
+    },
+    "on-click": "pavucontrol"
+  },
+  "custom/exit": {
+    "format": "󰤄",
+    "on-click": "~/.local/bin/power-menu",
+    "tooltip": false
+  },
+  "custom/shots": {
+    "format": "",
+    "tooltip": true,
+    "tooltip-format": "Скриншоты",
+    "on-click": "~/.local/bin/shots-gallery"
+  },
+  "custom/histui": {
+    "format": "󰂞 {}",
+    "interval": 5,
+    "return-type": "json",
+    "exec": "histui status",
+    "on-click": "~/.local/bin/notif-panel",
+    "tooltip": true,
+    "on-click-right": "kitty -e histui"
+  },
+  "custom/settings": {
+    "format": "󱌙",
+    "tooltip": true,
+    "tooltip-format": "Настройки: мониторы, клавиши, тема (Alt+F2)",
+    "on-click": "~/.local/bin/settings-panel"
+  },
+  "custom/theme": {
+    "format": "󰅶",
+    "tooltip": true,
+    "tooltip-format": "Тема оформления (Alt+Shift+T)",
+    "on-click": "~/.local/bin/theme-picker"
+  },
+  "custom/help": {
+    "format": "󱓷",
+    "tooltip": true,
+    "tooltip-format": "Как тут всё устроено (Alt+F1)",
+    "on-click": "~/.local/bin/help-panel"
+  }
+}

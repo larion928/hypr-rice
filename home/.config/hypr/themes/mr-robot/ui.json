@@ -1,0 +1,14 @@
+{
+  "title": "fsociety",
+  "headerGlyph": "f",
+  "radius": 0,
+  "cardRadius": 0,
+  "titleFont": "font",
+  "bodyFont": "font",
+  "slideMs": 140,
+  "osdStyle": "ascii",
+  "folders": "red",
+  "powerStyle": "terminal",
+  "glow": true,
+  "batteryStep": 0.16
+}
