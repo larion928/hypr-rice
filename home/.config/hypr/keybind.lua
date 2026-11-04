@@ -128,6 +128,7 @@ bind("exit",     key("M"),      hl.dsp.exec_cmd("~/.local/bin/power-menu"), desc
 bind("files",    key("E"),      hl.dsp.exec_cmd(fileManager), desc("Приложения | Файлы (Thunar)"))
 bind("float",    key("V"),      hl.dsp.window.float(),        desc("Окна | Плавающее / в сетке"))
 bind("launcher", key("R"),      hl.dsp.exec_cmd(menu),        desc("Приложения | Лаунчер"))
+bind("games",    key("G"),      hl.dsp.exec_cmd("~/.local/bin/games"), desc("Приложения | Игры"))
 bind("split",    key("P"),      hl.dsp.layout("togglesplit"), desc("Окна | Повернуть разбиение")) -- dwindle only
 
 -- Move focus with mainMod + arrow keys

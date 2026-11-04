@@ -889,6 +889,63 @@ assert load("night").name == "night"
 PY
 }
 
+# The games window's library: a program file's kind from its name and first bytes, Steam games without
+# Steam's own tools, each game started by the right command.
+test_games_library() {
+    mkdir -p "$HOME/bin" "$HOME/.local/bin" "$HOME/games" "$HOME/.local/share/Steam/steamapps"
+    printf 'MZ\x90\x00' > "$HOME/games/Some_Game.exe"
+    printf 'MZ\x90\x00' > "$HOME/games/no-suffix-windows"
+    printf '\x7fELF' > "$HOME/games/Tool.AppImage"
+    printf '#!/bin/sh\n' > "$HOME/games/native-game"
+    chmod +x "$HOME/games/native-game"
+    echo text > "$HOME/games/readme.txt"
+    printf '"AppState"\n{\n\t"appid"\t\t"%s"\n\t"name"\t\t"%s"\n}\n' 1 "Proton Experimental" \
+        > "$HOME/.local/share/Steam/steamapps/appmanifest_1.acf"
+    printf '"AppState"\n{\n\t"appid"\t\t"%s"\n\t"name"\t\t"%s"\n}\n' 881100 "Noita" \
+        > "$HOME/.local/share/Steam/steamapps/appmanifest_881100.acf"
+    printf '#!/bin/sh\necho "$0 $*" >> "%s/started"\n' "$HOME" > "$HOME/.local/bin/proton-run"
+    printf '#!/bin/sh\necho "steam $*" >> "%s/started"\n' "$HOME" > "$HOME/bin/steam"
+    chmod +x "$HOME/.local/bin/proton-run" "$HOME/bin/steam"
+    PATH="$HOME/bin:$PATH" python3 - "$REPO/home/.config/hypr/scripts" "$HOME" <<'PY' || fail "библиотека игр не так"
+import sys, time
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import games
+home = Path(sys.argv[2])
+kinds = {name: games.add_file(home / "games" / name)["kind"]
+         for name in ("Some_Game.exe", "no-suffix-windows", "Tool.AppImage", "native-game")}
+assert kinds == {"Some_Game.exe": "exe", "no-suffix-windows": "exe", "Tool.AppImage": "appimage", "native-game": "native"}, kinds
+try:
+    games.add_file(home / "games/readme.txt")
+    raise AssertionError("текстовый файл принят за игру")
+except ValueError:
+    pass
+again = games.add_file(home / "games/Some_Game.exe")
+assert len(games.games()) == 4 and again["name"] == "Some Game", (len(games.games()), again)
+
+assert [g["name"] for g in games.steam_games()] == ["Noita"], games.steam_games()
+noita = games.add({"kind": "steam", "target": "881100", "name": "Noita"})
+
+games.launch(again["id"])
+games.launch(noita["id"])
+time.sleep(0.5)
+started = (home / "started").read_text().splitlines()
+assert started == [f"{home}/.local/bin/proton-run {home}/games/Some_Game.exe", "steam steam://rungameid/881100"], started
+assert games.listing()[0]["id"] in (again["id"], noita["id"]) and games.game(noita["id"])["played"] > 0
+
+(home / "games/native-game").unlink()
+native = next(g for g in games.listing() if g["kind"] == "native")
+assert not native["present"]
+try:
+    games.launch(native["id"])
+    raise AssertionError("запущена игра, которой нет")
+except ValueError:
+    pass
+games.remove(native["id"])
+assert all(g["kind"] != "native" for g in games.games())
+PY
+}
+
 tests=("$@")
 [ ${#tests[@]} -gt 0 ] || mapfile -t tests < <(declare -F | awk '{print $3}' | grep '^test_')
 for name in "${tests[@]}"; do

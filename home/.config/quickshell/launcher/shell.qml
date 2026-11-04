@@ -54,7 +54,9 @@ ShellRoot {
                     run: sh('t=$(cat "$HOME/.config/hypr/current-theme"); '
                             + 's=$(jq -r ".telegramSlug // empty" "$HOME/.config/hypr/themes/$t/ui.json" 2>/dev/null); '
                             + 'c=$(command -v AyuGram || command -v Telegram); '
-                            + '[ -n "$c" ] && exec "$c" -- "tg://addtheme?slug=${s:-hyprrice_$t}"') });
+                            + '[ -n "$s" ] && [ -n "$c" ] && exec "$c" -- "tg://addtheme?slug=$s"') });
+        list.push({ id: "games", name: "Игры", desc: "свои игры, .exe, AppImage, Steam · Alt+G", glyph: "\u{f0297}",
+                    keys: "games игры steam стим proton exe appimage", run: [Quickshell.env("HOME") + "/.local/bin/games"] });
         const settings = Quickshell.env("HOME") + "/.local/bin/settings-panel";
         list.push({ id: "settings", name: "Настройки", desc: "мониторы, клавиши, тема · Alt+F2", glyph: "\u{f0493}",
                     keys: "settings настройки параметры", run: [settings] });

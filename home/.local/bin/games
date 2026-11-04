@@ -1,0 +1,5 @@
+#!/bin/bash
+# games — toggle the games window (~/.config/quickshell/games), bound to Alt+G.
+source "$HOME/.config/quickshell/panel.sh"
+if panel_is_open games; then close_panel games; exit 0; fi
+open_panel games
