@@ -54,6 +54,10 @@ ShellRoot {
     // Writes a file, then optionally runs a command (all detached, in that order).
     // Esc: out of the icon picker, then out of a theme's settings, then the window closes.
     function back() {
+        if (ownThemes.dialog) {
+            if (!ownThemes.busy) ownThemes.dialog = "";
+            return;
+        }
         if (themeEdit.installing && themeEdit.installState !== "checking") themeEdit.installing = null;
         else if (themeEdit.installing) return;
         else if (themeEdit.iconFor) themeEdit.iconFor = "";
@@ -850,6 +854,94 @@ ShellRoot {
             }
         }
     }
+    // ================= theme: themes of the user's own =================
+    // A new theme (a copy of another with its edits written in), one from a file, an exported one, a
+    // deleted one: themegen.py does the work, then the list is read again.
+    QtObject {
+        id: ownThemes
+        property string dialog: ""     // "new", "import", "export" or "delete": what the dialog asks
+        property var subject: null     // the theme a new one copies, or the one to export or delete
+        property string busy: ""       // what runs now
+        property string error: ""
+        property string done: ""       // where the export went
+        property string openAfter: ""  // the theme to open once the list is read again
+        property string picking: ""    // "import" or "export": what the file dialog is for
+
+        function ask(kind, entry) {
+            ownThemes.subject = entry;
+            ownThemes.error = "";
+            ownThemes.done = "";
+            ownThemes.dialog = kind;
+        }
+        function create(label) {
+            if (label.trim()) ownThemes.run("Создаю тему…", ["new", label.trim(), "--from", ownThemes.subject.name]);
+        }
+        function remove() {
+            if (themeEdit.editing && themeEdit.editing.name === ownThemes.subject.name) themeEdit.editing = null;
+            ownThemes.run("Удаляю…", ["delete", ownThemes.subject.name]);
+        }
+        function pickFile(kind) {
+            ownThemes.picking = kind;
+            root.picking = true;
+            fileDialogProc.command = kind === "import"
+                ? ["zenity", "--file-selection", "--title=Тема из файла", "--file-filter=Темы | *.zip"]
+                : ["zenity", "--file-selection", "--save", "--title=Куда сохранить тему",
+                   "--filename=" + root.home + "/" + ownThemes.subject.name + ".zip"];
+            fileDialogProc.running = true;
+        }
+        function picked(path) {
+            if (!path) return;
+            if (ownThemes.picking === "import") ownThemes.run("Добавляю тему…", ["import", path]);
+            else ownThemes.run("Сохраняю…", ["export", ownThemes.subject.name, path]);
+        }
+        // themegen.py's output and then "@@exit <status>": one stream, so nothing arrives after the end.
+        function run(what, args) {
+            ownThemes.busy = what;
+            ownThemes.error = "";
+            manageProc.args = args;
+            manageProc.command = ["sh", "-c", 'python3 -u "$0" "$@" 2>&1; echo "@@exit $?"',
+                                  root.home + "/.config/hypr/scripts/themegen.py"].concat(args);
+            manageProc.running = true;
+        }
+        function finished(output) {
+            ownThemes.busy = "";
+            const lines = output.trim().split("\n");
+            const code = parseInt(lines.pop().replace("@@exit ", ""));
+            if (code !== 0) {
+                ownThemes.error = lines.join("\n") || "не вышло (код " + code + ")";
+                return;
+            }
+            if (manageProc.args[0] === "export") {
+                ownThemes.done = "Сохранено: " + manageProc.args[2];
+                return;
+            }
+            ownThemes.dialog = "";
+            ownThemes.openAfter = manageProc.args[0] === "delete" ? "" : lines[0];
+            themeListProc.running = true;
+        }
+        function listRead() {
+            themeListFile.reload();
+            try { root.themes = JSON.parse(themeListFile.text()); } catch (e) {}
+            const made = root.themes.find(t => t.name === ownThemes.openAfter);
+            if (made) themeEdit.open(made);
+        }
+    }
+    Process {
+        id: manageProc
+        property var args: []
+        stdout: StdioCollector { onStreamFinished: ownThemes.finished(this.text) }
+    }
+    Process {
+        id: themeListProc
+        command: ["python3", root.home + "/.config/quickshell/theme-list.py", Quickshell.env("RICE_THEME_LIST")]
+        onExited: ownThemes.listRead()
+    }
+    Process {
+        id: fileDialogProc
+        stdout: StdioCollector { onStreamFinished: ownThemes.picked(this.text.trim()) }
+        onExited: root.picking = false
+    }
+
     Process {
         id: wallpaperPicker
         stdout: StdioCollector { onStreamFinished: themeEdit.addWallpaper(this.text.trim()) }
@@ -1311,11 +1403,45 @@ ShellRoot {
                                         }
                                     }
                                 }
+                                Text {
+                                    visible: tcard.modelData.user && !tcard.modelData.current
+                                    anchors { right: parent.right; rightMargin: 14; bottom: parent.bottom; bottomMargin: 16 }
+                                    text: "своя"
+                                    font.family: theme.bodyFont; font.pixelSize: 13
+                                    color: tcard.modelData.pal.colors.muted
+                                }
                                 MouseArea {
                                     id: tma
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     onClicked: themeEdit.open(tcard.modelData)
+                                }
+                            }
+                        }
+                        // A theme of the user's own: a copy of the current one, or one from a file.
+                        Rectangle {
+                            width: 280; height: 230
+                            radius: Math.min(root.r, 14)
+                            color: "transparent"
+                            border.color: Color.withAlpha(theme.c.muted, 0.5)
+                            Column {
+                                anchors.centerIn: parent
+                                spacing: 12
+                                Text {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    text: "Своя тема"
+                                    font.family: theme.titleFont; font.pixelSize: 22
+                                    color: theme.c.fg || "white"
+                                }
+                                Chip {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    text: "Новая из текущей"
+                                    onClicked: ownThemes.ask("new", root.themes.find(t => t.current) || root.themes[0])
+                                }
+                                Chip {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    text: "Из файла…"
+                                    onClicked: ownThemes.ask("import", null)
                                 }
                             }
                         }
@@ -1325,6 +1451,10 @@ ShellRoot {
                     ThemeSettings {
                         anchors.fill: parent
                         visible: root.page === "theme" && themeEdit.editing !== null
+                    }
+                    OwnThemeDialog {
+                        anchors.fill: parent
+                        visible: root.page === "theme" && ownThemes.dialog !== ""
                     }
                 }
 
@@ -1411,6 +1541,13 @@ ShellRoot {
         Row {
             anchors { right: parent.right; top: parent.top }
             spacing: 10
+            Chip { text: "Копия…"; enabled: themeEdit.editing !== null; onClicked: ownThemes.ask("new", themeEdit.editing) }
+            Chip { text: "Экспорт…"; enabled: themeEdit.editing !== null; onClicked: ownThemes.ask("export", themeEdit.editing) }
+            Chip {
+                visible: themeEdit.editing !== null && themeEdit.editing.user && !themeEdit.editing.current
+                text: "Удалить"
+                onClicked: ownThemes.ask("delete", themeEdit.editing)
+            }
             Chip { text: "Сбросить к теме"; enabled: themeEdit.editing !== null && themeEdit.sectionEdited(); onClicked: themeEdit.resetSection() }
             Chip { visible: themeEdit.editing !== null && !themeEdit.editing.current; text: "Включить тему"; onClicked: themeEdit.switchTo() }
             Chip { text: "Сохранить"; primary: true; enabled: themeEdit.dirty; onClicked: themeEdit.save() }
@@ -1445,6 +1582,83 @@ ShellRoot {
             PanelSection { anchors.fill: parent; visible: themeEdit.section === "waybar" }
             IconsSection { anchors.fill: parent; visible: themeEdit.section === "icons" }
             WindowsSection { anchors.fill: parent; visible: themeEdit.section === "windows" }
+        }
+    }
+
+    // What ownThemes asks: a new theme's name, a file to add or to save to, whether to delete.
+    component OwnThemeDialog: Rectangle {
+        id: ownDialog
+        readonly property string label: ownThemes.subject ? ownThemes.subject.pal.label : ""
+        // A copy and an export take the saved edits only.
+        readonly property string unsaved: themeEdit.dirty && ownThemes.subject && themeEdit.editing
+                                          && ownThemes.subject.name === themeEdit.editing.name
+                                          ? " Несохранённые изменения туда не попадут: сначала сохрани." : ""
+        readonly property var texts: ({
+            "new": ["Новая тема", "Копия темы «" + label + "» со всеми её правками из этого окна. Дальше настраивай её здесь же; обновления райса её не трогают." + unsaved, "Создать"],
+            "import": ["Тема из файла", "Архив .zip, сохранённый кнопкой «Экспорт…». В теме есть и программы (hypr.lua, battery.py, screenshot.qml): добавляй темы только от тех, кому доверяешь.", "Выбрать файл…"],
+            "export": ["Экспорт темы", "Тема «" + label + "» со всеми правками в одном архиве .zip. Друг добавит её кнопкой «Из файла…» в списке тем." + unsaved, "Сохранить как…"],
+            "delete": ["Удалить тему", "Тема «" + label + "» и её правки удалятся насовсем.", "Удалить"]
+        })
+        readonly property var wording: texts[ownThemes.dialog] || ["", "", ""]
+        function act() {
+            if (ownThemes.dialog === "new") ownThemes.create(nameField.text);
+            else if (ownThemes.dialog === "delete") ownThemes.remove();
+            else ownThemes.pickFile(ownThemes.dialog);
+        }
+        onVisibleChanged: {
+            if (!visible || ownThemes.dialog !== "new") return;
+            nameField.text = "";
+            nameField.focusInput();
+        }
+        color: Color.withAlpha(theme.c.bg, 0.85)
+        MouseArea { anchors.fill: parent }  // the page under it waits
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: 560; height: dialogColumn.implicitHeight + 48
+            radius: Math.min(root.r, 14)
+            color: theme.c.bg2 || "black"
+            border.color: Color.withAlpha(theme.c.accent, 0.5)
+            Column {
+                id: dialogColumn
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
+                spacing: 14
+                SectionTitle { text: ownDialog.wording[0] }
+                Text {
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    text: ownDialog.wording[1]
+                    font.family: theme.bodyFont; font.pixelSize: 14
+                    color: theme.c.fg || "white"
+                }
+                Field {
+                    id: nameField
+                    visible: ownThemes.dialog === "new"
+                    width: parent.width
+                    placeholder: "Название, например «Моя тема»"
+                    onAccepted: ownDialog.act()
+                }
+                Text {
+                    visible: text !== ""
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    text: ownThemes.busy || ownThemes.error || ownThemes.done
+                    font.family: theme.bodyFont; font.pixelSize: 13
+                    color: ownThemes.error ? (theme.c.crit || "red") : (theme.c.muted || "grey")
+                }
+                Row {
+                    anchors.right: parent.right
+                    spacing: 10
+                    Chip { text: ownThemes.done ? "Закрыть" : "Отмена"; enabled: !ownThemes.busy; onClicked: ownThemes.dialog = "" }
+                    Chip {
+                        visible: !ownThemes.done
+                        primary: true
+                        enabled: !ownThemes.busy && (ownThemes.dialog !== "new" || nameField.text.trim() !== "")
+                        text: ownDialog.wording[2]
+                        onClicked: ownDialog.act()
+                    }
+                }
+            }
         }
     }
 
@@ -2687,6 +2901,7 @@ ShellRoot {
         property alias echoMode: input.echoMode
         property string placeholder
         signal accepted()
+        function focusInput() { input.forceActiveFocus(); }
         height: 34
         radius: root.r > 4 ? 9 : 0
         color: Color.withAlpha(theme.c.bg2, 0.9)
@@ -2701,7 +2916,7 @@ ShellRoot {
             clip: true
             Keys.onEscapePressed: {
                 scene.forceActiveFocus();
-                if (themeEdit.editing) root.back();
+                if (themeEdit.editing || ownThemes.dialog) root.back();
             }
             onAccepted: fld.accepted()
         }

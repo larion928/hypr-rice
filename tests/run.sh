@@ -509,7 +509,7 @@ PY
 # defined; QML only notices a missing one when that line runs, e.g. on the first drag.
 test_settings_members_defined() {
     python3 "$REPO/tests/qml_members.py" "$REPO/home/.config/quickshell/settings/shell.qml" \
-        panelEditor themeEdit keys mon || fail "в окне настроек используется неопределённое"
+        panelEditor themeEdit keys mon ownThemes || fail "в окне настроек используется неопределённое"
 }
 
 # themegen builds and applies every theme in a fake $HOME; tests/themegen_snapshot.sh records it all.
