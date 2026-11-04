@@ -52,6 +52,13 @@ ShellRoot {
     }
 
     // Writes a file, then optionally runs a command (all detached, in that order).
+    // Esc: out of the icon picker, then out of a theme's settings, then the window closes.
+    function back() {
+        if (themeEdit.iconFor) themeEdit.iconFor = "";
+        else if (themeEdit.editing) themeEdit.editing = null;
+        else root.close();
+    }
+
     // text as one word for sh -c.
     function quote(text) {
         return "'" + String(text).replace(/'/g, "'\\''") + "'";
@@ -395,7 +402,13 @@ ShellRoot {
         readonly property string path: root.home + "/.config/hypr-rice/theme-edits.json"
         readonly property string wallpaperDir: root.home + "/.local/share/hypr-rice/wallpapers"
         readonly property var sections: [["fonts", "Шрифты"], ["colors", "Цвета"], ["wallpapers", "Обои"],
-                                         ["waybar", "Панель"]]
+                                         ["waybar", "Панель"], ["icons", "Значки"]]
+        // papirus-folders' colours; each has its folder icon in Papirus.
+        readonly property var folderColors: ["adwaita", "black", "blue", "bluegrey", "breeze", "brown", "carmine", "cyan",
+                                             "darkcyan", "deeporange", "green", "grey", "indigo", "magenta", "nordic",
+                                             "orange", "palebrown", "paleorange", "pink", "red", "teal", "violet",
+                                             "white", "yaru", "yellow"]
+        readonly property string defaultIconTheme: "Papirus-Dark"  // what the rice ships
         readonly property var sides: [["modules-left", "Слева"], ["modules-center", "По центру"],
                                       ["modules-right", "Справа"]]
         readonly property var moduleNames: ({
@@ -422,6 +435,13 @@ ShellRoot {
         property var edit: ({})        // {fonts, colors, wallpapers: {added, off}}
         property string saved: ""      // edit as last saved, to see what changed
         property string section: "fonts"
+        property string panelView: "layout"  // the panel section shows the bar ("layout") or its modules' icons ("icons")
+        // The icon picker for one panel module; nothing changes until «Применить».
+        property string iconFor: ""
+        property string iconChoice: ""       // what «Применить» sets; "" is the theme's own icon
+        property string iconQuery: ""
+        // Installed icon themes with sample icons, and the ones to install (themegen.py icon-themes).
+        property var iconThemes: ({ installed: [], downloadable: [] })
         // What each module shows on this machine now (themegen.py bar-preview): {module: {text, state, note}};
         // state is shown, sometimes or missing. Asked for when the «Панель» section opens; until it comes,
         // the modules show samples.
@@ -435,7 +455,10 @@ ShellRoot {
             "custom/settings": "cog", "custom/shots": "image", "custom/theme": "palette"
         })
         property string liveFor: ""
-        onSectionChanged: themeEdit.askLive()
+        onSectionChanged: {
+            themeEdit.askLive();
+            if (themeEdit.section === "icons" && !themeEdit.iconThemes.installed.length) iconThemesProc.running = true;
+        }
         function askLive() {
             if (themeEdit.section !== "waybar" || !themeEdit.editing || themeEdit.liveFor === themeEdit.editing.name) return;
             themeEdit.live = {};
@@ -463,7 +486,8 @@ ShellRoot {
                                colors: Object.assign({}, mine.colors || {}),
                                wallpapers: { added: (walls.added || []).slice(), off: (walls.off || []).slice() },
                                waybar: mine.waybar ? JSON.parse(JSON.stringify(mine.waybar)) : null,
-                               icons: Object.assign({}, mine.icons || {}) };
+                               icons: Object.assign({}, mine.icons || {}),
+                               folders: mine.folders || "", iconTheme: mine.iconTheme || "", battery: mine.battery || "" };
             themeEdit.saved = JSON.stringify(themeEdit.edit);
             themeEdit.section = "fonts";
             themeEdit.fontSlot = "font";
@@ -574,6 +598,29 @@ ShellRoot {
             else delete icons[module];
             themeEdit.change("icons", icons);
         }
+        function openIconPicker(module) {
+            themeEdit.iconFor = module;
+            themeEdit.iconChoice = themeEdit.edit.icons[module] || "";
+            themeEdit.iconQuery = themeEdit.iconHints[module] || "";
+            themeEdit.askIcons();
+        }
+        function applyIcon() {
+            themeEdit.setIcon(themeEdit.iconFor, themeEdit.iconChoice);
+            themeEdit.iconFor = "";
+        }
+        // The module's icon as the bar shows it now: the first character of its text.
+        function iconOf(module) {
+            const characters = Array.from(themeEdit.preview(module));
+            return characters.length && characters[0].codePointAt(0) >= 0xE000 ? characters[0] : "";
+        }
+        function iconThemeNow() {
+            return themeEdit.edit.iconTheme || themeEdit.defaultIconTheme;
+        }
+        function installIconTheme(pkg) {
+            installProc.command = ["kitty", "--title", "Установка темы значков", "-e", "sh", "-c",
+                                   'yay -S --needed "$1"; echo; read -r -p "Enter — закрыть " _', "sh", pkg];
+            installProc.running = true;
+        }
         function askIcons() {
             if (!themeEdit.allIcons.length && !iconsProc.running) iconsProc.running = true;
         }
@@ -608,6 +655,8 @@ ShellRoot {
             const part = themeEdit.edit[themeEdit.section] || {};
             if (themeEdit.section === "wallpapers") return part.added.length > 0 || part.off.length > 0;
             if (themeEdit.section === "waybar") return themeEdit.edit.waybar !== null || Object.keys(themeEdit.edit.icons).length > 0;
+            if (themeEdit.section === "colors") return Object.keys(themeEdit.edit.colors).length > 0 || !!themeEdit.edit.folders;
+            if (themeEdit.section === "icons") return !!themeEdit.edit.iconTheme || !!themeEdit.edit.battery;
             return Object.values(part).some(value => !!value);
         }
         function resetSection() {
@@ -615,6 +664,11 @@ ShellRoot {
                             waybar: null };
             themeEdit.change(themeEdit.section, empty[themeEdit.section]);
             if (themeEdit.section === "waybar") themeEdit.change("icons", {});
+            if (themeEdit.section === "colors") themeEdit.change("folders", "");
+            if (themeEdit.section === "icons") {
+                themeEdit.change("iconTheme", "");
+                themeEdit.change("battery", "");
+            }
         }
 
         // ---- saving
@@ -635,7 +689,8 @@ ShellRoot {
             else delete next[themeEdit.editing.name];
             const steps = before.wallpapers.added.filter(p => !themeEdit.edit.wallpapers.added.includes(p))
                 .filter(p => p.startsWith(themeEdit.wallpaperDir + "/")).map(p => "rm -f " + root.quote(p));
-            if (JSON.stringify(before.colors) !== JSON.stringify(themeEdit.edit.colors))
+            // Colours and the battery drawing are in what build draws for every theme.
+            if (JSON.stringify(before.colors) !== JSON.stringify(themeEdit.edit.colors) || before.battery !== themeEdit.edit.battery)
                 steps.push("python3 ~/.config/hypr/scripts/themegen.py build >/dev/null 2>&1");
             if (then) steps.push(then);
             const file = { themes: next };
@@ -665,6 +720,8 @@ ShellRoot {
             if (Object.keys(walls).length) out.wallpapers = walls;
             if (edit.waybar) out.waybar = edit.waybar;
             if (Object.keys(edit.icons).length) out.icons = edit.icons;
+            for (const key of ["folders", "iconTheme", "battery"])
+                if (edit[key]) out[key] = edit[key];
             return out;
         }
     }
@@ -673,6 +730,20 @@ ShellRoot {
         id: fontsProc
         command: ["sh", "-c", "fc-list : family | cut -d, -f1 | sort -u"]
         stdout: StdioCollector { onStreamFinished: themeEdit.installedFonts = this.text.split("\n").filter(name => name) }
+    }
+    Process {
+        id: iconThemesProc
+        command: ["python3", root.home + "/.config/hypr/scripts/themegen.py", "icon-themes"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try { themeEdit.iconThemes = JSON.parse(this.text); } catch (e) {}
+            }
+        }
+    }
+    // An icon theme being installed in a terminal; the list is read again once it closes.
+    Process {
+        id: installProc
+        onExited: iconThemesProc.running = true
     }
     Process {
         id: iconsProc
@@ -714,9 +785,7 @@ ShellRoot {
             Keys.onPressed: e => {
                 e.accepted = true;
                 if (keys.capturing !== "") { keys.onKey(e); return; }
-                if (e.key !== Qt.Key_Escape) return;
-                if (themeEdit.editing) themeEdit.editing = null;
-                else root.close();
+                if (e.key === Qt.Key_Escape) root.back();
             }
             Component.onCompleted: inAnim.start()
             NumberAnimation { id: inAnim; target: scene; property: "opacity"; to: 1; duration: 200 }
@@ -1286,6 +1355,7 @@ ShellRoot {
             ColorsSection { anchors.fill: parent; visible: themeEdit.section === "colors" }
             WallpapersSection { anchors.fill: parent; visible: themeEdit.section === "wallpapers" }
             PanelSection { anchors.fill: parent; visible: themeEdit.section === "waybar" }
+            IconsSection { anchors.fill: parent; visible: themeEdit.section === "icons" }
         }
     }
 
@@ -1433,6 +1503,47 @@ ShellRoot {
             onClicked: themeEdit.ownColor()
         }
 
+        // Folder colour (Papirus only: papirus-folders recolours its folder icons).
+        Text {
+            id: folderTitle
+            anchors { left: picker.left; top: picker.bottom; topMargin: 64 }
+            text: themeEdit.iconThemeNow().startsWith("Papirus")
+                  ? "Цвет папок" + (themeEdit.editing && !themeEdit.edit.folders ? "  · как в теме: " + (themeEdit.editing.own.folders || "стандартный") : "")
+                  : "Цвет папок меняется только у тем значков Papirus (тема значков — в разделе «Значки»)"
+            font.family: theme.bodyFont; font.pixelSize: 14; font.bold: true
+            color: theme.c.fg || "white"
+        }
+        Flow {
+            visible: themeEdit.iconThemeNow().startsWith("Papirus")
+            anchors { left: picker.left; right: parent.right; top: folderTitle.bottom; topMargin: 8 }
+            spacing: 4
+            Repeater {
+                model: themeEdit.folderColors
+                Rectangle {
+                    id: folderCell
+                    required property string modelData
+                    readonly property bool chosen: themeEdit.editing !== null
+                        && (themeEdit.edit.folders || themeEdit.editing.own.folders) === modelData
+                    width: 44; height: 44
+                    radius: 8
+                    color: chosen ? Color.withAlpha(theme.c.accent, 0.25) : (folderArea.containsMouse ? Color.withAlpha(theme.c.accent, 0.1) : "transparent")
+                    border.color: chosen ? (theme.c.accent || "white") : "transparent"
+                    Image {
+                        anchors.centerIn: parent
+                        width: 32; height: 32
+                        sourceSize: Qt.size(64, 64)
+                        source: "file:///usr/share/icons/Papirus/48x48/places/folder-" + folderCell.modelData + ".svg"
+                    }
+                    MouseArea {
+                        id: folderArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: themeEdit.change("folders", folderCell.modelData === themeEdit.editing.own.folders ? "" : folderCell.modelData)
+                    }
+                }
+            }
+        }
+
         // A little bar in the edited colours.
         Rectangle {
             anchors { left: picker.left; right: parent.right; bottom: parent.bottom }
@@ -1569,51 +1680,11 @@ ShellRoot {
         property var drag: null      // the module being dragged: {module, side, index}; side "" from the set below
         property var target: null    // where letting go puts it: {side, index, x}; null off the bar, which takes it away
         property var pressedAt: null  // where the drag began: a release close to it is a click, which picks an icon
-        property string iconFor: ""   // the module whose icon is being picked
-        property string iconQuery: ""
         property string iconHovered: ""
         readonly property var foundIcons: {
-            const words = panelEditor.iconQuery.toLowerCase().split(/\s+/).filter(word => word);
+            const words = themeEdit.iconQuery.toLowerCase().split(/\s+/).filter(word => word);
             if (!words.length) return themeEdit.allIcons;
             return themeEdit.allIcons.filter(([, name]) => words.every(word => name.includes(word)));
-        }
-        function pickIcon(module) {
-            panelEditor.iconFor = module;
-            panelEditor.iconQuery = themeEdit.iconHints[module] || "";
-            iconSearch.text = panelEditor.iconQuery;
-            themeEdit.askIcons();
-        }
-        property string hovered: ""
-        readonly property var sideNames: ({ "modules-left": "слева", "modules-center": "по центру",
-                                            "modules-right": "справа" })
-
-        function row(side) {
-            return side === "modules-left" ? leftRow : side === "modules-center" ? centerRow : rightRow;
-        }
-        function pills(side) {
-            const list = [];
-            for (const child of panelEditor.row(side).children)
-                if (child.pillModule !== undefined) list.push(child);
-            return list;
-        }
-        // Every place a module can go, in the bar's coordinates: each gap of each group, a group's two
-        // ends, and the bar's middle while the centre group is empty. A drop takes the nearest one.
-        function slots() {
-            const list = [];
-            for (const [side] of themeEdit.sides) {
-                const pills = panelEditor.pills(side);
-                if (!pills.length) {
-                    const x = side === "modules-left" ? 16 : side === "modules-right" ? mockBar.width - 16 : mockBar.width / 2;
-                    list.push({ side: side, index: 0, x: x });
-                    continue;
-                }
-                const row = panelEditor.row(side);
-                for (let i = 0; i <= pills.length; i++) {
-                    const edge = i < pills.length ? pills[i].x - 3 : pills[i - 1].x + pills[i - 1].width + 3;
-                    list.push({ side: side, index: i, x: row.mapToItem(mockBar, edge, 0).x });
-                }
-            }
-            return list;
         }
         function start(module, side, index, point) {
             panelEditor.drag = { module: module, side: side, index: index };
@@ -1644,7 +1715,7 @@ ShellRoot {
             panelEditor.target = null;
             panelEditor.pressedAt = null;
             if (click) {
-                if (drag && drag.side && themeEdit.iconEditable(drag.module)) panelEditor.pickIcon(drag.module);
+                if (drag && drag.side && themeEdit.iconEditable(drag.module)) themeEdit.openIconPicker(drag.module);
                 return;
             }
             if (!drag || (!drag.side && !target)) return;
@@ -1664,6 +1735,9 @@ ShellRoot {
         Row {
             id: panelTop
             spacing: 10
+            TabButton { text: "Раскладка"; active: themeEdit.panelView === "layout"; onClicked: themeEdit.panelView = "layout" }
+            TabButton { text: "Значки модулей"; active: themeEdit.panelView === "icons"; onClicked: themeEdit.panelView = "icons" }
+            Item { width: 16; height: 1 }
             Chip { text: "Сверху"; active: themeEdit.editing !== null && themeEdit.panel().position !== "bottom"; onClicked: themeEdit.setPosition("top") }
             Chip { text: "Снизу"; active: themeEdit.editing !== null && themeEdit.panel().position === "bottom"; onClicked: themeEdit.setPosition("bottom") }
             Item { width: 16; height: 1 }
@@ -1689,8 +1763,8 @@ ShellRoot {
         Text {
             id: panelHint
             anchors { left: parent.left; top: panelTop.bottom; topMargin: 14 }
-            text: "Перетаскивай значки: по панели — переставить, с панели вниз — убрать, из набора снизу на панель — добавить. "
-                  + "Нажми на значок на панели, чтобы сменить его."
+            text: "Перетаскивай модули: по панели — переставить, с панели вниз — убрать, из набора снизу на панель — добавить. "
+                  + "Значки меняются во вкладке «Значки модулей» или нажатием на модуль."
                   + (barPreviewProc.running ? "   · обновляю данные панели…" : "")
             font.family: theme.bodyFont; font.pixelSize: 13
             color: theme.c.muted || "grey"
@@ -1768,7 +1842,8 @@ ShellRoot {
                                                           : panelEditor.drag.side ? "Отпусти здесь, чтобы убрать с панели" : "Тащи на панель")
                   : panelEditor.hovered ? themeEdit.moduleName(panelEditor.hovered)
                                           + (themeEdit.moduleNote(panelEditor.hovered) ? " — " + themeEdit.moduleNote(panelEditor.hovered) : "")
-                                          + (themeEdit.iconEditable(panelEditor.hovered) ? "" : " · значок этого модуля не меняется")
+                                          + (themeEdit.iconEditable(panelEditor.hovered) ? " · нажми — сменить значок, тащи — переставить"
+                                                                                         : " · тащи — переставить; значок не меняется")
                   : " "
             font.family: theme.bodyFont; font.pixelSize: 14
             color: panelEditor.drag && panelEditor.drag.side && !panelEditor.target ? (theme.c.crit || "red") : (theme.c.fg || "white")
@@ -1790,41 +1865,97 @@ ShellRoot {
             }
         }
 
-        // The icon picker for iconFor: every icon of the font, searched by name.
+        // The modules on the bar with their icons, one «Сменить» each.
         Rectangle {
-            visible: panelEditor.iconFor !== ""
+            visible: themeEdit.panelView === "icons"
+            anchors { left: parent.left; right: parent.right; top: panelTop.bottom; bottom: parent.bottom; topMargin: 14 }
+            z: 15
+            color: theme.c.bg || "black"
+            MouseArea { anchors.fill: parent }
+            ListView {
+                anchors.fill: parent
+                clip: true
+                spacing: 4
+                boundsBehavior: Flickable.StopAtBounds
+                model: themeEdit.editing ? themeEdit.sides.reduce((all, [side]) => all.concat(themeEdit.panel()[side] || []), []) : []
+                delegate: Rectangle {
+                    id: iconRow
+                    required property string modelData
+                    readonly property bool editable: themeEdit.iconEditable(modelData)
+                    width: ListView.view.width; height: 50
+                    radius: root.r > 4 ? 8 : 0
+                    color: Color.withAlpha(theme.c.bg2, 0.9)
+                    Text {
+                        id: rowIcon
+                        x: 16; anchors.verticalCenter: parent.verticalCenter
+                        width: 36
+                        text: themeEdit.iconOf(iconRow.modelData) || "·"
+                        font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 22
+                        color: theme.c.fg || "white"
+                    }
+                    Text {
+                        anchors { left: rowIcon.right; leftMargin: 10; verticalCenter: parent.verticalCenter }
+                        text: themeEdit.moduleName(iconRow.modelData)
+                              + (themeEdit.edit.icons && themeEdit.edit.icons[iconRow.modelData] ? "  · свой значок" : "")
+                              + (iconRow.editable ? "" : "  · значок не меняется: он показывает состояние или его рисует скрипт")
+                        font.family: theme.bodyFont; font.pixelSize: 15
+                        color: iconRow.editable ? (theme.c.fg || "white") : (theme.c.muted || "grey")
+                    }
+                    Chip {
+                        visible: iconRow.editable
+                        anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                        text: "Сменить"
+                        onClicked: themeEdit.openIconPicker(iconRow.modelData)
+                    }
+                }
+            }
+        }
+
+        // The icon picker for themeEdit.iconFor: every icon of the font, searched by name. A click
+        // chooses, «Применить» sets it; «Отмена» or Esc leave the icon as it was.
+        Rectangle {
+            visible: themeEdit.iconFor !== ""
             anchors.fill: parent
             z: 20
             color: theme.c.bg || "black"
+            onVisibleChanged: if (visible) iconSearch.text = themeEdit.iconQuery
             MouseArea { anchors.fill: parent }
             Row {
                 id: pickerTop
-                spacing: 10
+                spacing: 12
                 SectionTitle {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Значок: " + themeEdit.moduleName(panelEditor.iconFor)
+                    text: "Значок: " + themeEdit.moduleName(themeEdit.iconFor)
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: (themeEdit.iconOf(themeEdit.iconFor) || "·") + "  →  "
+                          + (themeEdit.iconChoice || (themeEdit.editing ? (Array.from(themeEdit.editing.waybar.preview[themeEdit.iconFor] || "")[0] || "·") : ""))
+                    font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 24
+                    color: theme.c.accent || "white"
                 }
                 Field {
                     id: iconSearch
                     anchors.verticalCenter: parent.verticalCenter
-                    width: 320
+                    width: 300
                     placeholder: "поиск по-английски: volume, cpu, wifi…"
-                    onTextChanged: panelEditor.iconQuery = text
+                    onTextChanged: themeEdit.iconQuery = text
                 }
-                Chip {
-                    text: "Как в теме"
-                    enabled: !!themeEdit.edit.icons && !!themeEdit.edit.icons[panelEditor.iconFor]
-                    onClicked: themeEdit.setIcon(panelEditor.iconFor, "")
-                }
-                Chip { text: "Готово"; primary: true; onClicked: panelEditor.iconFor = "" }
+            }
+            Row {
+                anchors { right: parent.right; verticalCenter: pickerTop.verticalCenter }
+                spacing: 10
+                Chip { text: "Как в теме"; active: themeEdit.iconChoice === ""; onClicked: themeEdit.iconChoice = "" }
+                Chip { text: "Отмена"; onClicked: themeEdit.iconFor = "" }
+                Chip { text: "Применить"; primary: true; onClicked: themeEdit.applyIcon() }
             }
             Text {
                 id: pickerStatus
                 anchors { left: parent.left; top: pickerTop.bottom; topMargin: 10 }
                 text: !themeEdit.allIcons.length ? "загружаю значки шрифта…"
-                      : panelEditor.foundIcons.length + " значков"
+                      : panelEditor.foundIcons.length + " значков · нажми, чтобы выбрать, двойной щелчок — сразу применить"
                         + (panelEditor.iconHovered ? " · " + panelEditor.iconHovered : "")
-                        + (["pulseaudio", "temperature", "backlight", "battery"].includes(panelEditor.iconFor)
+                        + (["pulseaudio", "temperature", "backlight", "battery"].includes(themeEdit.iconFor)
                            ? " · у этого модуля значок меняется по уровню, свой будет один на все уровни" : "")
                 font.family: theme.bodyFont; font.pixelSize: 13
                 color: theme.c.muted || "grey"
@@ -1838,11 +1969,12 @@ ShellRoot {
                 delegate: Rectangle {
                     id: iconCell
                     required property var modelData
-                    readonly property bool picked: !!themeEdit.edit.icons && themeEdit.edit.icons[panelEditor.iconFor] === modelData[0]
+                    readonly property bool picked: themeEdit.iconChoice === modelData[0]
                     width: 48; height: 48
                     radius: 8
                     color: picked ? Color.withAlpha(theme.c.accent, 0.3)
                            : (cellArea.containsMouse ? Color.withAlpha(theme.c.accent, 0.14) : Color.withAlpha(theme.c.bg2, 0.8))
+                    border.color: picked ? (theme.c.accent || "white") : "transparent"
                     Text {
                         anchors.centerIn: parent
                         text: iconCell.modelData[0]
@@ -1854,7 +1986,11 @@ ShellRoot {
                         anchors.fill: parent
                         hoverEnabled: true
                         onEntered: panelEditor.iconHovered = iconCell.modelData[1]
-                        onClicked: themeEdit.setIcon(panelEditor.iconFor, iconCell.modelData[0])
+                        onClicked: themeEdit.iconChoice = iconCell.modelData[0]
+                        onDoubleClicked: {
+                            themeEdit.iconChoice = iconCell.modelData[0];
+                            themeEdit.applyIcon();
+                        }
                     }
                 }
             }
@@ -1929,6 +2065,13 @@ ShellRoot {
                 color: theme.c.fg || "white"
             }
         }
+        Text {
+            visible: moduleArea.containsMouse && barModule.side !== "" && themeEdit.iconEditable(barModule.modelData)
+            anchors { right: parent.right; top: parent.top; rightMargin: -5; topMargin: -7 }
+            text: "\u{f03eb}"  // md-pencil
+            font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 13
+            color: theme.c.accent || "white"
+        }
         MouseArea {
             id: moduleArea
             anchors.fill: parent
@@ -1941,6 +2084,140 @@ ShellRoot {
                                                        mapToItem(barModule.editor, mouse.x, mouse.y))
             onPositionChanged: mouse => { if (pressed) barModule.editor.follow(mapToItem(barModule.editor, mouse.x, mouse.y)); }
             onReleased: barModule.editor.finish()
+        }
+    }
+
+    // The icon theme of GTK programs (installed ones with samples, missing ones to install) on the left,
+    // the battery drawing (any theme's, in this theme's colours) on the right.
+    component IconsSection: Item {
+        SectionTitle {
+            id: iconThemeTitle
+            text: "Тема значков"
+        }
+        Text {
+            anchors { left: iconThemeTitle.right; leftMargin: 12; verticalCenter: iconThemeTitle.verticalCenter }
+            text: themeEdit.editing && !themeEdit.edit.iconTheme ? "как в теме: " + themeEdit.defaultIconTheme : ""
+            font.family: theme.bodyFont; font.pixelSize: 13
+            color: theme.c.muted || "grey"
+        }
+        ListView {
+            id: iconThemeList
+            anchors { left: parent.left; top: iconThemeTitle.bottom; bottom: parent.bottom; topMargin: 10 }
+            width: parent.width * 0.58
+            clip: true
+            spacing: 4
+            boundsBehavior: Flickable.StopAtBounds
+            model: themeEdit.iconThemes.installed.concat(themeEdit.iconThemes.downloadable.filter(item => !item.installed))
+            delegate: Rectangle {
+                id: themeRow
+                required property var modelData
+                readonly property bool installed: modelData.name !== undefined
+                readonly property bool chosen: installed && themeEdit.iconThemeNow() === modelData.name
+                width: ListView.view.width; height: 52
+                radius: root.r > 4 ? 8 : 0
+                color: chosen ? Color.withAlpha(theme.c.accent, 0.2) : (rowHover.containsMouse ? Color.withAlpha(theme.c.accent, 0.08) : Color.withAlpha(theme.c.bg2, 0.9))
+                border.color: chosen ? (theme.c.accent || "white") : "transparent"
+                MouseArea {
+                    id: rowHover
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    enabled: themeRow.installed
+                    onClicked: themeEdit.change("iconTheme", themeRow.modelData.name === themeEdit.defaultIconTheme ? "" : themeRow.modelData.name)
+                }
+                Text {
+                    id: themeName
+                    x: 14; anchors.verticalCenter: parent.verticalCenter
+                    width: 190
+                    elide: Text.ElideRight
+                    text: themeRow.installed ? themeRow.modelData.label : themeRow.modelData.title
+                    font.family: theme.bodyFont; font.pixelSize: 15
+                    color: theme.c.fg || "white"
+                }
+                Row {
+                    visible: themeRow.installed
+                    anchors { left: themeName.right; leftMargin: 10; verticalCenter: parent.verticalCenter }
+                    spacing: 8
+                    Repeater {
+                        model: themeRow.installed ? themeRow.modelData.previews : []
+                        Image {
+                            required property string modelData
+                            width: 28; height: 28
+                            sourceSize: Qt.size(56, 56)
+                            source: "file://" + modelData
+                            asynchronous: true
+                        }
+                    }
+                }
+                Text {
+                    visible: !themeRow.installed
+                    anchors { left: themeName.right; leftMargin: 10; verticalCenter: parent.verticalCenter }
+                    text: themeRow.installed ? "" : (themeRow.modelData.source === "aur" ? "из AUR" : "из репозитория") + " · не установлена"
+                    font.family: theme.bodyFont; font.pixelSize: 13
+                    color: theme.c.muted || "grey"
+                }
+                Chip {
+                    visible: !themeRow.installed
+                    anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                    text: installProc.running ? "Ставится…" : "Установить"
+                    enabled: !installProc.running
+                    onClicked: themeEdit.installIconTheme(themeRow.modelData.package)
+                }
+            }
+        }
+        Text {
+            visible: !themeEdit.iconThemes.installed.length
+            anchors { left: iconThemeList.left; top: iconThemeList.top }
+            text: "читаю темы значков…"
+            font.family: theme.bodyFont; font.pixelSize: 13
+            color: theme.c.muted || "grey"
+        }
+
+        SectionTitle {
+            id: batteryTitle
+            anchors { left: iconThemeList.right; leftMargin: 28 }
+            text: "Рисунок батареи"
+        }
+        Text {
+            id: batteryNote
+            anchors { left: batteryTitle.left; top: batteryTitle.bottom; topMargin: 4 }
+            text: "у любой темы, в цветах этой; анимация — та, что у рисунка"
+            font.family: theme.bodyFont; font.pixelSize: 13
+            color: theme.c.muted || "grey"
+        }
+        Flow {
+            anchors { left: batteryTitle.left; right: parent.right; top: batteryNote.bottom; topMargin: 12 }
+            spacing: 10
+            Repeater {
+                model: root.themes
+                Rectangle {
+                    id: batteryCell
+                    required property var modelData
+                    readonly property bool chosen: themeEdit.editing !== null
+                        && (themeEdit.edit.battery || themeEdit.editing.name) === modelData.name
+                    width: 96; height: 92
+                    radius: root.r > 4 ? 10 : 0
+                    color: chosen ? Color.withAlpha(theme.c.accent, 0.2) : (batteryArea.containsMouse ? Color.withAlpha(theme.c.accent, 0.08) : Color.withAlpha(theme.c.bg2, 0.9))
+                    border.color: chosen ? (theme.c.accent || "white") : "transparent"
+                    Image {
+                        anchors { horizontalCenter: parent.horizontalCenter; top: parent.top; topMargin: 12 }
+                        width: 40; height: 40
+                        sourceSize: Qt.size(80, 80)
+                        source: "file://" + batteryCell.modelData.dir + "/assets/battery-0.svg"
+                    }
+                    Text {
+                        anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 10 }
+                        text: batteryCell.modelData.pal.label
+                        font.family: theme.bodyFont; font.pixelSize: 12
+                        color: theme.c.fg || "white"
+                    }
+                    MouseArea {
+                        id: batteryArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: themeEdit.change("battery", batteryCell.modelData.name === themeEdit.editing.name ? "" : batteryCell.modelData.name)
+                    }
+                }
+            }
         }
     }
 
@@ -2033,7 +2310,10 @@ ShellRoot {
             color: theme.c.fg || "white"
             selectionColor: Color.withAlpha(theme.c.accent, 0.4)
             clip: true
-            Keys.onEscapePressed: scene.forceActiveFocus()
+            Keys.onEscapePressed: {
+                scene.forceActiveFocus();
+                if (themeEdit.editing) root.back();
+            }
             onAccepted: fld.accepted()
         }
         Text {

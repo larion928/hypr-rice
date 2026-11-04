@@ -81,7 +81,7 @@ def load(name):
     ui = read_ui(folder)
     own = {"fonts": {"font": palette["font"], "display": palette["display"],
                      "body": resolve_body_font(ui, palette["font"], palette["display"])},
-           "colors": palette["colors"]}
+           "colors": palette["colors"], "folders": ui.get("folders", "")}
     every_edit = read_edits()
     edits = every_edit.get("themes", {}).get(name, {})
     fonts = {key: value for key, value in edits.get("fonts", {}).items() if value}
