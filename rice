@@ -8,6 +8,7 @@
 #   rice update       fetch the latest rice from GitHub and apply it (keeps theme and machine files)
 #   rice upgrade      update the system, the hypr-rice repo and AUR programs
 #   rice proton       pick the Proton version that runs .exe files
+#   rice games        game optimisations, each on or off: GameMode, NTSync, tearing, linux-zen
 #   rice repair       re-apply SDDM, GTK theme and services
 #   rice report       write ~/rice-report.txt for whoever helps you debug
 #   rice uninstall    remove the rice and put the last backup back
@@ -1116,6 +1117,184 @@ proton_versions() {  # "name=path" for every Proton here: downloaded (ProtonPlus
     done < <(sed -n 's/^\s*"path"\s*"\(.*\)"\s*$/\1/p' "$STEAM_DIR/steamapps/libraryfolders.vdf" 2>/dev/null)
 }
 
+# ---------- games: optimisations, each on or off (rice games) ----------
+# What is on is read from the system itself, not from a list of its own that could drift from it.
+GAMEMODE_MARK="$HOME/.config/hypr-rice/gamemode"  # proton-run and the games window start games through gamemoderun
+GAMEMODE_INI="$HOME/.config/gamemode.ini"
+TEARING_LUA="$HOME/.config/hypr/games.lua"        # hyprland.lua loads it
+NTSYNC_LOAD=/etc/modules-load.d/ntsync.conf
+NTSYNC_RULE=/etc/udev/rules.d/60-ntsync.rules
+GAME_TUNINGS=("GameMode во время игр=gamemode" "NTSync для Proton (опыт)=ntsync"
+              "Тиринг в полноэкранных играх=tearing" "Ядро linux-zen=zen")
+
+tuning_on() {  # tuning_on gamemode|ntsync|tearing|zen
+    case "$1" in
+        gamemode) [ -f "$GAMEMODE_MARK" ] ;;
+        ntsync) [ -f "$NTSYNC_LOAD" ] ;;
+        tearing) [ -f "$TEARING_LUA" ] ;;
+        zen) pacman -Q linux-zen >/dev/null 2>&1 ;;
+    esac
+}
+
+cmd_games() {
+    local label out on=() chosen=()
+    step "Игры: оптимизация"
+    info "GameMode — на время игры: приоритет процессора и диска, режим «производительность», высокие частоты"
+    info "    видеокарты AMD; после игры всё как было. Ноутбук греется сильнее."
+    info "NTSync — модуль ядра для Proton. Опыт: где-то быстрее, где-то медленнее fsync, сравни на своих играх."
+    info "Тиринг — полноэкранные игры без ожидания кадра: меньше задержка ввода, но видны разрывы кадра."
+    info "linux-zen — второе ядро (выбор в меню GRUB), прирост на ноутбуках не доказан, ~150 МБ."
+    for label in "${GAME_TUNINGS[@]}"; do
+        if tuning_on "${label##*=}"; then on+=("${label%=*}"); fi
+    done
+    have_tty && fetch_gum || die "нужен терминал"
+    out=$("$GUM" choose --no-limit --height 8 --label-delimiter="=" \
+        --header "Что включить?  пробел — отметить · enter — готово" --selected "$(IFS=,; echo "${on[*]}")" \
+        --cursor "› " --cursor-prefix "[ ] " --selected-prefix "[✓] " --unselected-prefix "[ ] " \
+        "${GUM_STYLE[@]}" "${GAME_TUNINGS[@]}" </dev/tty) || return 0
+    mapfile -t chosen <<<"$out"
+    apply_game_tunings "${chosen[@]}"
+}
+
+apply_game_tunings() {  # apply_game_tunings ID...: those on, the others off; only what changes is touched
+    local label id
+    for label in "${GAME_TUNINGS[@]}"; do
+        id=${label##*=}
+        if printf '%s\n' "$@" | grep -qx "$id"; then
+            tuning_on "$id" || "tuning_${id}_on" || warn "не включилось: ${label%=*}"
+        elif tuning_on "$id"; then
+            "tuning_${id}_off" || warn "не выключилось: ${label%=*}"
+        fi
+    done
+}
+
+tuning_gamemode_on() {
+    need_sudo
+    pac -S --needed gamemode || return 1
+    enable_multilib
+    pac -S --needed lib32-gamemode || warn "32-битная часть gamemode не встала: старые 32-битные игры пойдут без него"
+    # The group lets gamemode raise priorities and switch CPU and GPU clocks without a password.
+    sudo usermod -aG gamemode "$USER"
+    write_gamemode_ini
+    mkdir -p "$(dirname "$GAMEMODE_MARK")"
+    touch "$GAMEMODE_MARK"
+    ok "GameMode включён; права группы gamemode заработают после нового входа в систему"
+    info "игры Steam: в свойствах игры, параметры запуска — gamemoderun %command%"
+}
+
+tuning_gamemode_off() {
+    rm -f "$GAMEMODE_MARK"
+    if grep -q '^# hypr-rice' "$GAMEMODE_INI" 2>/dev/null; then rm -f "$GAMEMODE_INI"; fi
+    ok "GameMode выключен (пакет остался)"
+}
+
+# gamemode's own settings, unless the user keeps a gamemode.ini of their own.
+write_gamemode_ini() {
+    if [ -f "$GAMEMODE_INI" ] && ! grep -q '^# hypr-rice' "$GAMEMODE_INI"; then
+        info "свой $GAMEMODE_INI оставлен как есть"
+        return
+    fi
+    local card
+    {
+        echo "# hypr-rice (rice → Игры: оптимизация); rice removes it when GameMode is switched off."
+        printf '[general]\nrenice=10\nioprio=0\ninhibit_screensaver=1\n'
+        # The GPU part only for an AMD card: amd_performance_level is all gamemode does for it.
+        if card=$(amd_card); then
+            printf '\n[gpu]\napply_gpu_optimisations=accept-responsibility\ngpu_device=%s\namd_performance_level=high\n' "$card"
+        fi
+    } > "$GAMEMODE_INI"
+}
+
+amd_card() {  # the number N of the first /sys/class/drm/cardN run by amdgpu
+    local card
+    for card in /sys/class/drm/card[0-9]*; do
+        if [ "$(basename "$(readlink -f "$card/device/driver")")" = amdgpu ]; then
+            echo "${card##*card}"
+            return 0
+        fi
+    done
+    return 1
+}
+
+tuning_ntsync_on() {
+    need_sudo
+    echo ntsync | sudo tee "$NTSYNC_LOAD" >/dev/null
+    # The device is root's only otherwise; uaccess gives it to whoever sits at the machine.
+    echo 'KERNEL=="ntsync", TAG+="uaccess"' | sudo tee "$NTSYNC_RULE" >/dev/null
+    sudo udevadm control --reload
+    sudo modprobe ntsync || { warn "модуль ntsync не загрузился (в этом ядре его нет?)"; return 1; }
+    ok "NTSync включён: Proton через proton-run берёт его сам (PROTON_USE_NTSYNC)"
+}
+
+tuning_ntsync_off() {
+    need_sudo
+    sudo rm -f "$NTSYNC_LOAD" "$NTSYNC_RULE"
+    sudo udevadm control --reload
+    sudo modprobe -r ntsync 2>/dev/null || info "ntsync сейчас занят игрой: выгрузится после перезагрузки"
+    ok "NTSync выключен"
+}
+
+tuning_tearing_on() {
+    mkdir -p "$(dirname "$TEARING_LUA")"
+    cat > "$TEARING_LUA" <<'LUA'
+-- Тиринг в полноэкранных играх (rice → Игры: оптимизация); rice writes and removes this file.
+-- Hyprland shows such a game's frame at once instead of waiting for the screen: less input lag, with
+-- tearing. Games run on XWayland (Proton, Steam, Wine) or are osu!; browsers and video players are
+-- native Wayland windows and keep whole frames.
+hl.config({ general = { allow_tearing = true } })
+
+hl.window_rule({
+    name  = "games-tearing",
+    match = { fullscreen = true, xwayland = true },
+
+    immediate = true,
+})
+
+hl.window_rule({
+    name  = "games-tearing-osu",
+    match = { fullscreen = true, class = "^osu!$" },
+
+    immediate = true,
+})
+LUA
+    hyprctl reload >/dev/null 2>&1 || true
+    ok "тиринг в полноэкранных играх включён"
+}
+
+tuning_tearing_off() {
+    rm -f "$TEARING_LUA"
+    hyprctl reload >/dev/null 2>&1 || true
+    ok "тиринг выключен"
+}
+
+tuning_zen_on() {
+    need_sudo
+    local free_mb
+    free_mb=$(df --output=avail -m / | tail -n1)
+    [ "$free_mb" -ge 1000 ] || { warn "на / свободно ${free_mb} МБ, для ядра нужно ~1000"; return 1; }
+    pac -S --needed linux-zen || return 1
+    update_grub
+    ok "linux-zen поставлен; linux остался. Какое ядро грузится сейчас: uname -r; другое — в меню GRUB (Advanced options)"
+}
+
+tuning_zen_off() {
+    case "$(uname -r)" in
+        *zen*) warn "сейчас загружено linux-zen: перезагрузись в linux, потом выключай"; return 1 ;;
+    esac
+    need_sudo
+    sudo pacman -Rns --noconfirm linux-zen || return 1
+    update_grub
+    ok "linux-zen удалён"
+}
+
+update_grub() {
+    if [ -f /boot/grub/grub.cfg ] && command -v grub-mkconfig >/dev/null; then
+        sudo grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1 || warn "grub-mkconfig не отработал: меню загрузки не обновлено"
+    else
+        warn "загрузчик не GRUB: меню загрузки обнови сам"
+    fi
+}
+
 cmd_proton() {  # which Proton runs .exe files (proton-run reads ~/.config/hypr-rice/proton.conf)
     local conf="$HOME/.config/hypr-rice/proton.conf"
     local current choice found=()
@@ -1275,11 +1454,12 @@ cmd_uninstall() {
 }
 
 menu() {
-    fetch_gum || die "меню не открылось (нет gum); команды: rice install|apps|remove|update|upgrade|proton|repair|report|uninstall"
+    fetch_gum || die "меню не открылось (нет gum); команды: rice install|apps|remove|update|upgrade|proton|games|repair|report|uninstall"
     local choice
     choice=$("$GUM" choose --height 12 --header "hypr-rice — что сделать?" --cursor "› " "${GUM_STYLE[@]}" \
         "Установить программы=apps" "Удалить программы=remove" "Обновить райс=update" \
         "Обновить систему и программы=upgrade" "Proton для .exe: версия=proton" \
+        "Игры: оптимизация=games" \
         "Починить (SDDM, тема, сервисы)=repair" \
         "Отчёт для помощи=report" "Переустановить райс=install" "Удалить райс=uninstall" \
         --label-delimiter="=" </dev/tty) || exit 0
@@ -1301,7 +1481,7 @@ run() {
 # Sourced by tests/run.sh for its functions; run as a command otherwise.
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
     case "${1:-}" in
-        install|apps|remove|update|upgrade|proton|repair|report|uninstall) run "$1" ;;
+        install|apps|remove|update|upgrade|proton|games|repair|report|uninstall) run "$1" ;;
         apply-update) run apply_update ;;  # run by `rice update` from the freshly fetched script
         ""|menu) menu ;;
         -h|--help|help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' ;;

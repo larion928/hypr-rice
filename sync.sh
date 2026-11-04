@@ -89,6 +89,7 @@ EXCLUDES=(
     --exclude=.config/hypr/ui.json          # themegen writes these three for the theme on now:
     --exclude=.config/hypr/theme-edits.lua  # its look, its window edits, its cursor
     --exclude=.config/hypr/cursor.lua
+    --exclude=.config/hypr/games.lua        # this machine's game tuning (rice games)
     --exclude=.config/hypr/current-theme
     --exclude=.config/hypr/current-wallpaper
     --exclude=.config/hypr/hyprlock-colors.conf

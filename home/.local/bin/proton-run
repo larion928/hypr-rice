@@ -15,6 +15,7 @@ import json
 import os
 import re
 import secrets
+import shutil
 import subprocess
 import sys
 import threading
@@ -28,6 +29,8 @@ DOWNLOAD_MARK = "@@download"
 # Every process of the launch inherits this variable, so a window is recognised as the program's
 # even when the Steam container has re-parented its process.
 RUN_ID_VARIABLE = "PROTON_RUN_ID"
+# Switched on in rice → Игры: оптимизация: the game runs under gamemoderun.
+GAMEMODE_MARK = HOME / ".config/hypr-rice/gamemode"
 
 
 def main():
@@ -47,6 +50,8 @@ def launch(args):
     state_file = folders / f"{run_id}.json"
 
     env = {**os.environ, RUN_ID_VARIABLE: run_id}
+    if Path("/dev/ntsync").exists():  # the ntsync module is loaded (rice → Игры: оптимизация)
+        env["PROTON_USE_NTSYNC"] = "1"
     proton = picked_proton()
     if proton:
         env["PROTONPATH"] = str(proton)  # the directory itself, not just its name
@@ -58,7 +63,7 @@ def launch(args):
     LOGS.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
     with (LOGS / f"{program.stem}.log").open("w") as log, \
-         subprocess.Popen([sys.executable, __file__, "--umu", *args], env=env, text=True, errors="replace",
+         subprocess.Popen([*gamemode(), sys.executable, __file__, "--umu", *args], env=env, text=True, errors="replace",
                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as umu:
         reader = threading.Thread(target=read_output, args=(umu.stdout, log, progress), daemon=True)
         reader.start()
@@ -75,6 +80,11 @@ def launch(args):
         report_failure(program.name, code, progress)
     state_file.unlink(missing_ok=True)
     return code
+
+
+def gamemode():
+    """The gamemoderun prefix when GameMode is switched on and installed, else nothing."""
+    return ["gamemoderun"] if GAMEMODE_MARK.exists() and shutil.which("gamemoderun") else []
 
 
 # A program that ran for a while and then exits non-zero is usually just closing; one that ends

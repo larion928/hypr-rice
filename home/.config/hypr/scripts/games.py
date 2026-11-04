@@ -39,6 +39,9 @@ HOME = Path.home()
 LIBRARY = HOME / ".config/hypr-rice/games.json"
 COVERS = HOME / ".local/share/hypr-rice/game-covers"
 STEAM = HOME / ".local/share/Steam"
+# Switched on in rice → Игры: оптимизация: games run under gamemoderun. A Windows game gets it from
+# proton-run, a Steam game only from its launch options in Steam (Steam starts it, not this script).
+GAMEMODE_MARK = HOME / ".config/hypr-rice/gamemode"
 WINDOWS_SUFFIXES = (".exe", ".msi", ".bat", ".lnk")
 # Steam lists its own tools among the games.
 STEAM_TOOLS = re.compile(r"^(Proton|Steam Linux Runtime|Steamworks Common|Steam Runtime)")
@@ -375,12 +378,16 @@ def command_for(entry):
     target = entry["target"]
     if entry["kind"] == "exe":
         return [str(HOME / ".local/bin/proton-run"), target]
-    if entry["kind"] in ("appimage", "native"):
-        Path(target).chmod(Path(target).stat().st_mode | 0o111)
-        return [target]
+    if entry["kind"] == "steam":
+        return ["steam", f"steam://rungameid/{target}"]
     if entry["kind"] == "app":
-        return ["gtk-launch", target]
-    return ["steam", f"steam://rungameid/{target}"]
+        return [*gamemode(), "gtk-launch", target]
+    Path(target).chmod(Path(target).stat().st_mode | 0o111)
+    return [*gamemode(), target]
+
+
+def gamemode():
+    return ["gamemoderun"] if GAMEMODE_MARK.exists() and shutil.which("gamemoderun") else []
 
 
 def launch(game_id):

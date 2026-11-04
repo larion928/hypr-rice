@@ -276,6 +276,8 @@ require("theme")
 -- written by themegen on every theme change.
 load_if_present(os.getenv("HOME") .. "/.config/hypr/theme-edits.lua")
 load_if_present(os.getenv("HOME") .. "/.config/hypr/cursor.lua")
+-- Tearing in fullscreen games, when switched on in rice → Игры: оптимизация.
+load_if_present(os.getenv("HOME") .. "/.config/hypr/games.lua")
 -- The user's own additions, loaded last so they can override anything above. Not part of the
 -- rice repo: rice update leaves it alone.
 load_if_present(os.getenv("HOME") .. "/.config/hypr/user.lua")
