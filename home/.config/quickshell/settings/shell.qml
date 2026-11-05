@@ -41,6 +41,7 @@ ShellRoot {
         }
         monProc.running = true;
         bindsProc.running = true;
+        globalsProc.running = true;
     }
 
     function close() {
@@ -224,6 +225,10 @@ ShellRoot {
         property var binds: []      // {id, default, current, description, group, text}
         property var custom: []     // {keys, cmd, name}
         property var others: []     // hyprctl binds that are not editable here (for conflicts)
+        // Shortcuts programs registered with Hyprland (Discord's push to talk, ...): which are there now
+        // (hyprctl globalshortcuts) and the keys picked for them (binds-user.lua "globals").
+        property var programShortcuts: []  // [{name, description}]
+        property var globalKeys: ({})       // name → combo
         property string capturing: ""   // bind id, "custom" or ""
         property string captured: ""
         property string conflict: ""
@@ -239,7 +244,31 @@ ShellRoot {
                 return Object.assign({}, b, { group: p[0] || "Прочее", text: p[1] || b.id });
             });
             custom = reg.custom || [];
+            const picked = {};
+            for (const g of reg.globals || []) picked[g.name] = g.keys;
+            globalKeys = picked;
             dirty = false;
+        }
+
+        // A row per program shortcut: those registered now, and those with a key whose program is not running.
+        function globalRows() {
+            const rows = programShortcuts.map(g => ({ name: g.name, description: g.description || g.name,
+                                                      keys: globalKeys[g.name] || "" }));
+            for (const name of Object.keys(globalKeys))
+                if (!rows.some(r => r.name === name))
+                    rows.push({ name: name, description: name + " (программа не запущена)", keys: globalKeys[name] });
+            return rows;
+        }
+        function setGlobal(name, combo) {
+            const next = Object.assign({}, globalKeys);
+            if (combo) next[name] = combo; else delete next[name];
+            globalKeys = next;
+            dirty = true;
+        }
+        // A combo for a bind id, or for "global:<name>".
+        function assign(target, combo) {
+            if (target.startsWith("global:")) setGlobal(target.slice(7), combo);
+            else setCurrent(target, combo);
         }
 
         // "SUPER + SHIFT + G" <-> modmask + key, the way `hyprctl binds` reports them.
@@ -257,7 +286,8 @@ ShellRoot {
         function label(s) {
             if (!s) return "выключено";
             const names = { "return": "Enter", "print": "PrtSc", "space": "Space", "tab": "Tab",
-                            "left": "←", "right": "→", "up": "↑", "down": "↓", "prior": "PgUp", "next": "PgDn" };
+                            "left": "←", "right": "→", "up": "↑", "down": "↓", "prior": "PgUp", "next": "PgDn",
+                            "mouse:274": "Колёсико", "mouse:275": "Мышь «назад»", "mouse:276": "Мышь «вперёд»" };
             return s.split("+").map(x => x.trim()).map(x => {
                 const u = x.toUpperCase();
                 if (u === "SUPER") return "Super";
@@ -275,6 +305,8 @@ ShellRoot {
                 if (b.id !== exceptId && b.current && same(b.current)) return b.text;
             for (const u of custom)
                 if (exceptId !== "custom:" + u.keys && same(u.keys)) return u.name || u.cmd;
+            for (const name of Object.keys(globalKeys))
+                if (exceptId !== "global:" + name && same(globalKeys[name])) return name;
             for (const o of others)
                 if (o.mask === c.mask && o.key === c.key) return o.text;
             return "";
@@ -337,13 +369,28 @@ ShellRoot {
             if (e.modifiers & Qt.AltModifier) parts.push("ALT");
             if (e.modifiers & Qt.ShiftModifier) parts.push("SHIFT");
             parts.push(k);
-            captured = parts.join(" + ");
+            finishCapture(parts.join(" + "));
+        }
+        // A mouse button (the wheel, the side ones) as a key; left and right stay for the window.
+        readonly property var mouseButtons: ({ [Qt.MiddleButton]: "mouse:274", [Qt.BackButton]: "mouse:275",
+                                               [Qt.ForwardButton]: "mouse:276" })
+        function onMouse(button, modifiers) {
+            const parts = [];
+            if (modifiers & Qt.MetaModifier) parts.push("SUPER");
+            if (modifiers & Qt.ControlModifier) parts.push("CTRL");
+            if (modifiers & Qt.AltModifier) parts.push("ALT");
+            if (modifiers & Qt.ShiftModifier) parts.push("SHIFT");
+            parts.push(mouseButtons[button]);
+            finishCapture(parts.join(" + "));
+        }
+        function finishCapture(combo) {
+            captured = combo;
             const target = capturing;
             stopCapture();
             conflict = conflicts(captured, target);
             if (target === "custom") { customForm.combo = captured; return; }
             pendingId = target;
-            if (!conflict) { setCurrent(target, captured); pendingId = ""; }
+            if (!conflict) { assign(target, captured); pendingId = ""; }
         }
         property string pendingId: ""   // a combo that conflicts, waiting for "assign anyway"
 
@@ -361,6 +408,12 @@ ShellRoot {
             if (custom.length) {
                 lines.push("    custom = {");
                 for (const u of custom) lines.push(`        { keys = ${q(u.keys)}, cmd = ${q(u.cmd)}, name = ${q(u.name)} },`);
+                lines.push("    },");
+            }
+            const programs = Object.keys(globalKeys);
+            if (programs.length) {
+                lines.push("    globals = {");
+                for (const name of programs) lines.push(`        [${q(name)}] = ${q(globalKeys[name])},`);
                 lines.push("    },");
             }
             lines.push("}");
@@ -404,7 +457,16 @@ ShellRoot {
             }
         }
     }
-    Timer { id: reloadTimer; interval: 900; onTriggered: bindsProc.running = true }
+    Process {
+        id: globalsProc
+        command: ["hyprctl", "globalshortcuts", "-j"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try { keys.programShortcuts = JSON.parse(this.text) || []; } catch (e) { keys.programShortcuts = []; }
+            }
+        }
+    }
+    Timer { id: reloadTimer; interval: 900; onTriggered: { bindsProc.running = true; globalsProc.running = true; } }
 
     // ================= one theme's edits =================
 
@@ -1585,6 +1647,31 @@ ShellRoot {
                                     }
                                 }
 
+                                SectionTitle { text: "Сочетания программ" }
+                                Text {
+                                    width: keyList.width
+                                    wrapMode: Text.WordWrap
+                                    text: keys.globalRows().length
+                                          ? "Программа сама выбрать клавишу не может (отсюда «среда рабочего стола не разрешила» в Discord): назначь её здесь. Подходят и кнопки мыши: колёсико, боковые."
+                                          : "Пока ни одна программа не просила сочетание. Discord просит его, когда в его настройках назначаешь клавишу рации; запусти программу и открой это окно снова."
+                                    font.family: theme.bodyFont; font.pixelSize: 13
+                                    color: theme.c.muted || "grey"
+                                }
+                                Repeater {
+                                    model: keys.globalRows()
+                                    BindRow {
+                                        required property var modelData
+                                        width: keyList.width
+                                        title: modelData.description + "  —  " + modelData.name.split(":")[0]
+                                        combo: modelData.keys
+                                        isDefault: true
+                                        emptyLabel: "не назначено"
+                                        capturing: keys.capturing === "global:" + modelData.name
+                                        onEdit: keys.startCapture("global:" + modelData.name)
+                                        onToggle: modelData.keys ? keys.setGlobal(modelData.name, "") : keys.startCapture("global:" + modelData.name)
+                                    }
+                                }
+
                                 SectionTitle { text: "Свои сочетания" }
                                 Repeater {
                                     model: keys.custom
@@ -1640,7 +1727,7 @@ ShellRoot {
                             Chip {
                                 visible: keys.pendingId !== ""
                                 text: "Всё равно назначить"
-                                onClicked: { keys.setCurrent(keys.pendingId, keys.captured); keys.pendingId = ""; keys.conflict = ""; }
+                                onClicked: { keys.assign(keys.pendingId, keys.captured); keys.pendingId = ""; keys.conflict = ""; }
                             }
                             Chip { text: "Сохранить"; primary: true; enabled: keys.dirty; onClicked: keys.save() }
                         }
@@ -1761,6 +1848,15 @@ ShellRoot {
                     }
                 }
 
+                // While a combo is being recorded, the wheel and the side buttons of the mouse count as keys.
+                MouseArea {
+                    anchors.fill: parent
+                    z: 50
+                    enabled: keys.capturing !== ""
+                    acceptedButtons: Qt.MiddleButton | Qt.BackButton | Qt.ForwardButton
+                    onPressed: mouse => keys.onMouse(mouse.button, mouse.modifiers)
+                }
+
                 // Shown while a combo is being recorded.
                 Rectangle {
                     anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 70 }
@@ -1773,7 +1869,7 @@ ShellRoot {
                     Text {
                         id: capText
                         anchors.centerIn: parent
-                        text: "Нажми новое сочетание · Esc — отмена"
+                        text: "Нажми сочетание или кнопку мыши (колёсико, боковые) · Esc — отмена"
                         font.family: theme.bodyFont; font.pixelSize: 16
                         color: theme.c.fg || "white"
                     }
@@ -3554,6 +3650,7 @@ ShellRoot {
         property bool isDefault
         property bool capturing
         property bool removable
+        property string emptyLabel   // what no key reads as; keys.label's "выключено" without it
         signal edit()
         signal toggle()
         signal reset()
@@ -3582,7 +3679,7 @@ ShellRoot {
                 Text {
                     id: comboText
                     anchors.centerIn: parent
-                    text: row.capturing ? "…" : keys.label(row.combo)
+                    text: row.capturing ? "…" : (!row.combo && row.emptyLabel ? row.emptyLabel : keys.label(row.combo))
                     font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 13
                     color: row.combo ? (theme.c.accent || "white") : (theme.c.muted || "grey")
                 }

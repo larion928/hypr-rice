@@ -8,7 +8,8 @@
 -- Binds made with bind("id", …) can be changed in the settings panel (Alt+F2). Its changes live
 -- in binds-user.lua (not part of the rice repo), this file keeps the defaults:
 --   return { mainMod = "SUPER", keys = { launcher = "SUPER + D", browser = false },
---            custom = { { keys = "SUPER + G", cmd = "gimp", name = "GIMP" } } }
+--            custom = { { keys = "SUPER + G", cmd = "gimp", name = "GIMP" } },
+--            globals = { ["discord:discord-push-to-talk"] = "mouse:276" } }
 
 -- Locals from hyprland.lua are not visible here: every require() is its own scope.
 local terminal    = "kitty"
@@ -176,6 +177,14 @@ for _, c in ipairs(user.custom or {}) do
     end
 end
 
+-- Shortcuts programs registered with Hyprland (Discord's push to talk, ...), on the keys picked for them
+-- in the settings panel: under Hyprland a program cannot pick a key itself.
+for name, combo in pairs(user.globals or {}) do
+    if type(combo) == "string" and combo ~= "" then
+        hl.bind(combo, hl.dsp.global(name), desc("Программы | " .. name))
+    end
+end
+
 -- Hand the registry to the settings panel.
 local function jstr(s)
     return '"' .. tostring(s):gsub('[%c"\\]', function(ch)
@@ -194,9 +203,13 @@ for _, c in ipairs(user.custom or {}) do
             jstr(c.keys or ""), jstr(c.cmd or ""), jstr(c.name or ""))
     end
 end
+local globals = {}
+for name, combo in pairs(user.globals or {}) do
+    globals[#globals + 1] = string.format('{"name":%s,"keys":%s}', jstr(name), jstr(combo))
+end
 local out = io.open((os.getenv("XDG_RUNTIME_DIR") or "/tmp") .. "/hypr-binds-registry.json", "w")
 if out then
     out:write('{"mainMod":', jstr(mainMod), ',"binds":[', table.concat(rows, ","),
-              '],"custom":[', table.concat(custom, ","), "]}\n")
+              '],"custom":[', table.concat(custom, ","), '],"globals":[', table.concat(globals, ","), "]}\n")
     out:close()
 end
