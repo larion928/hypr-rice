@@ -438,6 +438,65 @@ unhook_proton_exe() {
     fi
 }
 
+# ---- memory: zram and earlyoom, set up the same on any machine (sizes are shares of its RAM) ----
+# Files the rice wrote start with RICE_MARK; one without it is the user's own and stays as it is.
+RICE_MARK="# hypr-rice"
+ZRAM_CONF=/etc/systemd/zram-generator.conf
+ZRAM_SYSCTL=/etc/sysctl.d/99-hypr-rice-zram.conf
+EARLYOOM_CONF=/etc/default/earlyoom
+
+rice_owns() {  # rice_owns FILE: absent, or written by the rice
+    [ ! -e "$1" ] || head -n1 "$1" | grep -q "^$RICE_MARK"
+}
+
+hook_zram() {
+    if ! rice_owns "$ZRAM_CONF"; then
+        info "zram: свой $ZRAM_CONF оставлен как есть"
+        return 0
+    fi
+    # zram-generator works the size out on each machine: half of its RAM, at most 8 GiB.
+    printf '%s\n' "$RICE_MARK (rice → программы → zram). Half of the RAM, at most 8 GiB, zstd-compressed." \
+        "[zram0]" "zram-size = min(ram / 2, 8192)" "compression-algorithm = zstd" "swap-priority = 100" \
+        | sudo tee "$ZRAM_CONF" >/dev/null
+    # The usual tuning for swap on zram (ArchWiki): swap early and in single pages, it is in RAM anyway.
+    printf '%s\n' "$RICE_MARK (rice → программы → zram)." "vm.swappiness = 180" "vm.watermark_boost_factor = 0" \
+        "vm.watermark_scale_factor = 125" "vm.page-cluster = 0" | sudo tee "$ZRAM_SYSCTL" >/dev/null
+    sudo sysctl -q --system
+    sudo systemctl daemon-reload
+    # A zram swap already in use is not rebuilt now: taking it off needs that much free RAM.
+    if swapon --show=NAME --noheadings | grep -q zram0; then
+        ok "zram настроен: новый размер — после перезагрузки"
+    else
+        sudo systemctl start systemd-zram-setup@zram0.service && ok "zram включён: половина памяти, не больше 8 ГиБ"
+    fi
+}
+
+unhook_zram() {
+    if rice_owns "$ZRAM_CONF"; then sudo rm -f "$ZRAM_CONF"; fi
+    if rice_owns "$ZRAM_SYSCTL"; then sudo rm -f "$ZRAM_SYSCTL"; fi
+    info "zram выключится после перезагрузки"
+}
+
+hook_earlyoom() {
+    # The package's own file is replaced; one the user changed (pacman: [modified]) and not ours stays.
+    if ! rice_owns "$EARLYOOM_CONF" && pacman -Qii earlyoom 2>/dev/null | grep -q "$EARLYOOM_CONF \[modified\]"; then
+        info "earlyoom: свой $EARLYOOM_CONF оставлен как есть"
+    else
+        # Thresholds are earlyoom's own shares (10% of RAM and of swap). What it should spare (the
+        # desktop, Steam, games, Windows ones through Proton too) and what to close first (browser tabs).
+        # systemd splits $EARLYOOM_ARGS at spaces: no space inside a pattern ("Web.Content", not "Web Content").
+        printf '%s\n' "$RICE_MARK (rice → программы → earlyoom)." \
+            "EARLYOOM_ARGS=\"-r 3600 -n --avoid '(^|/)(init|systemd.*|Xwayland|Hyprland|sshd|pipewire.*|wireplumber|waybar|quickshell|qs|steam|steamwebhelper|gamescope|.*\\.exe|RimWorld.*)\$' --prefer '(^|/)(chrome|chromium|firefox|zen|Web.Content|Isolated.Web.Co)\$'\"" \
+            | sudo tee "$EARLYOOM_CONF" >/dev/null
+    fi
+    sudo systemctl enable earlyoom.service >/dev/null 2>&1
+    sudo systemctl restart earlyoom.service && ok "earlyoom: при нехватке памяти первыми закрывает вкладки браузера"
+}
+
+unhook_earlyoom() {
+    sudo systemctl disable --now earlyoom.service >/dev/null 2>&1 || true
+}
+
 run_hook() { "hook_${1//-/_}" || warn "не отработал шаг $1"; }
 
 # An update may change what a program's setup step does, so it runs again for what is installed.

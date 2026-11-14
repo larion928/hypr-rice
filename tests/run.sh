@@ -1329,6 +1329,62 @@ except ValueError as error:
 PY
 }
 
+# zram: the size is a formula zram-generator works out on each machine (half the RAM, at most 8 GiB);
+# a zram swap in use is not rebuilt; the user's own config is left alone; only the rice's files go.
+test_zram_hook() {
+    load_rice
+    mkdir -p "$HOME/etc"
+    ZRAM_CONF="$HOME/etc/zram-generator.conf"
+    ZRAM_SYSCTL="$HOME/etc/99-hypr-rice-zram.conf"
+    sysctl() { :; }
+    systemctl() { echo "systemctl $*" >> "$HOME/calls"; }
+    swapon() { cat "$HOME/swaps" 2>/dev/null; }
+
+    hook_zram >/dev/null
+    grep -qx 'zram-size = min(ram / 2, 8192)' "$ZRAM_CONF" || fail "размер zram не формулой: $(cat "$ZRAM_CONF")"
+    grep -qx 'vm.swappiness = 180' "$ZRAM_SYSCTL" || fail "нет настроек ядра"
+    grep -q 'start systemd-zram-setup@zram0' "$HOME/calls" || fail "zram не включён"
+
+    : > "$HOME/calls"
+    echo /dev/zram0 > "$HOME/swaps"
+    hook_zram >/dev/null
+    ! grep -q 'start systemd-zram-setup' "$HOME/calls" || fail "работающий zram пересоздан на лету"
+
+    unhook_zram >/dev/null
+    [ ! -e "$ZRAM_CONF" ] && [ ! -e "$ZRAM_SYSCTL" ] || fail "файлы райса не убраны"
+    printf '[zram0]\nzram-size = ram\n' > "$ZRAM_CONF"
+    hook_zram >/dev/null
+    unhook_zram >/dev/null
+    [ "$(cat "$ZRAM_CONF")" = "$(printf '[zram0]\nzram-size = ram')" ] || fail "свой конфиг zram перезаписан или удалён"
+}
+
+# earlyoom: its arguments as systemd hands them over compile (a real earlyoom, dry run); the user's own
+# changed file is left alone.
+test_earlyoom_hook() {
+    load_rice
+    mkdir -p "$HOME/etc"
+    EARLYOOM_CONF="$HOME/etc/earlyoom"
+    systemctl() { :; }
+    pacman() { echo "$EARLYOOM_CONF ${PACMAN_STATE:-}"; }
+
+    hook_earlyoom >/dev/null
+    grep -q "^$RICE_MARK" "$EARLYOOM_CONF" || fail "конфиг earlyoom не записан"
+    if command -v earlyoom >/dev/null; then
+        python3 - "$EARLYOOM_CONF" > "$HOME/args" <<'PY'
+import shlex, sys
+line = next(l for l in open(sys.argv[1]) if l.startswith("EARLYOOM_ARGS="))
+print("\n".join(shlex.split(shlex.split(line.split("=", 1)[1])[0])))
+PY
+        mapfile -t args < "$HOME/args"
+        timeout 1 earlyoom --dryrun "${args[@]}" > "$HOME/out" 2>&1
+        [ $? -eq 124 ] || fail "earlyoom не принял аргументы: $(tail -3 "$HOME/out")"
+    fi
+
+    echo 'EARLYOOM_ARGS="-m 3"' > "$EARLYOOM_CONF"
+    PACMAN_STATE="[modified]" hook_earlyoom >/dev/null
+    [ "$(cat "$EARLYOOM_CONF")" = 'EARLYOOM_ARGS="-m 3"' ] || fail "свой конфиг earlyoom перезаписан"
+}
+
 tests=("$@")
 [ ${#tests[@]} -gt 0 ] || mapfile -t tests < <(declare -F | awk '{print $3}' | grep '^test_')
 for name in "${tests[@]}"; do

@@ -66,3 +66,5 @@ timeshift   | Утилиты    | Timeshift (снимки системы)       
 pavucontrol | Утилиты    | pavucontrol (микшер)             | pavucontrol
 filelight   | Утилиты    | Filelight (что занимает диск)    | filelight
 fastfetch   | Утилиты    | fastfetch                        | fastfetch
+zram        | Система    | zram: сжатый swap в памяти (половина RAM) | zram-generator hook:zram
+earlyoom    | Система    | earlyoom: при нехватке памяти закрывает браузер раньше игры | earlyoom hook:earlyoom
