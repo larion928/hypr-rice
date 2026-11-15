@@ -1456,6 +1456,33 @@ test_antidpi_hook() {
     ! grep -q 'base-devel\|curl' "$HOME/calls" 2>/dev/null || fail "удаление программы снесло её зависимости"
 }
 
+# A program's own package is installed as such, its helpers as dependencies; removing it takes its own
+# package and only those helpers that became orphans: one the user installed on purpose stays.
+test_program_helpers_kept_for_user() {
+    load_rice
+    APP_IDS=(archiver)
+    APP_SRC[archiver]="file-roller 7zip unrar"
+    APP_NAME[archiver]="Архиватор"
+    pac() { echo "pac $*" >> "$HOME/calls"; }
+    aur_install() { :; }
+    PICKED=(archiver)
+    install_apps >/dev/null 2>&1
+    grep -qx 'pac -S --needed file-roller' "$HOME/calls" && grep -qx 'pac -S --needed --asdeps 7zip unrar' "$HOME/calls" \
+        || fail "установка: $(cat "$HOME/calls")"
+
+    : > "$HOME/calls"
+    pacman() {
+        case "$1" in
+            -Qq) return 0 ;;          # all three are installed
+            -Qdtq) echo unrar ;;       # unrar came in with the program; 7zip the user installed themselves
+            *) echo "pacman $*" >> "$HOME/calls" ;;
+        esac
+    }
+    remove_apps >/dev/null 2>&1
+    [ "$(cat "$HOME/calls")" = "$(printf 'pacman -Rs --noconfirm file-roller\npacman -Rs --noconfirm unrar')" ] \
+        || fail "удаление: $(cat "$HOME/calls")"
+}
+
 tests=("$@")
 [ ${#tests[@]} -gt 0 ] || mapfile -t tests < <(declare -F | awk '{print $3}' | grep '^test_')
 for name in "${tests[@]}"; do
