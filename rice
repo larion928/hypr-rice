@@ -291,6 +291,8 @@ app_packages_installed() {
             file:*|release:*|hook:*|browser) ;;
             appimage:*) [ -x "$HOME/Applications/$1.AppImage" ] || return 1 ;;
             flatpak:*) is_installed "$tok" || return 1 ;;
+            path:*) [ -e "${tok#path:}" ] || return 1 ;;
+            dep:*) is_installed "${tok#dep:}" || return 1 ;;
             *) is_installed "${tok#aur:}" || return 1 ;;
         esac
     done
@@ -497,6 +499,75 @@ unhook_earlyoom() {
     sudo systemctl disable --now earlyoom.service >/dev/null 2>&1 || true
 }
 
+# ---- Igareck AntiDPI: anti-DPI strategies on zapret2, made for Debian/Ubuntu ----
+# Its own installer runs without questions (answers as flags, no terminal on stdin): it then needs
+# no apt, only the Arch packages apps.txt installs before this step. The newest release is found
+# where github.com/.../releases/latest redirects (the API's rate limit runs out quickly) and checked
+# against the release's own SHA-256 list. The same version is not installed again.
+ANTIDPI_REPO=https://github.com/igareck/anti-dpi-for-russia
+ANTIDPI_PREFIX=/opt/igareck-antidpi
+ANTIDPI_DESKTOP="$HOME/.local/share/applications/hypr-rice-antidpi.desktop"
+
+antidpi_latest() {  # "1.1"
+    curl -fsSI -o /dev/null -w '%{redirect_url}' "$ANTIDPI_REPO/releases/latest" | sed -n 's|.*/tag/v\{0,1\}\([0-9][0-9.]*\)$|\1|p'
+}
+
+antidpi_installed() {  # the version in its installation.json, or nothing
+    sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$ANTIDPI_PREFIX/installation.json" 2>/dev/null | head -n1
+}
+
+hook_antidpi() {
+    local version installed work name
+    version=$(antidpi_latest)
+    [ -n "$version" ] || { warn "AntiDPI: не узнал последнюю версию (нет сети или GitHub?)"; return 1; }
+    installed=$(antidpi_installed)
+    if [ "$installed" = "$version" ]; then
+        ok "Igareck AntiDPI $version уже стоит"
+        return 0
+    fi
+    work=$(mktemp -d)
+    name="Igareck_AntiDPI_CLI_v${version}_Linux_x64.tar.gz"
+    if ! curl -fsSL -o "$work/$name" "$ANTIDPI_REPO/releases/download/v$version/$name" \
+        || ! curl -fsSL -o "$work/SHA256SUMS" "$ANTIDPI_REPO/releases/download/v$version/SHA256SUMS_Linux_v$version.txt"; then
+        warn "AntiDPI $version не скачался"
+        rm -rf "$work"
+        return 1
+    fi
+    if ! (cd "$work" && grep -F "  $name" SHA256SUMS | sha256sum -c --quiet --status); then
+        warn "AntiDPI $version: сумма архива не совпала со списком релиза, не ставлю"
+        rm -rf "$work"
+        return 1
+    fi
+    tar -xzf "$work/$name" -C "$work"
+    # A new version replaces the old one whole: its installer takes only an empty folder.
+    if [ -n "$installed" ]; then
+        sudo python3 "$ANTIDPI_PREFIX/remove_installation.py" --purge --yes </dev/null >/dev/null
+    fi
+    if ! sudo python3 "$work/${name%.tar.gz}/app/install.py" install --prefix "$ANTIDPI_PREFIX" --engine compatible \
+            --shortcuts no --global-command yes --skip-deps --no-launch </dev/null; then
+        warn "AntiDPI $version не установился (лог — в выводе выше и в /var/log/igareck-zapret2)"
+        rm -rf "$work"
+        return 1
+    fi
+    rm -rf "$work"
+    mkdir -p "$(dirname "$ANTIDPI_DESKTOP")"
+    printf '%s\n' "[Desktop Entry]" "Type=Application" "Name=Igareck AntiDPI" \
+        "Comment=Обход DPI: стратегии на zapret2" "Exec=kitty -e igareck-antidpi" "Icon=network-vpn" \
+        "Terminal=false" "Categories=Network;" > "$ANTIDPI_DESKTOP"
+    ok "Igareck AntiDPI $version: запуск — igareck-antidpi или лаунчер (Alt+R)"
+    # Two zapret engines on the same traffic get in each other's way.
+    if systemctl is-active --quiet zapret2.service 2>/dev/null; then
+        warn "работает служба zapret2: перед стратегиями AntiDPI останови её — sudo systemctl disable --now zapret2"
+    fi
+}
+
+unhook_antidpi() {
+    if [ -f "$ANTIDPI_PREFIX/remove_installation.py" ]; then
+        sudo python3 "$ANTIDPI_PREFIX/remove_installation.py" --purge --yes </dev/null >/dev/null
+    fi
+    rm -f "$ANTIDPI_DESKTOP"
+}
+
 run_hook() { "hook_${1//-/_}" || warn "не отработал шаг $1"; }
 
 # An update may change what a program's setup step does, so it runs again for what is installed.
@@ -518,7 +589,7 @@ app_desktop_file() {  # first .desktop file an installed app ships
         case "$tok" in
             flatpak:*) f="${tok#flatpak:}.desktop"; [ -e "/var/lib/flatpak/exports/share/applications/$f" ] \
                            || [ -e "$HOME/.local/share/flatpak/exports/share/applications/$f" ] && { echo "$f"; return; } ;;
-            hook:*|browser|file:*|release:*|appimage:*) ;;
+            hook:*|browser|file:*|release:*|appimage:*|path:*|dep:*) ;;
             *) f=$(pacman -Qlq "${tok#aur:}" 2>/dev/null | grep -m1 '/usr/share/applications/.*\.desktop$') \
                    && { basename "$f"; return; } ;;
         esac
@@ -535,6 +606,8 @@ install_apps() {  # installs PICKED
                 appimage:*) appimages+=("$id ${tok#appimage:}") ;;
                 flatpak:*) flat+=("${tok#flatpak:}") ;;
                 hook:*) hooks+=("${tok#hook:}") ;;
+                dep:*) repo_pk+=("${tok#dep:}") ;;
+                path:*) ;;
                 browser) browsers+=("$id") ;;
                 file:*)  # a rice file that only ships with this program (put back if it was dropped)
                     [ -e "$HOME/${tok#file:}" ] || install -Dm755 "$SRC/home/${tok#file:}" "$HOME/${tok#file:}" ;;
@@ -645,7 +718,7 @@ remove_apps() {  # removes PICKED (packages, flatpaks, AppImages)
                     local undo="unhook_${tok#hook:}"
                     undo=${undo//-/_}
                     if declare -F "$undo" >/dev/null; then "$undo"; fi ;;
-                browser) ;;
+                browser|dep:*|path:*) ;;
                 *) pacman -Qq "${tok#aur:}" >/dev/null 2>&1 && pk+=("${tok#aur:}") ;;
             esac
         done

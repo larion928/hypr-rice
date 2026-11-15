@@ -1385,6 +1385,77 @@ PY
     [ "$(cat "$EARLYOOM_CONF")" = 'EARLYOOM_ARGS="-m 3"' ] || fail "свой конфиг earlyoom перезаписан"
 }
 
+# A fake Igareck AntiDPI release VERSION in $HOME/release: the archive, its SHA-256 list and an
+# installer that only notes how it was called and leaves an installation behind.
+fake_antidpi_release() {
+    local version=$1 name="Igareck_AntiDPI_CLI_v$1_Linux_x64"
+    mkdir -p "$HOME/build/$name/app" "$HOME/release"
+    cat > "$HOME/build/$name/app/install.py" <<PY
+import json, os, sys
+from pathlib import Path
+args = sys.argv[1:]
+prefix = Path(args[args.index("--prefix") + 1])
+with open(os.environ["HOME"] + "/installer-calls", "a") as log:
+    log.write(" ".join(args) + (" tty" if sys.stdin.isatty() else " no-tty") + "\n")
+prefix.mkdir(parents=True)
+(prefix / "installation.json").write_text(json.dumps({"version": "$version"}))
+(prefix / "remove_installation.py").write_text(
+    "import os, shutil, sys\n"
+    "open(os.environ['HOME'] + '/installer-calls', 'a').write('remove ' + ' '.join(sys.argv[1:]) + '\\\\n')\n"
+    "shutil.rmtree(os.path.dirname(os.path.abspath(__file__)))\n")
+PY
+    tar -czf "$HOME/release/$name.tar.gz" -C "$HOME/build" "$name"
+    (cd "$HOME/release" && sha256sum "$name.tar.gz" > "SHA256SUMS_Linux_v$version.txt")
+}
+
+# Igareck AntiDPI from the rice: installed without questions from the newest release checked against
+# its SHA-256 list; the same version not again, a new one in place of the old; installed only while its
+# folder is there; removing it leaves the packages it needed.
+test_antidpi_hook() {
+    load_rice
+    ANTIDPI_PREFIX="$HOME/opt/igareck-antidpi"
+    systemctl() { return 1; }
+    curl() {
+        local out="" url="${*: -1}"
+        if [[ " $* " == *" -w "* ]]; then
+            [ -n "${LATEST:-}" ] && echo "$ANTIDPI_REPO/releases/tag/v$LATEST"
+            return 0
+        fi
+        while [ $# -gt 1 ]; do [ "$1" = -o ] && out=$2; shift; done
+        cp "$HOME/release/$(basename "$url")" "$out"
+    }
+    fake_antidpi_release 1.1
+
+    LATEST=1.1 hook_antidpi >/dev/null || fail "не поставилось"
+    grep -qx -- "install --prefix $ANTIDPI_PREFIX --engine compatible --shortcuts no --global-command yes --skip-deps --no-launch no-tty" \
+        "$HOME/installer-calls" || fail "установщик вызван не так: $(cat "$HOME/installer-calls")"
+    [ -f "$ANTIDPI_DESKTOP" ] || fail "нет пункта в лаунчере"
+
+    LATEST=1.1 hook_antidpi >/dev/null
+    [ "$(grep -c '^install' "$HOME/installer-calls")" = 1 ] || fail "та же версия поставлена ещё раз"
+
+    fake_antidpi_release 1.2
+    LATEST=1.2 hook_antidpi >/dev/null || fail "новая версия не встала"
+    grep -qx 'remove --purge --yes' "$HOME/installer-calls" && [ "$(antidpi_installed)" = 1.2 ] \
+        || fail "старая версия не заменена: $(cat "$HOME/installer-calls")"
+
+    fake_antidpi_release 1.3
+    echo "0000  Igareck_AntiDPI_CLI_v1.3_Linux_x64.tar.gz" > "$HOME/release/SHA256SUMS_Linux_v1.3.txt"
+    LATEST=1.3 hook_antidpi >/dev/null 2>&1 && fail "поставлено с несовпавшей суммой"
+    [ "$(antidpi_installed)" = 1.2 ] || fail "после отказа сломана прежняя установка"
+    LATEST="" hook_antidpi >/dev/null 2>&1 && fail "без версии сделан вид, что всё хорошо"
+
+    is_installed() { return 0; }  # every package it needs is there
+    APP_SRC[antidpi]="dep:base-devel dep:curl path:$ANTIDPI_PREFIX hook:antidpi"
+    app_packages_installed antidpi || fail "установленный не считается установленным"
+    unhook_antidpi >/dev/null
+    ! app_packages_installed antidpi || fail "без папки считается установленным"
+    pacman() { [ "$1" = -Qq ] && return 0; echo "pacman $*" >> "$HOME/calls"; }
+    PICKED=(antidpi)
+    remove_apps >/dev/null 2>&1
+    ! grep -q 'base-devel\|curl' "$HOME/calls" 2>/dev/null || fail "удаление программы снесло её зависимости"
+}
+
 tests=("$@")
 [ ${#tests[@]} -gt 0 ] || mapfile -t tests < <(declare -F | awk '{print $3}' | grep '^test_')
 for name in "${tests[@]}"; do

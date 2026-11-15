@@ -8,6 +8,8 @@
 #   release:path   prebuilt file of the rice (relative to ~), downloaded from the GitHub release "files"
 #                  and checked against packages/release.sha256
 #   hook:name      extra setup step, hook_<name> in the rice script
+#   dep:name       package from the official repos it needs, left in place when the program is removed
+#   path:/abs      the program counts as installed only while this path exists (one its hook puts there)
 #   browser        a web browser: the first one picked becomes the default (Alt+B)
 # No commas in names: the checklist uses them as separators.
 firefox     | Браузеры   | Firefox                          | firefox browser
@@ -68,3 +70,4 @@ filelight   | Утилиты    | Filelight (что занимает диск)  
 fastfetch   | Утилиты    | fastfetch                        | fastfetch
 zram        | Система    | zram: сжатый swap в памяти (половина RAM) | zram-generator hook:zram
 earlyoom    | Система    | earlyoom: при нехватке памяти закрывает браузер раньше игры | earlyoom hook:earlyoom
+antidpi     | Интернет   | Igareck AntiDPI: обход DPI (zapret2) | dep:base-devel dep:luajit dep:libnetfilter_queue dep:libnfnetlink dep:libmnl dep:libcap dep:zlib dep:nftables dep:curl dep:iproute2 dep:kmod dep:fontconfig path:/opt/igareck-antidpi hook:antidpi
