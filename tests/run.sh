@@ -5,6 +5,9 @@
 #   tests/run.sh NAME...   run the named tests
 set -uo pipefail
 
+# The tests import the repo's own python; without this they leave __pycache__ next to it in home/.
+export PYTHONDONTWRITEBYTECODE=1
+
 REPO=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
 FAILED=()
 

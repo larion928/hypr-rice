@@ -1,4 +1,4 @@
-# Every push: the scripts parse, the commit is signed, and `rice install` goes through on a clean
+# Every push: the scripts parse, the commit is signed, tests/run.sh passes, and `rice install` goes through on a clean
 # Arch system the way it does on a friend's machine (normal user, sudo, no terminal).
 name: check
 
@@ -36,6 +36,18 @@ jobs:
         run: |
           git config --global --add safe.directory "$PWD"
           git -c gpg.format=ssh -c gpg.ssh.allowedSignersFile=system/allowed_signers verify-commit HEAD
+
+  tests:
+    needs: syntax
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      # jq: the battery and rice tests; python-pillow, python-fonttools, python-gobject + gtk3: what themegen
+      # imports (apptheme/*.py, icon_themes.py needs the Gtk 3 typelib); fontconfig: fc-match in glyphs.py;
+      # ffmpeg: the animated-wallpaper tests, which are skipped without it.
+      - run: pacman -Syu --noconfirm --needed jq python python-pillow python-fonttools python-gobject gtk3 fontconfig ffmpeg
+      - uses: actions/checkout@v5
+      - run: tests/run.sh
 
   install:
     needs: syntax
