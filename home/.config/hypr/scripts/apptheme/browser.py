@@ -1,9 +1,13 @@
 """What the Firefox and Chromium themes share."""
+import hashlib
 import io
+from pathlib import Path
 
 from PIL import Image
 
 from .colors import css_rgba, mix
+from .files import write_bytes
+from .paths import HOME
 
 
 def theme_emblem(theme):
@@ -43,7 +47,29 @@ def look(theme):
     }
 
 
+# The browsers' wallpaper JPEGs. Decoding the wallpaper and encoding it again took 75-210 ms per size
+# (Firefox wants two, Chromium one) on every theme change; the wallpapers are few and rarely change.
+JPEG_CACHE = HOME / ".cache/hypr-rice/browser-wallpapers"
+
+
 def wallpaper_jpeg(wallpaper, width, quality):
+    """The wallpaper as a JPEG at most width pixels wide and tall, from JPEG_CACHE when this version of
+    the file (its modification time and size) was encoded so before. A new version replaces the old one's
+    entry."""
+    source = Path(wallpaper)
+    version = source.stat()
+    entry_prefix = hashlib.sha1(f"{source}\0{width}\0{quality}".encode()).hexdigest()[:16]
+    cached = JPEG_CACHE / f"{entry_prefix}-{version.st_mtime_ns}-{version.st_size}.jpg"
+    if cached.exists():
+        return cached.read_bytes()
+    for outdated in JPEG_CACHE.glob(f"{entry_prefix}-*.jpg"):
+        outdated.unlink(missing_ok=True)
+    jpeg = encode_jpeg(source, width, quality)
+    write_bytes(cached, jpeg)
+    return jpeg
+
+
+def encode_jpeg(wallpaper, width, quality):
     image = Image.open(wallpaper).convert("RGB")
     image.thumbnail((width, width))
     buffer = io.BytesIO()

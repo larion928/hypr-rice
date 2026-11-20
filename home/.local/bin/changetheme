@@ -141,43 +141,15 @@ fi
 exec {lock}>"${XDG_RUNTIME_DIR:-/tmp}/hypr-rice-changetheme.lock"
 flock -w 60 "$lock" || { echo "Ошибка: другое переключение темы не закончилось за минуту"; exit 1; }
 
-# --- 1. Обои ---
-# The theme's own and those added in the settings, minus the ones switched off there.
-WALLPAPER_LIST=$(python3 "$HOME/.config/hypr/scripts/themegen.py" wallpapers "$THEME")
-WALLPAPERS_FAILED=$?
-mapfile -t WALLPAPERS < <(printf '%s' "$WALLPAPER_LIST")
-
-SELECTED_WALL=""
-CURRENT_WALL=$(cat "$HOME/.config/hypr/current-wallpaper" 2>/dev/null)
-if [ "$WALLPAPERS_FAILED" != 0 ]; then
-    THEMEGEN_FAILED=1
-    echo "ОШИБКА: themegen.py не смог перечислить обои темы (см. ошибку выше), обои остаются прежними"
-elif [ ${#WALLPAPERS[@]} -eq 0 ]; then
-    echo "Предупреждение: В папке темы нет изображений."
-elif [ "$KEEP_WALLPAPER" = 1 ] && printf '%s\n' "${WALLPAPERS[@]}" | grep -qxF "$CURRENT_WALL"; then
-    SELECTED_WALL=$CURRENT_WALL
-    echo "Обои остаются: $SELECTED_WALL"
-else
-    RANDOM_INDEX=$(( RANDOM % ${#WALLPAPERS[@]} ))
-    SELECTED_WALL="${WALLPAPERS[$RANDOM_INDEX]}"
-    echo "Устанавливаю обои: $SELECTED_WALL"
-    # Restored by the autostart in hyprland.lua, so a theme set offline gets its wallpaper too.
-    echo "$SELECTED_WALL" > "$HOME/.config/hypr/current-wallpaper"
-    [ "$OFFLINE" = 1 ] || "$HOME/.local/bin/wallpaper" "$SELECTED_WALL" {lock}>&-
-fi
-
-# --- 2. Палитра и конфиги приложений из themes/<тема>/palette.json ---
-if [ -f "$CONFIG_DIR/palette.json" ]; then
-    if python3 "$HOME/.config/hypr/scripts/themegen.py" apply "$THEME" --wallpaper "$SELECTED_WALL" {lock}>&-; then
-        echo "Применена палитра темы: $THEME"
-    else
-        # The rest still runs: a half-applied theme beats the old one with a new wallpaper.
-        THEMEGEN_FAILED=1
-        echo "ОШИБКА: themegen.py не смог применить палитру, часть приложений осталась в прежней теме"
-    fi
-else
-    echo "Предупреждение: в теме нет palette.json — цвета остаются от прежней темы"
-fi
+# --- 1. Обои и 2. палитра: themegen.py switch, один запуск python на оба шага ---
+# It picks the wallpaper (the theme's own and those added in the settings, minus the ones switched off
+# there; the current one with --keep-wallpaper), shows it through ~/.local/bin/wallpaper, then writes
+# the palette and the apps' configs from themes/<тема>/palette.json. A failed step does not stop the
+# rest: a half-applied theme beats the old one with a new wallpaper.
+SWITCH_FLAGS=()
+[ "$KEEP_WALLPAPER" = 1 ] && SWITCH_FLAGS+=(--keep-wallpaper)
+[ "$OFFLINE" = 1 ] && SWITCH_FLAGS+=(--offline)
+python3 "$HOME/.config/hypr/scripts/themegen.py" switch "$THEME" "${SWITCH_FLAGS[@]}" {lock}>&- || THEMEGEN_FAILED=1
 
 # --- 3. Hyprland (структура темы + перечитать конфиг с новой палитрой) ---
 if [ -f "$CONFIG_DIR/hypr.lua" ]; then

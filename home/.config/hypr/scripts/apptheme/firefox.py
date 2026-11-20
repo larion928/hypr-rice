@@ -227,6 +227,9 @@ def profiles():
 
 
 def apply(theme, wallpaper=None):
+    found = list(profiles())
+    if not found:
+        return  # nothing to theme, and the wallpaper not even decoded
     look = browser.look(theme)
     emblem = browser.theme_emblem(theme)
     chrome_css = FIREFOX_CHROME_CSS.format(generated=GENERATED, **look)
@@ -240,7 +243,7 @@ def apply(theme, wallpaper=None):
             emblem=base64.b64encode(emblem.read_bytes()).decode(), **look)
     window_wallpaper = wallpaper and browser.wallpaper_jpeg(wallpaper, 2560, 82)
 
-    for profile, kind in profiles():
+    for profile, kind in found:
         chrome = profile / "chrome"
         tabs_css, wallpaper_css = (ZEN_TABS_CSS, ZEN_WALLPAPER_CSS) if kind == "zen" \
             else (FIREFOX_TABS_CSS, FIREFOX_WALLPAPER_CSS)

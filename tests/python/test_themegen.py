@@ -42,7 +42,7 @@ class ApplyTest(unittest.TestCase):
             (blocked / module).mkdir(parents=True)
             (blocked / module / "__init__.py").write_text("raise ImportError('blocked by the test')\n")
         result = self.sandbox.run(["python3", self.sandbox.home / ".config/hypr/scripts/themegen.py",
-                                   "wallpapers", "night"], PYTHONPATH=str(blocked))
+                                   "switch", "night", "--offline"], PYTHONPATH=str(blocked))
         self.assertEqual(result.returncode, 0, result.stderr)
 
 

@@ -65,6 +65,40 @@ class ChangethemeTest(unittest.TestCase):
         held = self.locks.read_text() if self.locks.exists() else ""
         self.assertNotIn("hypr-rice-changetheme.lock", held)
 
+    def test_one_python_start_picks_the_wallpaper_and_applies(self):
+        theme = self.sandbox.add_theme("night")
+        Image.new("RGB", (8, 8)).save(theme / "wall.png")
+        self.sandbox.stub("python3", 'exec /usr/bin/python3 "$@"')
+        result = self.changetheme("night")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn(f"Устанавливаю обои: {theme / 'wall.png'}\n", result.stdout)
+        self.assertIn("Применена палитра темы: night\n", result.stdout)
+        self.assertEqual((self.sandbox.home / ".config/hypr/current-wallpaper").read_text(), f"{theme / 'wall.png'}\n")
+        calls = self.sandbox.recorded()
+        themegen_starts = [call for call in calls if call.startswith("python3 ") and "themegen.py" in call]
+        self.assertEqual(len(themegen_starts), 1, themegen_starts)
+        # The wallpaper is shown before the apps are themed.
+        self.assertLess(calls.index(f"wallpaper {theme / 'wall.png'}"), calls.index("pkill -USR1 -x kitty"))
+
+    def test_keep_wallpaper_keeps_the_current_one_of_the_theme(self):
+        theme = self.sandbox.add_theme("night")
+        for name in ("a.png", "b.png"):
+            Image.new("RGB", (8, 8)).save(theme / name)
+        (self.sandbox.home / ".config/hypr/current-wallpaper").write_text(f"{theme / 'b.png'}\n")
+        result = self.changetheme("--keep-wallpaper", "night")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn(f"Обои остаются: {theme / 'b.png'}\n", result.stdout)
+        self.assertFalse(any(call.startswith("wallpaper ") for call in self.sandbox.recorded()))
+
+    def test_a_theme_without_palette_keeps_its_colors_and_says_so(self):
+        theme = self.sandbox.add_theme("night")
+        (theme / "palette.json").unlink()
+        result = self.changetheme("--offline", "night")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("не смог перечислить обои", result.stdout)
+        self.assertIn("в теме нет palette.json", result.stdout)
+        self.assertNotIn("Применена палитра", result.stdout)
+
 
 class WallpaperTest(unittest.TestCase):
     def setUp(self):

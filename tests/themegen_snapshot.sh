@@ -52,8 +52,12 @@ make_stubs() {
     chmod +x "$STUBS"/*
 }
 
+# Without the live session's D-Bus, runtime dir and Hyprland: nothing of this machine is told anything.
 themegen() {
-    HOME=$FAKE_HOME PATH="$STUBS:/usr/bin" python3 "$FAKE_HOME/.config/hypr/scripts/themegen.py" "$@"
+    mkdir -p -m 700 "$SANDBOX/run"
+    env -u HYPRLAND_INSTANCE_SIGNATURE -u WAYLAND_DISPLAY -u DISPLAY HOME="$FAKE_HOME" PATH="$STUBS:/usr/bin" \
+        XDG_RUNTIME_DIR="$SANDBOX/run" DBUS_SESSION_BUS_ADDRESS=disabled: \
+        python3 "$FAKE_HOME/.config/hypr/scripts/themegen.py" "$@"
 }
 
 # Everything under the fake home except the inputs. Zips (the Code - OSS extension, Telegram

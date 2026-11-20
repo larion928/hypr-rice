@@ -17,7 +17,12 @@ fail() { echo "      $*"; exit 1; }  # ends the test: each one runs in its own s
 run_test() {
     local name=$1 sandbox
     sandbox=$(mktemp -d)
-    if (export HOME="$sandbox/home"; mkdir -p "$HOME"; cd "$sandbox" && "$name") >"$sandbox/out" 2>&1; then
+    # Cut off from the live session too: a stub that is missing (or a child that outlives the test and its
+    # stubs) would otherwise reach the real D-Bus session, Hyprland and the runtime dir's sockets and locks.
+    mkdir -m 700 "$sandbox/run"
+    if (export HOME="$sandbox/home" XDG_RUNTIME_DIR="$sandbox/run" DBUS_SESSION_BUS_ADDRESS=disabled:
+        unset HYPRLAND_INSTANCE_SIGNATURE WAYLAND_DISPLAY DISPLAY
+        mkdir -p "$HOME"; cd "$sandbox" && "$name") >"$sandbox/out" 2>&1; then
         echo "ok    $name"
     else
         echo "FAIL  $name"

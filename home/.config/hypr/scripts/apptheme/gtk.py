@@ -103,9 +103,20 @@ def apply(theme):
     rules = GTK_COMMON.format(**rule_colors)
     base = base_theme()
     head = f"/* Тема «{theme.name}» поверх {base}. {GENERATED} */\n"
-    write(HOME / ".config/gtk-3.0/gtk.css", head + gtk3_defines + rules)
+    sheets = {HOME / ".config/gtk-3.0/gtk.css": head + gtk3_defines + rules}
     for file_name in ("gtk.css", "gtk-dark.css"):
-        write(HOME / ".config/gtk-4.0" / file_name, head + gtk4_import(base, file_name) + gtk4_defines + rules)
+        sheets[HOME / ".config/gtk-4.0" / file_name] = head + gtk4_import(base, file_name) + gtk4_defines + rules
+    if write_changed(sheets):
+        # The same sheets again (the theme reapplied for its fonts) leave open apps as they are.
+        reload()
+
+
+def write_changed(sheets):
+    """Writes each {path: text} whose file holds other text; whether any was written."""
+    changed = [path for path, text in sheets.items() if not path.exists() or path.read_text() != text]
+    for path in changed:
+        write(path, sheets[path])
+    return bool(changed)
 
 
 def gtk4_import(base, file_name):
@@ -121,18 +132,66 @@ def base_theme():
 
 
 def reload():
-    # GTK3 only rereads the user gtk.css when the theme name changes, so bounce it. It lands on the
-    # base theme, not on the name found in the setting: once the setting held another theme (the
-    # stand-in, after a bounce cut short), every later bounce restored that one.
+    """Makes open GTK apps reread the user gtk.css, which they do only when the theme name changes: the
+    name goes to a stand-in and back. It lands on the base theme, not on the name found in the setting:
+    once the setting held another theme (the stand-in, after a bounce cut short), every later bounce
+    restored that one."""
     try:
         base = base_theme()
         # A dark stand-in: bouncing through light Adwaita left white toolbars in open windows.
-        bounce = "Adwaita-dark" if base != "Adwaita-dark" else "Adwaita"
-        subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "gtk-theme", bounce], timeout=5)
-        time.sleep(0.3)
-        subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "gtk-theme", base], timeout=5)
-        # File chooser dialogs (Code - OSS, browsers, ...) come from this portal; it does not
-        # follow the bounce above, so restart it. It is D-Bus activated, nothing is lost.
-        subprocess.run(["systemctl", "--user", "try-restart", "xdg-desktop-portal-gtk.service"], timeout=10)
+        set_theme_seen_by_apps("Adwaita-dark" if base != "Adwaita-dark" else "Adwaita")
+        set_theme_seen_by_apps(base)
+        # File chooser dialogs (Code - OSS, browsers, ...) come from this portal; it does not follow
+        # the bounce above, so restart it, once it has sent the base theme on (it is the settings
+        # portal too). It is D-Bus activated, nothing is lost. Not waited for (~80 ms): the next
+        # bounce comes with the next theme change, after changetheme's later steps.
+        subprocess.run(["systemctl", "--user", "--no-block", "try-restart", "xdg-desktop-portal-gtk.service"],
+                       timeout=10)
     except (OSError, subprocess.SubprocessError):
         pass
+
+
+# The apps get the setting from the settings portal, which passes a change on within milliseconds. A
+# heuristic: when it is this late, the theme goes back all the same; above the fixed wait used before.
+PORTAL_TIMEOUT_MS = 500
+# Without PyGObject to watch the portal with: that fixed wait.
+UNWATCHED_WAIT_S = 0.3
+
+
+def set_theme_seen_by_apps(name):
+    """Sets the theme name and returns once the settings portal has sent it to the apps. Set back sooner,
+    the change can be lost: the portal sends the value the setting has when it gets to a change, and
+    two changes 10 ms apart came out as the second one twice (seen with the real portal on a private
+    D-Bus session), so the apps saw no change at all."""
+    try:
+        from gi.repository import Gio, GLib
+    except ImportError:
+        set_theme(name)
+        time.sleep(UNWATCHED_WAIT_S)
+        return
+    try:
+        bus = Gio.bus_get_sync(Gio.BusType.SESSION)
+    except GLib.Error:  # no session bus: gsettings has no dconf to write to, no app is told anything
+        set_theme(name)
+        return
+    loop = GLib.MainLoop()
+    announced = []
+
+    def on_setting_changed(_bus, _sender, _path, _interface, _signal, parameters):
+        if parameters.unpack() == ("org.gnome.desktop.interface", "gtk-theme", name):
+            announced.append(name)
+            loop.quit()
+
+    subscription = bus.signal_subscribe(None, "org.freedesktop.portal.Settings", "SettingChanged",
+                                        "/org/freedesktop/portal/desktop", None, Gio.DBusSignalFlags.NONE,
+                                        on_setting_changed)
+    set_theme(name)
+    timeout = GLib.timeout_add(PORTAL_TIMEOUT_MS, loop.quit)
+    loop.run()
+    if announced:
+        GLib.source_remove(timeout)
+    bus.signal_unsubscribe(subscription)
+
+
+def set_theme(name):
+    subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "gtk-theme", name], timeout=5)

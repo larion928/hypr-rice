@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Generate app configs from ~/.config/hypr/themes/<name>/palette.json and ui.json.
 
+  themegen.py switch <theme> [--keep-wallpaper] [--offline]
+                                                 changetheme's wallpaper and palette steps: picks a wallpaper
+                                                 (the theme's own and the user's, minus those switched off),
+                                                 shows it (not --offline), then applies the theme
   themegen.py apply <theme> [--wallpaper PATH]   write configs for the active theme
   themegen.py build                              regenerate artifacts that bundle every theme
                                                  (drift themes, Code - OSS extension, neoHtop,
@@ -9,8 +13,6 @@
                                                  (Firefox profiles, Obsidian vaults); run at login
   themegen.py offer <theme>                      offer the theme to a running Telegram / AyuGram, which
                                                  opens its full-screen preview; changetheme runs it last
-  themegen.py wallpapers <theme>                 the wallpapers changetheme picks from, one per line
-                                                 (the theme's own and the user's, minus those switched off)
   themegen.py bar-preview <theme>                what each waybar module shows on this machine now, as JSON,
                                                  for the bar in the settings window
   themegen.py icons                              every icon of the Nerd Font with its name, as JSON, for
@@ -49,6 +51,8 @@ Each program has its module in apptheme/.
 import contextlib
 import json
 import os
+import random
+import subprocess
 import sys
 import traceback
 import zipfile
@@ -59,8 +63,63 @@ from apptheme import (animated, bar_preview, battery, chromium, css_palette, cur
                       cursor_themes, drift, factory_reset, firefox, frames, glyphs, gtk, hypr, hyprlock, icon_theme,
                       icon_themes, kitty, neohtop, obsidian, removed_themes, system, telegram, user_themes, vesktop,
                       vscode, wallpaper_engine, wallpaper_still, waybar, windows)
-from apptheme.paths import HYPR
+from apptheme.files import write
+from apptheme.paths import HOME, HYPR, THEMES
 from apptheme.theme import all_names, load
+
+
+def switch(name, keep_wallpaper, offline):
+    """changetheme's wallpaper and palette steps in one python start, with its messages. 0, or 1 when the
+    wallpapers could not be listed or the theme not applied in full."""
+    # The messages keep their order with the errors on stderr and the wallpaper script's output.
+    sys.stdout.reconfigure(line_buffering=True)
+    try:
+        wallpapers = load(name).wallpapers
+    except ValueError as error:
+        print(error, file=sys.stderr)
+        print("ОШИБКА: themegen.py не смог перечислить обои темы (см. ошибку выше), обои остаются прежними")
+        wallpaper, status = None, 1
+    else:
+        wallpaper, status = change_wallpaper(wallpapers, keep_wallpaper, offline), 0
+
+    if not (THEMES / name / "palette.json").is_file():
+        print("Предупреждение: в теме нет palette.json — цвета остаются от прежней темы")
+        return status
+    try:
+        applied = apply(name, wallpaper) == 0
+    except ValueError as error:
+        print(error, file=sys.stderr)
+        applied = False
+    if applied:
+        print(f"Применена палитра темы: {name}")
+        return status
+    print("ОШИБКА: themegen.py не смог применить палитру, часть приложений осталась в прежней теме")
+    return 1
+
+
+def change_wallpaper(wallpapers, keep_wallpaper, offline):
+    """The wallpaper the theme change leaves on the desktop, None when the theme has none. keep_wallpaper
+    keeps the current one if the theme has it; otherwise a random one is picked, remembered and, unless
+    offline, shown."""
+    if not wallpapers:
+        print("Предупреждение: В папке темы нет изображений.")
+        return None
+    current = current_wallpaper()
+    if keep_wallpaper and current in map(str, wallpapers):
+        print(f"Обои остаются: {current}")
+        return current
+    wallpaper = str(random.choice(wallpapers))
+    print(f"Устанавливаю обои: {wallpaper}")
+    # Restored by the autostart in hyprland.lua, so a theme set offline gets its wallpaper too.
+    write(HYPR / "current-wallpaper", wallpaper + "\n")
+    if not offline:
+        # Before apply: the desktop changes first, and an animation's still is made once, by the
+        # wallpaper script (apply then finds it made).
+        try:
+            subprocess.run([HOME / ".local/bin/wallpaper", wallpaper], check=False)
+        except OSError as error:  # the theme is still applied, as when the script itself fails
+            report_failure("wallpaper", error)
+    return wallpaper
 
 
 def apply(name, wallpaper=None):
@@ -76,7 +135,7 @@ def apply(name, wallpaper=None):
         partial(gtk.apply, theme), partial(icon_theme.apply, theme), partial(cursor_theme.apply, theme),
         partial(drift.apply, theme), partial(vscode.apply, theme), partial(system.apply, theme, wallpaper),
         partial(obsidian.apply, theme), partial(vesktop.apply, theme), partial(firefox.apply, theme, wallpaper),
-        partial(chromium.apply, theme, wallpaper), gtk.reload,
+        partial(chromium.apply, theme, wallpaper),
     )
     return max(status, run_each(steps))
 
@@ -160,7 +219,9 @@ def main(argv):
 
 
 def run_command(argv):
-    if len(argv) >= 2 and argv[0] == "apply":
+    if len(argv) >= 2 and argv[0] == "switch":
+        return switch(argv[1], "--keep-wallpaper" in argv[2:], "--offline" in argv[2:])
+    elif len(argv) >= 2 and argv[0] == "apply":
         return apply(argv[1], wallpaper_argument(argv))
     elif argv[:1] == ["build"]:
         build()
@@ -168,8 +229,6 @@ def run_command(argv):
         return refresh()
     elif len(argv) >= 2 and argv[0] == "offer":
         telegram.offer(load(argv[1]))
-    elif len(argv) >= 2 and argv[0] == "wallpapers":
-        print(*load(argv[1]).wallpapers, sep="\n")
     elif argv[:1] == ["icon-themes"]:
         print(json.dumps(icon_themes.listing(), ensure_ascii=False))
     elif argv[:1] == ["cursor-themes"]:
