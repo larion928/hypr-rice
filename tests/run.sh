@@ -33,11 +33,49 @@ load_rice() {
     source "$REPO/rice"
     set +e
     SRC=$REPO
-    sudo() { "$@"; }
+    # The files rice keeps outside ~ go under $HOME/root, and sudo refuses the real system folders:
+    # sudo is only a pass-through here, a test that reached /etc would change this machine.
+    local root="$HOME/root"
+    PACMAN_CONF="$root/etc/pacman.conf"
+    MIRRORLIST="$root/etc/pacman.d/mirrorlist"
+    SDDM_CONF="$root/etc/sddm.conf"
+    SDDM_CONF_D="$root/etc/sddm.conf.d"
+    THEME_ROOT="$root/usr/local/bin/hypr-theme-root"
+    SUDOERS_RULE="$root/etc/sudoers.d/hypr-theme"
+    TMPFILES_D="$root/etc/tmpfiles.d"
+    CACHE_TRIM="$root/usr/local/bin/rice-cache-trim"
+    CACHE_TRIM_HOOK="$root/etc/pacman.d/hooks/rice-cache-trim.hook"
+    ZRAM_CONF="$root/etc/systemd/zram-generator.conf"
+    ZRAM_SYSCTL="$root/etc/sysctl.d/99-hypr-rice-zram.conf"
+    EARLYOOM_CONF="$root/etc/default/earlyoom"
+    PROTON_BINFMT="$root/etc/binfmt.d/proton-run.conf"
+    PROTON_BINFMT_RULE="$root/proc/sys/fs/binfmt_misc/proton-run"
+    NTSYNC_LOAD="$root/etc/modules-load.d/ntsync.conf"
+    NTSYNC_RULE="$root/etc/udev/rules.d/60-ntsync.rules"
+    ANTIDPI_PREFIX="$root/opt/igareck-antidpi"
+    sudo() {
+        local arg
+        for arg in "$@"; do
+            case "$arg" in
+                /etc/*|/usr/*|/var/*|/opt/*|/boot/*|/proc/*|/sys/*)
+                    echo "тест дошёл до системного файла: sudo $*" >&2
+                    return 1 ;;
+            esac
+        done
+        "$@"
+    }
+    need_sudo() { :; }
+    systemctl() { :; }
     pacman() { return 1; }
     flatpak() { return 1; }
     xdg-user-dirs-update() { :; }
     export RICE_ASSUME=y RICE_MODE=replace
+}
+
+# Runs CODE after load_rice in a bash of its own, with set -e in force as when rice runs: the tests
+# themselves run inside `if`, where bash ignores set -e, even in a subshell that sets it again.
+strict_rice() {  # strict_rice CODE
+    REPO=$REPO bash -c "$(declare -f load_rice); load_rice; set -e; $1"
 }
 
 rice_backups() { find "$HOME" -maxdepth 1 -name '.rice-backup-*'; }
@@ -966,10 +1004,19 @@ test_games_find_pictures() {
 import sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
+import urllib.error
+import urllib.request
 import games
 home = Path(sys.argv[2])
 games.STORE_SEARCH = f"file://{home}/store/search.json?{{}}"
 games.STORE_COVERS = (f"file://{home}/store/missing-{{}}.jpg", f"file://{home}/store/cover.jpg?{{}}")
+# The store answers 404 for a cover size it has not; file:// would say "no connection" instead.
+real_urlopen = urllib.request.urlopen
+def store_urlopen(url, timeout=None):
+    if "missing-" in url:
+        raise urllib.error.HTTPError(url, 404, "Not Found", None, None)
+    return real_urlopen(url, timeout=timeout)
+urllib.request.urlopen = store_urlopen
 pinball = games.add_file(home / "games/Pinball/pinball.exe")
 balatro = games.add({"kind": "app", "target": "Balatro", "name": "Balatro", "icon": "balatro"})
 osu = games.add({"kind": "app", "target": "osu", "name": "osu!", "icon": "osu"})
@@ -984,6 +1031,20 @@ games.find_pictures()
 assert not games.game(osu["id"]).get("cover"), "поиск повторился для уже просмотренной игры"
 games.uncover(balatro["id"])
 assert games.game(balatro["id"])["cover"] == "" and not list((home / ".local/share/hypr-rice/game-covers").glob(balatro["id"] + ".*"))
+
+# Offline: the game's own icon is found all the same, and the game is left unlooked so the store is
+# asked again next time.
+(home / "games/Solitaire").mkdir()
+(home / "games/Solitaire/solitaire.exe").write_bytes(b"MZ")
+(home / "games/Solitaire/icon.png").write_bytes(b"PNG")
+solitaire = games.add_file(home / "games/Solitaire/solitaire.exe")
+def offline(url, timeout=None):
+    raise urllib.error.URLError("no network")
+urllib.request.urlopen = offline
+games.find_pictures()
+offline_game = games.game(solitaire["id"])
+assert offline_game.get("icon") == str(home / "games/Solitaire/icon.png"), offline_game
+assert not offline_game.get("looked"), "без сети игра помечена просмотренной"
 PY
 }
 
@@ -1411,42 +1472,43 @@ PY
     (cd "$HOME/release" && sha256sum "$name.tar.gz" > "SHA256SUMS_Linux_v$version.txt")
 }
 
-# Igareck AntiDPI from the rice: installed without questions from the newest release checked against
-# its SHA-256 list; the same version not again, a new one in place of the old; installed only while its
-# folder is there; removing it leaves the packages it needed.
+# Igareck AntiDPI from the rice: installed without questions, the version pinned in rice and the archive
+# checked against the SHA-256 pinned with it (the release's own list would vouch for a replaced release);
+# the same version not again, a new one in place of the old; installed only while its folder is there;
+# removing it leaves the packages it needed.
 test_antidpi_hook() {
     load_rice
-    ANTIDPI_PREFIX="$HOME/opt/igareck-antidpi"
     systemctl() { return 1; }
     curl() {
         local out="" url="${*: -1}"
-        if [[ " $* " == *" -w "* ]]; then
-            [ -n "${LATEST:-}" ] && echo "$ANTIDPI_REPO/releases/tag/v$LATEST"
-            return 0
-        fi
         while [ $# -gt 1 ]; do [ "$1" = -o ] && out=$2; shift; done
         cp "$HOME/release/$(basename "$url")" "$out"
     }
+    pin() {  # pin VERSION: the rice pins that fake release
+        ANTIDPI_VERSION=$1
+        ANTIDPI_SHA256=$(sha256sum < "$HOME/release/Igareck_AntiDPI_CLI_v$1_Linux_x64.tar.gz" | cut -d' ' -f1)
+    }
     fake_antidpi_release 1.1
+    pin 1.1
 
-    LATEST=1.1 hook_antidpi >/dev/null || fail "не поставилось"
+    hook_antidpi >/dev/null || fail "не поставилось"
     grep -qx -- "install --prefix $ANTIDPI_PREFIX --engine compatible --shortcuts no --global-command yes --skip-deps --no-launch no-tty" \
         "$HOME/installer-calls" || fail "установщик вызван не так: $(cat "$HOME/installer-calls")"
     [ -f "$ANTIDPI_DESKTOP" ] || fail "нет пункта в лаунчере"
 
-    LATEST=1.1 hook_antidpi >/dev/null
+    hook_antidpi >/dev/null
     [ "$(grep -c '^install' "$HOME/installer-calls")" = 1 ] || fail "та же версия поставлена ещё раз"
 
     fake_antidpi_release 1.2
-    LATEST=1.2 hook_antidpi >/dev/null || fail "новая версия не встала"
+    pin 1.2
+    hook_antidpi >/dev/null || fail "новая версия не встала"
     grep -qx 'remove --purge --yes' "$HOME/installer-calls" && [ "$(antidpi_installed)" = 1.2 ] \
         || fail "старая версия не заменена: $(cat "$HOME/installer-calls")"
 
     fake_antidpi_release 1.3
-    echo "0000  Igareck_AntiDPI_CLI_v1.3_Linux_x64.tar.gz" > "$HOME/release/SHA256SUMS_Linux_v1.3.txt"
-    LATEST=1.3 hook_antidpi >/dev/null 2>&1 && fail "поставлено с несовпавшей суммой"
+    ANTIDPI_VERSION=1.3  # the release's own list matches, the rice's pinned checksum (of 1.2) does not
+    hook_antidpi >/dev/null 2>&1 && fail "поставлено с несовпавшей суммой"
     [ "$(antidpi_installed)" = 1.2 ] || fail "после отказа сломана прежняя установка"
-    LATEST="" hook_antidpi >/dev/null 2>&1 && fail "без версии сделан вид, что всё хорошо"
 
     is_installed() { return 0; }  # every package it needs is there
     APP_SRC[antidpi]="dep:base-devel dep:curl path:$ANTIDPI_PREFIX hook:antidpi"
@@ -1484,6 +1546,250 @@ test_program_helpers_kept_for_user() {
     remove_apps >/dev/null 2>&1
     [ "$(cat "$HOME/calls")" = "$(printf 'pacman -Rs --noconfirm file-roller\npacman -Rs --noconfirm unrar')" ] \
         || fail "удаление: $(cat "$HOME/calls")"
+}
+
+# rice report writes every section even on a broken system: sddm stopped, no network, no Hyprland.
+test_report_writes_every_section() {
+    mkdir -p "$HOME/root/etc"
+    echo "[core]" > "$HOME/root/etc/pacman.conf"
+    strict_rice '
+        systemctl() { return 3; }
+        journalctl() { return 1; }
+        curl() { return 7; }
+        hyprctl() { return 1; }
+        cmd_report' >/dev/null 2>&1 || fail "rice report завершился с ошибкой"
+    local report="$HOME/rice-report.txt"
+    grep -qx '== pacman.conf repos' "$report" && grep -qx '\[core\]' "$report" \
+        || fail "отчёт оборвался: $(tail -n 3 "$report")"
+    grep -q 'не запущен' "$report" || fail "не сказано, что Hyprland не запущен"
+}
+
+# RICE_APPS takes ids with or without spaces after the commas; an unknown id is a warning, not a crash.
+test_rice_apps_checked() {
+    load_rice
+    load_apps
+    RICE_APPS="steam, no-such-app,lutris" pick_apps install >/dev/null 2>&1
+    [ "${PICKED[*]}" = "steam lutris" ] || fail "выбрано: ${PICKED[*]}"
+    printf '%s\n' "${WARNINGS[@]}" | grep -q no-such-app || fail "о неизвестной программе не предупреждено"
+}
+
+# Code - OSS keeps settings.json as JSONC: the rice's settings are merged into it all the same, the
+# file before the merge is kept, one that does not parse is left alone, and uninstall puts back the
+# user's own from before the rice.
+test_code_settings_merged() {
+    load_rice
+    local settings="$HOME/.config/Code - OSS/User/settings.json"
+    mkdir -p "$(dirname "$settings")" "$HOME/.config/hypr"
+    echo installed > "$HOME/.config/hypr/.rice-installed"  # an update: nothing is backed up
+    cat > "$settings" <<'EOF'
+{
+    // my font
+    "editor.fontSize": 15, /* big */
+    "my.url": "http://example.com//path",
+    "files.autoSave": "off",
+}
+EOF
+    cp "$settings" "$HOME/mine.json"
+    inspect_existing_desktop >/dev/null
+    copy_rice_files >/dev/null 2>&1
+    jq -e '."editor.fontSize" == 15 and ."my.url" == "http://example.com//path"
+           and ."files.autoSave" == "afterDelay" and ."git.autofetch" == true' "$settings" >/dev/null \
+        || fail "настройки не слиты: $(cat "$settings")"
+    cmp -s "$settings.rice-backup" "$HOME/mine.json" || fail "файл до слияния не сохранён"
+
+    echo '{ broken' > "$settings"
+    copy_rice_files >/dev/null 2>&1
+    [ "$(cat "$settings")" = '{ broken' ] || fail "неразобранный файл перезаписан"
+
+    cmd_uninstall >/dev/null 2>&1
+    cmp -s "$settings" "$HOME/mine.json" || fail "после удаления не вернулся свой settings.json: $(cat "$settings")"
+}
+
+# A repository the rice adds is synced together with a system upgrade: Arch does not support
+# installing from databases fresher than the system (a partial upgrade).
+test_repos_synced_with_upgrade() {
+    load_rice
+    pac() { echo "pac $*" >> "$HOME/calls"; }
+    curl() { return 0; }
+    pacman-key() { return 0; }
+    mkdir -p "$(dirname "$PACMAN_CONF")"
+    printf '#[multilib]\n#Include = /etc/pacman.d/mirrorlist\n' > "$PACMAN_CONF"
+    enable_multilib >/dev/null
+    grep -qx '\[multilib\]' "$PACMAN_CONF" || fail "multilib не включён"
+    setup_pkg_repo >/dev/null
+    grep -qx '\[hypr-rice\]' "$PACMAN_CONF" || fail "репозиторий hypr-rice не подключён"
+    [ "$(cat "$HOME/calls")" = "$(printf 'pac -Syu\npac -Syu')" ] || fail "синхронизация: $(cat "$HOME/calls")"
+    ! grep -nE '(pac|pacman) [^#]*-Sy( |$)' "$REPO/rice" "$REPO/install.sh" || fail "синхронизация без обновления"
+}
+
+# Uninstall takes back what the rice set up outside ~ and what the programs' setup steps changed;
+# files it did not write stay.
+test_uninstall_tears_down_system() {
+    load_rice
+    mkdir -p "$(dirname "$SUDOERS_RULE")" "$(dirname "$THEME_ROOT")" "$SDDM_CONF_D" "$TMPFILES_D" \
+        "$(dirname "$CACHE_TRIM_HOOK")" "$HOME/.claude" "$HOME/.config/hypr"
+    local f ours=("$SUDOERS_RULE" "$THEME_ROOT" "$CACHE_TRIM" "$CACHE_TRIM_HOOK" "$SDDM_CONF_D/99-hypr-rice.conf"
+                  "$TMPFILES_D/hypr-rice-power.conf" "$HOME/.config/hypr/games.lua")
+    for f in "${ours[@]}"; do touch "$f"; done
+    echo mine > "$TMPFILES_D/mine.conf"
+    printf '[Autologin]\nSession=plasma\n' > "$SDDM_CONF_D/autologin.conf.rice-backup"
+    printf '[Autologin]\nSession=hyprland.desktop\n' > "$SDDM_CONF_D/autologin.conf"
+    printf '[options]\n\n[core]\nInclude = x\n\n[hypr-rice]\nSigLevel = Required DatabaseOptional\nServer = %s\n' \
+        "$PKG_REPO_URL" > "$PACMAN_CONF"
+    echo '{"model": "x", "statusLine": {"type": "command", "command": "~/.claude/statusline.sh"}}' \
+        > "$HOME/.claude/settings.json"
+    pacman-key() { echo "pacman-key $*" >> "$HOME/calls"; }
+    systemctl() { echo "systemctl $*" >> "$HOME/calls"; }
+    hyprctl() { :; }
+    is_installed() { [ "$1" = zram-generator ]; }
+    unhook_zram() { echo "unhook zram" >> "$HOME/calls"; }
+
+    cmd_uninstall >/dev/null 2>&1
+    for f in "${ours[@]}"; do [ ! -e "$f" ] || fail "остался $f"; done
+    [ -e "$TMPFILES_D/mine.conf" ] || fail "удалён чужой файл"
+    [ "$(cat "$SDDM_CONF_D/autologin.conf")" = "$(printf '[Autologin]\nSession=plasma')" ] \
+        || fail "автовход не возвращён: $(cat "$SDDM_CONF_D/autologin.conf")"
+    ! grep -q 'hypr-rice' "$PACMAN_CONF" && grep -qx '\[core\]' "$PACMAN_CONF" \
+        || fail "pacman.conf: $(cat "$PACMAN_CONF")"
+    grep -qx "pacman-key --delete $PKG_KEY_FPR" "$HOME/calls" || fail "ключ репозитория остался"
+    grep -qx 'unhook zram' "$HOME/calls" || fail "шаг zram не отменён"
+    grep -q 'disable --now cache-trim.timer' "$HOME/calls" || fail "cache-trim.timer остался включён"
+    jq -e '.statusLine == null and .model == "x"' "$HOME/.claude/settings.json" >/dev/null \
+        || fail "Claude Code: $(cat "$HOME/.claude/settings.json")"
+}
+
+# A setup step that fails midway stops there and is reported (hook || warn ignores set -e inside it).
+test_failed_step_stops() {
+    load_rice
+    ZRAM_CONF="$HOME/missing/zram-generator.conf"  # its folder is not there: tee fails
+    NTSYNC_LOAD="$HOME/missing/ntsync.conf"
+    sysctl() { echo sysctl >> "$HOME/calls"; }
+    systemctl() { echo "systemctl $*" >> "$HOME/calls"; }
+    udevadm() { echo udevadm >> "$HOME/calls"; }
+    modprobe() { echo modprobe >> "$HOME/calls"; }
+    swapon() { :; }
+    run_hook zram >/dev/null 2>&1
+    apply_game_tunings ntsync >/dev/null 2>&1
+    [ ! -e "$HOME/calls" ] || fail "после неудачного шага выполнились следующие: $(cat "$HOME/calls")"
+    printf '%s\n' "${WARNINGS[@]}" | grep -q 'не отработал шаг zram' || fail "о zram не предупреждено"
+    printf '%s\n' "${WARNINGS[@]}" | grep -q 'не включилось: NTSync' || fail "о NTSync не предупреждено"
+}
+
+# An AppImage is pinned with its checksum in apps.txt: without one it is not downloaded, a file that
+# does not match is not kept.
+# The catalog itself, read the way rice reads it: every AppImage reaches the installer with its checksum.
+test_catalog_appimages_keep_checksum() {
+    load_rice
+    load_apps
+    local id found=0
+    for id in "${APP_IDS[@]}"; do
+        [[ ${APP_SRC[$id]} == *appimage:* ]] || continue
+        found=1
+        [[ ${APP_SRC[$id]} =~ \#sha256=[0-9a-f]{64}$ ]] || fail "$id: контрольная сумма потерялась: ${APP_SRC[$id]}"
+    done
+    [ "$found" = 1 ] || fail "в каталоге не нашлось ни одного AppImage"
+}
+
+test_appimage_checked() {
+    load_rice
+    echo genuine > "$HOME/genuine"
+    local sum
+    sum=$(sha256sum < "$HOME/genuine" | cut -d' ' -f1)
+    curl() {
+        local out
+        while [ $# -gt 0 ]; do [ "$1" = -o ] && out=$2; shift; done
+        echo "curl" >> "$HOME/calls"
+        cp "$HOME/served" "$out"
+    }
+    APP_NAME[game]=Game
+    APP_SRC[game]="appimage:https://example.com/v1/game.AppImage"
+    PICKED=(game)
+    cp "$HOME/genuine" "$HOME/served"
+    install_apps >/dev/null 2>&1
+    [ ! -e "$HOME/calls" ] && [ ! -e "$HOME/Applications/game.AppImage" ] || fail "скачан без контрольной суммы"
+
+    APP_SRC[game]="appimage:https://example.com/v1/game.AppImage#sha256=$sum"
+    echo forged > "$HOME/served"
+    install_apps >/dev/null 2>&1
+    [ ! -e "$HOME/Applications/game.AppImage" ] || fail "подменённый файл принят"
+    cp "$HOME/genuine" "$HOME/served"
+    install_apps >/dev/null 2>&1
+    cmp -s "$HOME/Applications/game.AppImage" "$HOME/genuine" && [ -x "$HOME/Applications/game.AppImage" ] \
+        || fail "настоящий файл не поставлен"
+}
+
+# An update removes the files an earlier version installed and this one no longer ships; the user's
+# own files next to them stay.
+test_update_removes_stale_rice_files() {
+    load_rice
+    mkdir -p "$HOME/.config/hypr" "$HOME/.local/bin"
+    echo installed > "$HOME/.config/hypr/.rice-installed"
+    inspect_existing_desktop >/dev/null
+    copy_rice_files >/dev/null 2>&1
+    grep -qx '.config/hypr/hyprland.lua' "$MANIFEST" || fail "нет списка поставленных файлов"
+    echo ".local/bin/renamed-script" >> "$MANIFEST"  # shipped by the previous version
+    echo old > "$HOME/.local/bin/renamed-script"
+    echo mine > "$HOME/.local/bin/my-script"
+    copy_rice_files >/dev/null 2>&1
+    [ ! -e "$HOME/.local/bin/renamed-script" ] || fail "остался файл прежней версии"
+    [ -e "$HOME/.local/bin/my-script" ] || fail "удалён свой файл"
+    ! grep -qx '.local/bin/renamed-script' "$MANIFEST" || fail "убранный файл остался в списке"
+}
+
+# The home folder may hold characters sed treats specially; USER may be unset.
+test_home_and_user_anywhere() {
+    export HOME="$HOME/a|b&c\\d"
+    mkdir -p "$HOME"
+    load_rice
+    printf 'path=__HOME__/x\n' > "$HOME/file"
+    fill_home -i "$HOME/file"
+    [ "$(cat "$HOME/file")" = "path=$HOME/x" ] || fail "подставлено: $(cat "$HOME/file")"
+    [ "$(env -u USER bash -c "source '$REPO/rice'; echo \"\$USER\"")" = "$(id -un)" ] || fail "без USER"
+}
+
+# Uninstall with a backup folder that turned out empty puts back nothing and does not fail.
+test_uninstall_with_empty_backup() {
+    mkdir -p "$HOME/.rice-backup-1" "$HOME/.config/hypr-rice"
+    echo "backup=$HOME/.rice-backup-1" > "$HOME/.config/hypr-rice/install.conf"
+    strict_rice cmd_uninstall >/dev/null 2>&1 || fail "удаление с пустым бэкапом завершилось с ошибкой"
+}
+
+# install.sh: a repeated install on another branch switches to it (the clone is single-branch), and a
+# git repository of the user's own at RICE_SRC is refused, not reset.
+test_install_sh_branches() {
+    local bin="$HOME/bin" remote="$HOME/remote" branch
+    mkdir -p "$bin"
+    printf '#!/bin/sh\nexit 0\n' > "$bin/curl"
+    cp "$bin/curl" "$bin/pacman"
+    chmod +x "$bin"/*
+    export GIT_CONFIG_GLOBAL="$HOME/gitconfig" GIT_CONFIG_NOSYSTEM=1 PATH="$bin:$PATH"
+    git config --global user.name test
+    git config --global user.email test@example.com
+    git config --global protocol.file.allow always
+    git config --global url."file://$remote".insteadOf https://github.com/larion928/hypr-rice.git
+    git init -q -b main "$remote"
+    for branch in main dev; do
+        git -C "$remote" checkout -q -B "$branch"
+        printf '#!/bin/sh\necho "rice from %s $*"\n' "$branch" > "$remote/rice"
+        chmod +x "$remote/rice"
+        git -C "$remote" add rice
+        git -C "$remote" commit -q -m "$branch"
+    done
+
+    [ "$(RICE_SRC="$HOME/src" RICE_BRANCH=main bash "$REPO/install.sh" 2>&1 | tail -n1)" = "rice from main install" ] \
+        || fail "первая установка не прошла"
+    local out
+    out=$(RICE_SRC="$HOME/src" RICE_BRANCH=dev bash "$REPO/install.sh" 2>&1 | tail -n1)
+    [ "$out" = "rice from dev install" ] || fail "другая ветка: $out"
+    [ "$(git -C "$HOME/src" rev-parse --abbrev-ref HEAD)" = dev ] || fail "rice update пойдёт не по той ветке"
+
+    git init -q "$HOME/mine"
+    echo committed > "$HOME/mine/file"
+    git -C "$HOME/mine" add file
+    git -C "$HOME/mine" commit -q -m mine
+    echo changed > "$HOME/mine/file"
+    RICE_SRC="$HOME/mine" bash "$REPO/install.sh" >/dev/null 2>&1 && fail "чужой репозиторий принят"
+    [ "$(cat "$HOME/mine/file")" = changed ] || fail "чужой репозиторий сброшен"
 }
 
 tests=("$@")

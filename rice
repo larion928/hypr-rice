@@ -29,6 +29,8 @@ CACHE="$HOME/.cache/hypr-rice"
 TRUST="$HOME/.config/hypr-rice/allowed_signers"
 PKG_REPO_URL="https://github.com/larion928/hypr-rice-pkgs/releases/download/repo"
 PKG_KEY_FPR=E9E510D6FB25450E897102A01CEA86E55DC9094D
+# Not every login sets USER (a bare `su`, some containers); set -u would stop rice at its first use.
+USER=${USER:-$(id -un)}
 
 # ---------- output ----------
 
@@ -63,8 +65,9 @@ ask() {  # ask "question" default(y|n) -> returns 0 for yes
     [[ $a =~ ^[YyДд] ]]
 }
 
+# A comment starts a line or follows a space: a "#" inside an entry (appimage:URL#sha256=…) is the entry's.
 list() {  # entries of a list file, without comments
-    grep -v '^[[:space:]]*#' "$1" | sed 's/[[:space:]]*#.*//' | grep -v '^[[:space:]]*$'
+    grep -v '^[[:space:]]*#' "$1" | sed 's/[[:space:]]\+#.*//' | grep -v '^[[:space:]]*$'
 }
 trim() { local v=$1; v=${v#"${v%%[![:space:]]*}"}; printf '%s' "${v%"${v##*[![:space:]]}"}"; }
 
@@ -84,26 +87,103 @@ need_sudo() {
 
 # ---------- gum (menus and the program checklist) ----------
 
-# Pinned and checksummed: gum 2.x toggles only with "x", 0.17 also with space.
+# Pinned and checksummed: gum 2.x toggles only with "x", 0.17 also with space. The checksum is the
+# x86_64 build's; on other machines, and wherever GitHub is unreachable, menus are numbered lists.
 GUM_VERSION=0.17.0
 GUM_SHA256=69ee169bd6387331928864e94d47ed01ef649fbfe875baed1bbf27b5377a6fdb
 GUM=""
+GUM_MISSING=0  # gum could not be had: not tried again in this run
 fetch_gum() {
     [ -n "$GUM" ] && return 0
+    [ "$GUM_MISSING" = 0 ] || return 1
     local dir="$CACHE/gum-$GUM_VERSION" tgz
+    if [ "$(uname -m)" != x86_64 ]; then
+        info "меню gum есть только для x86_64, выбор — номерами" >&2
+        GUM_MISSING=1
+        return 1
+    fi
     if [ ! -x "$dir/gum" ]; then
         mkdir -p "$dir"
         tgz="$dir/gum.tgz"
-        curl -fsSL -o "$tgz" \
-            "https://github.com/charmbracelet/gum/releases/download/v$GUM_VERSION/gum_${GUM_VERSION}_Linux_x86_64.tar.gz" \
-            && echo "$GUM_SHA256  $tgz" | sha256sum -c --quiet - >/dev/null 2>&1 \
-            && tar -xzf "$tgz" -C "$dir" --strip-components=1 \
-            || { rm -rf "$dir"; return 1; }
+        if ! curl -fsSL --max-time 60 -o "$tgz" \
+                "https://github.com/charmbracelet/gum/releases/download/v$GUM_VERSION/gum_${GUM_VERSION}_Linux_x86_64.tar.gz" \
+            || ! echo "$GUM_SHA256  $tgz" | sha256sum -c --quiet - >/dev/null 2>&1 \
+            || ! tar -xzf "$tgz" -C "$dir" --strip-components=1; then
+            rm -rf "$dir"
+            info "меню gum не скачалось с GitHub, выбор — номерами" >&2
+            GUM_MISSING=1
+            return 1
+        fi
     fi
     GUM="$dir/gum"
-    [ -x "$GUM" ]
 }
 GUM_STYLE=(--header.foreground "#d97757" --cursor.foreground "#e8a383" --selected.foreground "#8fa876")
+
+# Menus. Options are "label=value"; the chosen values are printed, one per line. With gum the list
+# is navigated with arrows; without it (see fetch_gum) it is numbered and answered with numbers.
+# Both draw on the terminal, so the caller's $(...) captures only the values.
+choose_one() {  # choose_one HEADER OPTION...: fails when nothing was chosen
+    local header=$1 n
+    shift
+    have_tty || return 1
+    if fetch_gum; then
+        "$GUM" choose --height "$(gum_height $#)" --header "$header" --cursor "› " "${GUM_STYLE[@]}" \
+            --label-delimiter="=" "$@" </dev/tty
+        return
+    fi
+    numbered_list "$header" "" "$@"
+    read -r -p "    Номер, Enter — отмена: " n </dev/tty || return 1
+    option_value "$n" "$@"
+}
+
+choose_many() {  # choose_many HEADER SELECTED OPTION...; SELECTED: labels ticked from the start, comma-separated
+    local header=$1 selected=$2 nums n
+    shift 2
+    have_tty || return 1
+    if fetch_gum; then
+        "$GUM" choose --no-limit --height "$(gum_height $#)" --label-delimiter="=" \
+            --header "$header  пробел — отметить · enter — готово" \
+            --selected "$selected" --cursor "› " --cursor-prefix "[ ] " --selected-prefix "[✓] " \
+            --unselected-prefix "[ ] " "${GUM_STYLE[@]}" "$@" </dev/tty
+        return
+    fi
+    numbered_list "$header" "$selected" "$@"
+    read -r -p "    Номера через пробел (0 — ничего), Enter — оставить отмеченное: " nums </dev/tty || return 1
+    if [ -z "$nums" ]; then
+        local option
+        for option in "$@"; do
+            [[ ",$selected," == *",${option%=*},"* ]] && echo "${option##*=}"
+        done
+        return 0
+    fi
+    for n in $nums; do option_value "$n" "$@" || true; done
+}
+
+gum_height() { local rows=$(($1 + 2)); echo $((rows < 22 ? rows : 22)); }
+
+numbered_list() {  # numbered_list HEADER SELECTED OPTION...: the fallback menu, on the terminal
+    local header=$1 selected=$2 i=1 option mark=""
+    shift 2
+    printf '    %s\n' "$header" >&2
+    for option in "$@"; do
+        if [ -n "$selected" ]; then
+            mark="[ ] "
+            [[ ",$selected," == *",${option%=*},"* ]] && mark="[✓] "
+        fi
+        printf '      %2d) %s%s\n' "$i" "$mark" "${option%=*}" >&2
+        i=$((i + 1))
+    done
+}
+
+option_value() {  # option_value N OPTION...: the value of option number N
+    local n=$1
+    shift
+    if ! [[ $n =~ ^[0-9]+$ ]] || [ "$n" -lt 1 ] || [ "$n" -gt $# ]; then
+        return 1
+    fi
+    local option=${!n}
+    echo "${option##*=}"
+}
 
 # ---------- packages: official repos with mirror fallback ----------
 
@@ -166,7 +246,7 @@ pac() {  # pacman that retries downloads cut off by a flaky network
 
 # ---------- packages: hypr-rice repo and AUR ----------
 
-pkg_repo_enabled() { grep -q '^\[hypr-rice\]' /etc/pacman.conf; }
+pkg_repo_enabled() { grep -q '^\[hypr-rice\]' "$PACMAN_CONF"; }
 
 setup_pkg_repo() {
     # The prebuilt AUR packages (works where aur.archlinux.org is blocked).
@@ -181,11 +261,12 @@ setup_pkg_repo() {
     fi
     if ! pkg_repo_enabled; then
         printf '%s\n' "" "[hypr-rice]" "SigLevel = Required DatabaseOptional" "Server = $PKG_REPO_URL" \
-            | sudo tee -a /etc/pacman.conf >/dev/null
+            | sudo tee -a "$PACMAN_CONF" >/dev/null
         ok "подключён репозиторий hypr-rice (собранные AUR-пакеты)"
     fi
-    # Without a fresh sync pacman does not know the repo's packages yet.
-    pac -Sy >/dev/null || true
+    # Without a fresh sync pacman does not know the repo's packages yet. The sync upgrades too: Arch
+    # does not support installing from fresher databases than the system was upgraded from.
+    pac -Syu || warn "не удалось обновить систему вместе с базой hypr-rice: rice upgrade"
 }
 
 aur_reachable() { curl -fsSI --max-time 10 https://aur.archlinux.org >/dev/null 2>&1; }
@@ -328,47 +409,35 @@ catalog_choices() {
 # pick_apps MODE: "install" (only what is not installed yet is offered)
 #                 "remove"  (only installed programs are offered)
 pick_apps() {
-    local mode=${1:-install} id label opts=() out
+    local mode=${1:-install} id opts=()
     PICKED=()
     if [ "$mode" = install ] && [ -n "${RICE_APPS:-}" ]; then
         case "$RICE_APPS" in
             all) PICKED=("${APP_IDS[@]}") ;;
-            none) PICKED=() ;;
-            *) IFS=, read -r -a PICKED <<<"$RICE_APPS" ;;
+            none) ;;
+            *) IFS=', ' read -r -a PICKED <<<"$RICE_APPS" ;;  # "steam,lutris" and "steam, lutris" alike
         esac
         info "программы (RICE_APPS): ${PICKED[*]:-нет}"
-        return
-    fi
-    have_tty || { info "нет терминала, программы не выбираю"; return; }
-    mapfile -t opts < <(catalog_choices "$mode")
-    if [ ${#opts[@]} -eq 0 ]; then
-        if [ "$mode" = remove ]; then info "из каталога ничего не установлено"; else info "всё из каталога уже установлено"; fi
-        return
-    fi
-    local header="Какие программы поставить?  пробел — отметить · enter — готово"
-    [ "$mode" = remove ] && header="Какие программы удалить?  пробел — отметить · enter — готово"
-    if fetch_gum; then
-        out=$("$GUM" choose --no-limit --height 22 --label-delimiter="=" --header "$header" \
-            --cursor "› " --cursor-prefix "[ ] " --selected-prefix "[✓] " --unselected-prefix "[ ] " \
-            "${GUM_STYLE[@]}" "${opts[@]}" </dev/tty) || out=""
-        mapfile -t PICKED <<<"$out"
     else
-        # No gum (GitHub unreachable, odd terminal): a plain numbered list.
-        local i=1 nums n
-        info "${header%% *} Номера через пробел, Enter — ничего:"
-        for label in "${opts[@]}"; do
-            printf '      %2d) %s\n' "$i" "${label%=*}"
-            i=$((i + 1))
-        done
-        read -r -p "    > " nums </dev/tty || nums=""
-        for n in $nums; do
-            if [[ $n =~ ^[0-9]+$ ]] && [ "$n" -ge 1 ] && [ "$n" -le ${#opts[@]} ]; then
-                PICKED+=("${opts[$((n - 1))]##*=}")
-            fi
-        done
+        have_tty || { info "нет терминала, программы не выбираю"; return; }
+        mapfile -t opts < <(catalog_choices "$mode")
+        if [ ${#opts[@]} -eq 0 ]; then
+            if [ "$mode" = remove ]; then info "из каталога ничего не установлено"; else info "всё из каталога уже установлено"; fi
+            return
+        fi
+        local header="Какие программы поставить?"
+        [ "$mode" = remove ] && header="Какие программы удалить?"
+        mapfile -t PICKED < <(choose_many "$header" "" "${opts[@]}" || true)
     fi
     local clean=()
-    for id in "${PICKED[@]}"; do [ -n "$id" ] && [ -n "${APP_NAME[$id]:-}" ] && clean+=("$id"); done
+    for id in "${PICKED[@]}"; do
+        [ -n "$id" ] || continue
+        if [ -n "${APP_NAME[$id]:-}" ]; then
+            clean+=("$id")
+        else
+            warn "нет такой программы в каталоге: $id (список — packages/apps.txt)"
+        fi
+    done
     PICKED=("${clean[@]}")
     if [ ${#PICKED[@]} -gt 0 ]; then
         ok "выбрано: $(for id in "${PICKED[@]}"; do printf '%s, ' "${APP_NAME[$id]}"; done | sed 's/, $//')"
@@ -392,11 +461,12 @@ gpu_vulkan() {
 }
 
 enable_multilib() {
-    grep -q '^\[multilib\]' /etc/pacman.conf && return 0
-    sudo sed -i '/^#\[multilib\]/{N;s/#\[multilib\]\n#Include/[multilib]\nInclude/}' /etc/pacman.conf
-    grep -q '^\[multilib\]' /etc/pacman.conf || printf '\n[multilib]\nInclude = /etc/pacman.d/mirrorlist\n' \
-        | sudo tee -a /etc/pacman.conf >/dev/null
-    pac -Sy >/dev/null
+    grep -q '^\[multilib\]' "$PACMAN_CONF" && return 0
+    sudo sed -i '/^#\[multilib\]/{N;s/#\[multilib\]\n#Include/[multilib]\nInclude/}' "$PACMAN_CONF"
+    grep -q '^\[multilib\]' "$PACMAN_CONF" || printf '\n[multilib]\nInclude = /etc/pacman.d/mirrorlist\n' \
+        | sudo tee -a "$PACMAN_CONF" >/dev/null
+    # With the upgrade, as in setup_pkg_repo: a sync alone would leave a partial upgrade.
+    pac -Syu || return 1
     ok "включён репозиторий multilib"
 }
 
@@ -422,7 +492,7 @@ hook_proton_exe() {
         xdg-mime default umu-run.desktop "$m" 2>/dev/null || true
     done
     update-desktop-database "$d" 2>/dev/null || true
-    printf ':proton-run:M::MZ::%s:\n' "$HOME/.local/bin/proton-run" | sudo tee "$PROTON_BINFMT" >/dev/null
+    printf ':proton-run:M::MZ::%s:\n' "$HOME/.local/bin/proton-run" | sudo tee "$PROTON_BINFMT" >/dev/null || return 1
     sudo systemctl restart systemd-binfmt.service
 }
 
@@ -459,12 +529,12 @@ hook_zram() {
     # zram-generator works the size out on each machine: half of its RAM, at most 8 GiB.
     printf '%s\n' "$RICE_MARK (rice → программы → zram). Half of the RAM, at most 8 GiB, zstd-compressed." \
         "[zram0]" "zram-size = min(ram / 2, 8192)" "compression-algorithm = zstd" "swap-priority = 100" \
-        | sudo tee "$ZRAM_CONF" >/dev/null
+        | sudo tee "$ZRAM_CONF" >/dev/null || return 1
     # The usual tuning for swap on zram (ArchWiki): swap early and in single pages, it is in RAM anyway.
     printf '%s\n' "$RICE_MARK (rice → программы → zram)." "vm.swappiness = 180" "vm.watermark_boost_factor = 0" \
-        "vm.watermark_scale_factor = 125" "vm.page-cluster = 0" | sudo tee "$ZRAM_SYSCTL" >/dev/null
-    sudo sysctl -q --system
-    sudo systemctl daemon-reload
+        "vm.watermark_scale_factor = 125" "vm.page-cluster = 0" | sudo tee "$ZRAM_SYSCTL" >/dev/null || return 1
+    sudo sysctl -q --system || return 1
+    sudo systemctl daemon-reload || return 1
     # A zram swap already in use is not rebuilt now: taking it off needs that much free RAM.
     if swapon --show=NAME --noheadings | grep -q zram0; then
         ok "zram настроен: новый размер — после перезагрузки"
@@ -489,9 +559,9 @@ hook_earlyoom() {
         # systemd splits $EARLYOOM_ARGS at spaces: no space inside a pattern ("Web.Content", not "Web Content").
         printf '%s\n' "$RICE_MARK (rice → программы → earlyoom)." \
             "EARLYOOM_ARGS=\"-r 3600 -n --avoid '(^|/)(init|systemd.*|Xwayland|Hyprland|sshd|pipewire.*|wireplumber|waybar|quickshell|qs|steam|steamwebhelper|gamescope|.*\\.exe|RimWorld.*)\$' --prefer '(^|/)(chrome|chromium|firefox|zen|Web.Content|Isolated.Web.Co)\$'\"" \
-            | sudo tee "$EARLYOOM_CONF" >/dev/null
+            | sudo tee "$EARLYOOM_CONF" >/dev/null || return 1
     fi
-    sudo systemctl enable earlyoom.service >/dev/null 2>&1
+    sudo systemctl enable earlyoom.service >/dev/null 2>&1 || return 1
     sudo systemctl restart earlyoom.service && ok "earlyoom: при нехватке памяти первыми закрывает вкладки браузера"
 }
 
@@ -501,25 +571,22 @@ unhook_earlyoom() {
 
 # ---- Igareck AntiDPI: anti-DPI strategies on zapret2, made for Debian/Ubuntu ----
 # Its own installer runs without questions (answers as flags, no terminal on stdin): it then needs
-# no apt, only the Arch packages apps.txt installs before this step. The newest release is found
-# where github.com/.../releases/latest redirects (the API's rate limit runs out quickly) and checked
-# against the release's own SHA-256 list. The same version is not installed again.
+# no apt, only the Arch packages apps.txt installs before this step. Its installer runs as root, so
+# the version is pinned here, with the archive's SHA-256: a checksum list from the same release would
+# vouch for nothing if the release itself were replaced. A new version comes with a rice update
+# (which reruns this step); the same version is not installed again.
 ANTIDPI_REPO=https://github.com/igareck/anti-dpi-for-russia
+ANTIDPI_VERSION=1.1
+ANTIDPI_SHA256=bd581b6ca6c43b86dee4dcdd8d912519e04e6ffe077f3abecfa137649ebdae48
 ANTIDPI_PREFIX=/opt/igareck-antidpi
 ANTIDPI_DESKTOP="$HOME/.local/share/applications/hypr-rice-antidpi.desktop"
-
-antidpi_latest() {  # "1.1"
-    curl -fsSI -o /dev/null -w '%{redirect_url}' "$ANTIDPI_REPO/releases/latest" | sed -n 's|.*/tag/v\{0,1\}\([0-9][0-9.]*\)$|\1|p'
-}
 
 antidpi_installed() {  # the version in its installation.json, or nothing
     sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$ANTIDPI_PREFIX/installation.json" 2>/dev/null | head -n1
 }
 
 hook_antidpi() {
-    local version installed work name
-    version=$(antidpi_latest)
-    [ -n "$version" ] || { warn "AntiDPI: не узнал последнюю версию (нет сети или GitHub?)"; return 1; }
+    local version=$ANTIDPI_VERSION installed work name
     installed=$(antidpi_installed)
     if [ "$installed" = "$version" ]; then
         ok "Igareck AntiDPI $version уже стоит"
@@ -527,21 +594,26 @@ hook_antidpi() {
     fi
     work=$(mktemp -d)
     name="Igareck_AntiDPI_CLI_v${version}_Linux_x64.tar.gz"
-    if ! curl -fsSL -o "$work/$name" "$ANTIDPI_REPO/releases/download/v$version/$name" \
-        || ! curl -fsSL -o "$work/SHA256SUMS" "$ANTIDPI_REPO/releases/download/v$version/SHA256SUMS_Linux_v$version.txt"; then
+    if ! curl -fsSL -o "$work/$name" "$ANTIDPI_REPO/releases/download/v$version/$name"; then
         warn "AntiDPI $version не скачался"
         rm -rf "$work"
         return 1
     fi
-    if ! (cd "$work" && grep -F "  $name" SHA256SUMS | sha256sum -c --quiet --status); then
-        warn "AntiDPI $version: сумма архива не совпала со списком релиза, не ставлю"
+    if [ "$(file_sha256 "$work/$name")" != "$ANTIDPI_SHA256" ]; then
+        warn "AntiDPI $version: архив не совпал с контрольной суммой райса, не ставлю"
         rm -rf "$work"
         return 1
     fi
-    tar -xzf "$work/$name" -C "$work"
+    if ! tar -xzf "$work/$name" -C "$work"; then
+        warn "AntiDPI $version: архив не распаковался"
+        rm -rf "$work"
+        return 1
+    fi
     # A new version replaces the old one whole: its installer takes only an empty folder.
-    if [ -n "$installed" ]; then
-        sudo python3 "$ANTIDPI_PREFIX/remove_installation.py" --purge --yes </dev/null >/dev/null
+    if [ -n "$installed" ] && ! sudo python3 "$ANTIDPI_PREFIX/remove_installation.py" --purge --yes </dev/null >/dev/null; then
+        warn "AntiDPI $installed не удалился, $version не ставлю"
+        rm -rf "$work"
+        return 1
     fi
     if ! sudo python3 "$work/${name%.tar.gz}/app/install.py" install --prefix "$ANTIDPI_PREFIX" --engine compatible \
             --shortcuts no --global-command yes --skip-deps --no-launch </dev/null; then
@@ -568,7 +640,14 @@ unhook_antidpi() {
     rm -f "$ANTIDPI_DESKTOP"
 }
 
+# Called as `hook || warn`, a hook runs with set -e ignored (bash's rule for anything left of ||):
+# each of its steps that may fail ends it with `|| return 1` explicitly, or a failure midway
+# would go unnoticed and the steps after it would run anyway. The same holds for tuning_*_on/off.
 run_hook() { "hook_${1//-/_}" || warn "не отработал шаг $1"; }
+run_unhook() {  # the undo of a setup step, for the steps that have one
+    local undo="unhook_${1//-/_}"
+    if declare -F "$undo" >/dev/null; then "$undo"; fi
+}
 
 # An update may change what a program's setup step does, so it runs again for what is installed.
 rerun_installed_hooks() {
@@ -632,12 +711,20 @@ install_apps() {  # installs PICKED
             && flatpak install --user -y --noninteractive flathub "${flat[@]}" >/dev/null \
             || warn "flatpak: не встало ${flat[*]}"
     fi
-    local entry url dest
+    local entry url want dest
     for entry in "${appimages[@]}"; do
-        id=${entry%% *}; url=${entry#* }
+        # "appimage:URL#sha256=HEX": a pinned version, run only when it is the file the signed repo names.
+        id=${entry%% *}
+        url=${entry#* }
+        want=${url##*#sha256=}
+        url=${url%%#*}
+        if [ "$want" = "$url" ]; then
+            warn "${APP_NAME[$id]}: в packages/apps.txt нет контрольной суммы (#sha256=), не ставлю"
+            continue
+        fi
         dest="$HOME/Applications/$id.AppImage"
         mkdir -p "$HOME/Applications" "$HOME/.local/share/applications"
-        if curl -fL --progress-bar -o "$dest.part" "$url"; then
+        if curl -fL --progress-bar -o "$dest.part" "$url" && [ "$(file_sha256 "$dest.part")" = "$want" ]; then
             mv "$dest.part" "$dest"
             chmod +x "$dest"
             # So the launcher (Alt+R) lists it like any installed app.
@@ -647,7 +734,7 @@ install_apps() {  # installs PICKED
             ok "${APP_NAME[$id]} → ~/Applications/$id.AppImage"
         else
             rm -f "$dest.part"
-            warn "${APP_NAME[$id]} не скачался"
+            warn "${APP_NAME[$id]} не скачался или не совпал с контрольной суммой"
         fi
     done
     local h
@@ -719,10 +806,7 @@ remove_apps() {  # removes PICKED (packages, flatpaks, AppImages)
                 appimage:*) rm -f "$HOME/Applications/$id.AppImage" "$HOME/.local/share/applications/hypr-rice-$id.desktop" ;;
                 flatpak:*) flat+=("${tok#flatpak:}") ;;
                 file:*|release:*) rm -f "$HOME/${tok#*:}" ;;
-                hook:*)
-                    local undo="unhook_${tok#hook:}"
-                    undo=${undo//-/_}
-                    if declare -F "$undo" >/dev/null; then "$undo"; fi ;;
+                hook:*) run_unhook "${tok#hook:}" ;;
                 browser|dep:*|path:*) ;;
                 *)
                     name=${tok#aur:}
@@ -747,6 +831,9 @@ remove_apps() {  # removes PICKED (packages, flatpaks, AppImages)
 
 # ---------- SDDM: make sure it is the one that starts, with our theme and Hyprland ----------
 
+SDDM_CONF=/etc/sddm.conf
+SDDM_CONF_D=/etc/sddm.conf.d
+
 setup_sddm() {
     local cur
     if [ "${MODE:-replace}" = coexist ] && [ "${USE_SDDM:-1}" = 0 ]; then
@@ -761,17 +848,17 @@ setup_sddm() {
     fi
     sudo systemctl enable --force sddm.service >/dev/null 2>&1 || warn "не включился sddm"
 
-    sudo rm -f /etc/sddm.conf.d/10-theme.conf
-    sudo install -Dm644 "$SRC/system/sddm-theme.conf" /etc/sddm.conf.d/99-hypr-rice.conf
+    sudo rm -f "$SDDM_CONF_D/10-theme.conf"
+    sudo install -Dm644 "$SRC/system/sddm-theme.conf" "$SDDM_CONF_D/99-hypr-rice.conf"
     # /etc/sddm.conf is read after sddm.conf.d and would override our theme.
-    if [ -f /etc/sddm.conf ] && grep -qE '^\s*Current\s*=' /etc/sddm.conf; then
-        sudo cp -n /etc/sddm.conf /etc/sddm.conf.rice-backup
-        sudo sed -i -E 's/^(\s*Current\s*=)/# hypr-rice: \1/' /etc/sddm.conf
-        info "тема из /etc/sddm.conf отключена (копия: sddm.conf.rice-backup)"
+    if [ -f "$SDDM_CONF" ] && grep -qE '^\s*Current\s*=' "$SDDM_CONF"; then
+        sudo cp -n "$SDDM_CONF" "$SDDM_CONF.rice-backup"
+        sudo sed -i -E 's/^(\s*Current\s*=)/# hypr-rice: \1/' "$SDDM_CONF"
+        info "тема из $SDDM_CONF отключена (копия: sddm.conf.rice-backup)"
     fi
     # Autologin straight into another desktop would skip the login screen entirely.
     local f s
-    for f in /etc/sddm.conf /etc/sddm.conf.d/*.conf; do
+    for f in "$SDDM_CONF" "$SDDM_CONF_D"/*.conf; do
         [ -f "$f" ] || continue
         s=$(sed -n -E 's/^\s*Session\s*=\s*(.*)$/\1/p' "$f" | head -n1)
         [ -n "$s" ] || continue
@@ -802,6 +889,96 @@ RICE_DIRS=(hypr waybar quickshell kitty rofi wofi dunst mako swaync eww ags hypr
 
 # Files that are merged into the user's own instead of replacing them.
 MERGED_JSON=(".config/Code - OSS/User/settings.json")
+# The user's own version of each merged file from before the rice's first merge (or a PATH.absent mark
+# when there was none): uninstall puts it back.
+ORIGINALS="$HOME/.config/hypr-rice/originals"
+# Every file copy_rice_files put in ~: an update removes those the new version no longer ships, and
+# uninstall removes what it lists. Nothing else in ~ is ever removed this way.
+MANIFEST="$HOME/.config/hypr-rice/installed-files"
+
+is_merged() { printf '%s\n' "${MERGED_JSON[@]}" | grep -qxF "$1"; }
+
+# Code - OSS writes settings.json as JSONC (comments, trailing commas), which jq refuses. Prints
+# USER's settings with OURS on top, nested objects merged; fails, printing nothing, if USER does not
+# parse. The comments do not survive: the file before is kept as PATH.rice-backup (put_merged_file).
+merge_jsonc() {  # merge_jsonc USER OURS
+    python3 - "$1" "$2" <<'PY'
+import json, re, sys
+
+STRING = r'"(?:\\.|[^"\\])*"'
+COMMENT = re.compile(STRING + r'|//[^\n]*|/\*.*?\*/', re.S)
+TRAILING_COMMA = re.compile(STRING + r'|,(?=\s*[}\]])')
+
+def strip(text):
+    keep_strings = lambda match: match.group(0) if match.group(0).startswith('"') else ""
+    return TRAILING_COMMA.sub(keep_strings, COMMENT.sub(keep_strings, text))
+
+def merge(base, top):
+    for key, value in top.items():
+        if isinstance(value, dict) and isinstance(base.get(key), dict):
+            merge(base[key], value)
+        else:
+            base[key] = value
+    return base
+
+with open(sys.argv[1], encoding="utf-8") as user_file, open(sys.argv[2], encoding="utf-8") as ours_file:
+    user = json.loads(strip(user_file.read()) or "{}")
+    ours = json.loads(ours_file.read())
+if not isinstance(user, dict):
+    sys.exit(1)
+print(json.dumps(merge(user, ours), indent=2, ensure_ascii=False))
+PY
+}
+
+merge_user_file() {  # merge_user_file PATH: the merged ~/PATH ready as ~/PATH.rice-tmp (cwd: home/ of the rice)
+    local path=$1 user="$HOME/$1"
+    if [ ! -e "$ORIGINALS/$path" ] && [ ! -e "$ORIGINALS/$path.absent" ]; then
+        mkdir -p "$(dirname "$ORIGINALS/$path")"
+        if [ -f "$user" ]; then cp -a "$user" "$ORIGINALS/$path"; else : > "$ORIGINALS/$path.absent"; fi
+    fi
+    [ -f "$user" ] || return 0
+    if ! merge_jsonc "$user" "./$path" > "$user.rice-tmp" 2>/dev/null; then
+        rm -f "$user.rice-tmp"
+        warn "$path не разобран: оставлен как есть, настройки райса в него не добавлены"
+    fi
+}
+
+put_merged_file() {  # put_merged_file PATH: ~/PATH.rice-tmp in place of ~/PATH, the old one kept when they differ
+    local user="$HOME/$1"
+    [ -f "$user.rice-tmp" ] || return 0
+    if cmp -s "$user.rice-tmp" "$user"; then
+        rm -f "$user.rice-tmp"
+        return 0
+    fi
+    cp -a "$user" "$user.rice-backup"
+    mv "$user.rice-tmp" "$user"
+}
+
+remove_stale_files() {  # what the previous version put in ~ and this one no longer ships (cwd: home/ of the rice)
+    local path
+    [ -f "$MANIFEST" ] || return 0
+    while IFS= read -r path; do
+        if [ ! -e "./$path" ] && [ ! -L "./$path" ]; then
+            rm -f "$HOME/$path"
+        fi
+    done < "$MANIFEST"
+}
+
+write_manifest() {  # write_manifest FILE...: the files of home/ that were copied to ~
+    local f
+    mkdir -p "$(dirname "$MANIFEST")"
+    for f in "$@"; do
+        f=${f#./}
+        keep_theirs "$f" || is_merged "$f" || printf '%s\n' "$f"
+    done > "$MANIFEST"
+}
+
+# __HOME__ in a file of the rice becomes the home folder; escaped for sed, it may hold | & or \.
+fill_home() {  # fill_home [SED OPTION...] FILE
+    local home
+    home=$(printf '%s' "$HOME" | sed 's/[\\|&]/\\&/g')
+    sed -e "s|__HOME__|$home|g" "$@"
+}
 
 keep_theirs() {  # coexist mode: a path of ours that would overwrite the other desktop's config
     [ "${MODE:-replace}" = coexist ] || return 1
@@ -813,7 +990,7 @@ keep_theirs() {  # coexist mode: a path of ours that would overwrite the other d
 }
 
 copy_rice_files() {  # copies home/ to ~, backing up what is replaced; MODE, DO_BACKUP, found[] from install
-    local f j
+    local f j p
     cd "$SRC/home"
     mapfile -d '' FILES < <(find . -type f -print0 -o -type l -print0)
     HAD_FISH=0; [ -e "$HOME/.config/fish/config.fish" ] && HAD_FISH=1
@@ -838,23 +1015,21 @@ copy_rice_files() {  # copies home/ to ~, backing up what is replaced; MODE, DO_
             keep_theirs "$f" && continue
             mkdir -p "$BACKUP/home/$(dirname "$f")"
             cp -a "$HOME/$f" "$BACKUP/home/$f"
-            printf '%s\n' "${MERGED_JSON[@]}" | grep -qxF "$f" || rm -f "$HOME/$f"
+            is_merged "$f" || rm -f "$HOME/$f"
         done
         ok "старое → $BACKUP"
     fi
-    # Merged files: ours on top of the user's own (Code-OSS keeps its other settings).
-    local merged=()
-    for j in "${MERGED_JSON[@]}"; do
-        if [ -f "$HOME/$j" ] && jq -e . "$HOME/$j" >/dev/null 2>&1; then
-            jq -s '.[0] * .[1]' "$HOME/$j" "./$j" > "$HOME/$j.rice-tmp" && merged+=("$j")
-        fi
-    done
+    # Merged files: ours on top of the user's own (Code-OSS keeps its other settings); a user's file
+    # is never copied over, even when it cannot be merged.
     local excl=()
+    for j in "${MERGED_JSON[@]}"; do
+        merge_user_file "$j"
+        [ -f "$HOME/$j" ] && excl+=(--exclude="./$j")
+    done
     for f in "${FILES[@]}"; do
         f=${f#./}
         keep_theirs "$f" && excl+=(--exclude="./$f")
     done
-    for j in "${merged[@]}"; do excl+=(--exclude="./$j"); done
     # Themes the user removed (Alt+F2 → Тема) stay removed until they bring them back there.
     local theme
     while IFS= read -r theme; do
@@ -863,11 +1038,13 @@ copy_rice_files() {  # copies home/ to ~, backing up what is replaced; MODE, DO_
         fi
     done < <(cat "$HOME/.config/hypr-rice/removed-themes" 2>/dev/null)
     tar -cf - "${excl[@]}" . | tar -C "$HOME" -xf -
-    for j in "${merged[@]}"; do mv "$HOME/$j.rice-tmp" "$HOME/$j"; done
+    for j in "${MERGED_JSON[@]}"; do put_merged_file "$j"; done
+    remove_stale_files
+    write_manifest "${FILES[@]}"
     [ "${MODE:-replace}" = coexist ] && [ "$HAD_FISH" = 1 ] && info "fish: оставлен твой конфиг"
     for f in "${FILES[@]}"; do
         f="$HOME/${f#./}"
-        [ -f "$f" ] && grep -Iq "__HOME__" "$f" 2>/dev/null && sed -i "s|__HOME__|$HOME|g" "$f"
+        [ -f "$f" ] && grep -Iq "__HOME__" "$f" 2>/dev/null && fill_home -i "$f"
     done
     chmod +x "$HOME"/.local/bin/* "$HOME"/.config/hypr-rice/waybar/scripts/* "$HOME"/.config/hypr/scripts/*.py \
              "$HOME"/.config/hypr/scripts/ru-date "$HOME"/.claude/statusline.sh 2>/dev/null || true
@@ -904,14 +1081,19 @@ copy_rice_files() {  # copies home/ to ~, backing up what is replaced; MODE, DO_
     mkdir -p "$HOME/Pictures/screenshots"
 }
 
+# What setup_system puts outside ~; teardown_system takes it away again.
+THEME_ROOT=/usr/local/bin/hypr-theme-root
+SUDOERS_RULE=/etc/sudoers.d/hypr-theme
+TMPFILES_D=/etc/tmpfiles.d
+
 setup_system() {
-    sed "s|__HOME__|$HOME|g" "$SRC/system/hypr-theme-root" | sudo tee /usr/local/bin/hypr-theme-root >/dev/null
-    sudo chmod 755 /usr/local/bin/hypr-theme-root
+    fill_home "$SRC/system/hypr-theme-root" | sudo tee "$THEME_ROOT" >/dev/null
+    sudo chmod 755 "$THEME_ROOT"
     local tmp
     tmp=$(mktemp)
-    echo "$USER ALL=(root) NOPASSWD: /usr/local/bin/hypr-theme-root" > "$tmp"
+    echo "$USER ALL=(root) NOPASSWD: $THEME_ROOT" > "$tmp"
     if sudo visudo -cqf "$tmp"; then
-        sudo install -m 440 -o root -g root "$tmp" /etc/sudoers.d/hypr-theme
+        sudo install -m 440 -o root -g root "$tmp" "$SUDOERS_RULE"
         ok "hypr-theme-root (цвет папок, экран входа, тема браузеров)"
     else
         warn "правило sudoers не прошло проверку, смена цвета папок и SDDM работать не будет"
@@ -921,8 +1103,8 @@ setup_system() {
     setup_sddm
 
     if ls /sys/bus/platform/drivers/ideapad_acpi/*/fn_lock >/dev/null 2>&1; then
-        sudo install -Dm644 "$SRC/system/fn-lock.conf" /etc/tmpfiles.d/fn-lock.conf
-        sudo systemd-tmpfiles --create /etc/tmpfiles.d/fn-lock.conf 2>/dev/null || true
+        sudo install -Dm644 "$SRC/system/fn-lock.conf" "$TMPFILES_D/fn-lock.conf"
+        sudo systemd-tmpfiles --create "$TMPFILES_D/fn-lock.conf" 2>/dev/null || true
         ok "Lenovo IdeaPad: Fn Lock включён"
     fi
     local s u
@@ -952,12 +1134,39 @@ setup_system() {
     ok "GTK: $gtk, Papirus-Dark, курсор WhiteCat"
 }
 
+CACHE_TRIM=/usr/local/bin/rice-cache-trim
+CACHE_TRIM_HOOK=/etc/pacman.d/hooks/rice-cache-trim.hook
+
 setup_maintenance() {  # package caches kept under 200 MB, weekly TRIM for SSDs
-    sudo install -m755 "$SRC/system/rice-cache-trim" /usr/local/bin/rice-cache-trim
-    sudo install -Dm644 "$SRC/system/rice-cache-trim.hook" /etc/pacman.d/hooks/rice-cache-trim.hook
+    sudo install -m755 "$SRC/system/rice-cache-trim" "$CACHE_TRIM"
+    sudo install -Dm644 "$SRC/system/rice-cache-trim.hook" "$CACHE_TRIM_HOOK"
     systemctl --user enable cache-trim.timer >/dev/null 2>&1 || warn "не включился cache-trim.timer"
     sudo systemctl enable fstrim.timer >/dev/null 2>&1 || warn "не включился fstrim.timer"
     ok "кэш пакетов не больше 200 МБ, TRIM для SSD раз в неделю"
+}
+
+# The mirror of setup_system, setup_maintenance and setup_pkg_repo, for uninstall. SDDM itself, its
+# theme package and fstrim stay: the machine needs some login screen, and TRIM does no harm.
+teardown_system() {
+    local f conf
+    sudo rm -f "$SUDOERS_RULE" "$THEME_ROOT" "$CACHE_TRIM" "$CACHE_TRIM_HOOK" "$SDDM_CONF_D/99-hypr-rice.conf" \
+        "$TMPFILES_D/hypr-rice-power.conf" "$TMPFILES_D/hypr-rice-battery.conf"
+    systemctl --user disable --now cache-trim.timer >/dev/null 2>&1 || true
+    if cmp -s "$TMPFILES_D/fn-lock.conf" "$SRC/system/fn-lock.conf"; then sudo rm -f "$TMPFILES_D/fn-lock.conf"; fi
+    # hypr-theme-root writes this one when no theme was set at all.
+    if cmp -s "$SDDM_CONF_D/10-theme.conf" "$SRC/system/sddm-theme.conf"; then sudo rm -f "$SDDM_CONF_D/10-theme.conf"; fi
+    # SDDM files the rice changed (theme, autologin), and the mirror list it put fallback mirrors in.
+    for f in "$SDDM_CONF.rice-backup" "$SDDM_CONF_D"/*.rice-backup "$MIRRORLIST.rice-backup"; do
+        [ -f "$f" ] || continue
+        sudo mv "$f" "${f%.rice-backup}"
+    done
+    if pkg_repo_enabled; then
+        conf=$(awk '/^\[/ { skip = ($0 == "[hypr-rice]") } !skip' "$PACMAN_CONF")
+        printf '%s\n' "$conf" | sudo tee "$PACMAN_CONF" >/dev/null
+        sudo pacman-key --delete "$PKG_KEY_FPR" >/dev/null 2>&1 || true
+        info "репозиторий hypr-rice отключён; поставленные из него пакеты остались"
+    fi
+    ok "системные файлы райса убраны (SDDM остался экраном входа, с обычной темой)"
 }
 
 setup_apps_config() {
@@ -999,24 +1208,14 @@ finish() {
 }
 
 choose_mode() {  # replace | coexist | cancel
-    local out
     if [ -n "${RICE_ASSUME:-}" ]; then
         [[ $RICE_ASSUME =~ ^[Yy] ]] && echo replace || echo cancel
         return
     fi
-    if have_tty && fetch_gum; then
-        out=$("$GUM" choose --height 6 --header "Что сделать со старым райсом?" --cursor "› " "${GUM_STYLE[@]}" \
-            --label-delimiter="=" \
-            "Заменить: старый уйдёт в бэкап=replace" \
-            "Поставить рядом: выбор окружения на экране входа=coexist" \
-            "Отмена=cancel" </dev/tty) || out=cancel
-        echo "${out:-cancel}"
-        return
-    fi
-    have_tty || { echo cancel; return; }
-    local a
-    read -r -p "    [з]аменить / [р]ядом / [о]тмена: " a </dev/tty || a=""
-    case "$a" in з*|З*|r*|R*) echo replace ;; р*|Р*|h*|H*) echo coexist ;; *) echo cancel ;; esac
+    choose_one "Что сделать со старым райсом?" \
+        "Заменить: старый уйдёт в бэкап=replace" \
+        "Поставить рядом: выбор окружения на экране входа=coexist" \
+        "Отмена=cancel" || echo cancel
 }
 
 coexist_dm_question() {
@@ -1186,12 +1385,15 @@ signed_by_author() {  # signed_by_author REV
 
 cmd_update() {
     step "Обновляю hypr-rice"
-    git -C "$SRC" fetch -q --depth 1 origin "$BRANCH" || die "не удалось скачать обновление с GitHub"
+    # An explicit refspec: the clone is single-branch, and RICE_BRANCH may name another branch.
+    git -C "$SRC" fetch -q --depth 1 origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH" \
+        || die "не удалось скачать обновление с GitHub"
     signed_by_author "origin/$BRANCH" || die "новая версия на GitHub не подписана ключом автора, обновление не применено.
     Если автор сменил ключ и сам об этом сказал: rm $TRUST и снова rice update."
     local before after
     before=$(git -C "$SRC" rev-parse --short HEAD)
-    git -C "$SRC" reset -q --hard "origin/$BRANCH"
+    # As a branch of that name, so the next update follows it too (BRANCH is read from HEAD).
+    git -C "$SRC" checkout -q -f -B "$BRANCH" "origin/$BRANCH"
     after=$(git -C "$SRC" rev-parse --short HEAD)
     if [ "$before" = "$after" ] && [ -z "${RICE_FORCE:-}" ]; then
         ok "уже последняя версия ($after)"
@@ -1294,11 +1496,9 @@ cmd_games() {
     for label in "${GAME_TUNINGS[@]}"; do
         if tuning_on "${label##*=}"; then on+=("${label%=*}"); fi
     done
-    have_tty && fetch_gum || die "нужен терминал"
-    out=$("$GUM" choose --no-limit --height 8 --label-delimiter="=" \
-        --header "Что включить?  пробел — отметить · enter — готово" --selected "$(IFS=,; echo "${on[*]}")" \
-        --cursor "› " --cursor-prefix "[ ] " --selected-prefix "[✓] " --unselected-prefix "[ ] " \
-        "${GUM_STYLE[@]}" "${GAME_TUNINGS[@]}" </dev/tty) || return 0
+    have_tty || die "нужен терминал: rice games спрашивает, что включить"
+    out=$(choose_many "Что включить?" "$(IFS=,; echo "${on[*]}")" \
+        "${GAME_TUNINGS[@]}") || return 0
     mapfile -t chosen <<<"$out"
     apply_game_tunings "${chosen[@]}"
 }
@@ -1318,13 +1518,13 @@ apply_game_tunings() {  # apply_game_tunings ID...: those on, the others off; on
 tuning_gamemode_on() {
     need_sudo
     pac -S --needed gamemode || return 1
-    enable_multilib
+    enable_multilib || return 1
     pac -S --needed lib32-gamemode || warn "32-битная часть gamemode не встала: старые 32-битные игры пойдут без него"
     # The group lets gamemode raise priorities and switch CPU and GPU clocks without a password.
-    sudo usermod -aG gamemode "$USER"
-    write_gamemode_ini
-    mkdir -p "$(dirname "$GAMEMODE_MARK")"
-    touch "$GAMEMODE_MARK"
+    sudo usermod -aG gamemode "$USER" || return 1
+    write_gamemode_ini || return 1
+    mkdir -p "$(dirname "$GAMEMODE_MARK")" || return 1
+    touch "$GAMEMODE_MARK" || return 1
     ok "GameMode включён; права группы gamemode заработают после нового входа в систему"
     info "игры Steam: в свойствах игры, параметры запуска — gamemoderun %command%"
 }
@@ -1365,25 +1565,25 @@ amd_card() {  # the number N of the first /sys/class/drm/cardN run by amdgpu
 
 tuning_ntsync_on() {
     need_sudo
-    echo ntsync | sudo tee "$NTSYNC_LOAD" >/dev/null
+    echo ntsync | sudo tee "$NTSYNC_LOAD" >/dev/null || return 1
     # The device is root's only otherwise; uaccess gives it to whoever sits at the machine.
-    echo 'KERNEL=="ntsync", TAG+="uaccess"' | sudo tee "$NTSYNC_RULE" >/dev/null
-    sudo udevadm control --reload
+    echo 'KERNEL=="ntsync", TAG+="uaccess"' | sudo tee "$NTSYNC_RULE" >/dev/null || return 1
+    sudo udevadm control --reload || return 1
     sudo modprobe ntsync || { warn "модуль ntsync не загрузился (в этом ядре его нет?)"; return 1; }
     ok "NTSync включён: Proton через proton-run берёт его сам (PROTON_USE_NTSYNC)"
 }
 
 tuning_ntsync_off() {
     need_sudo
-    sudo rm -f "$NTSYNC_LOAD" "$NTSYNC_RULE"
-    sudo udevadm control --reload
+    sudo rm -f "$NTSYNC_LOAD" "$NTSYNC_RULE" || return 1
+    sudo udevadm control --reload || return 1
     sudo modprobe -r ntsync 2>/dev/null || info "ntsync сейчас занят игрой: выгрузится после перезагрузки"
     ok "NTSync выключен"
 }
 
 tuning_tearing_on() {
-    mkdir -p "$(dirname "$TEARING_LUA")"
-    cat > "$TEARING_LUA" <<'LUA'
+    mkdir -p "$(dirname "$TEARING_LUA")" || return 1
+    cat > "$TEARING_LUA" <<'LUA' || return 1
 -- Тиринг в полноэкранных играх (rice → Игры: оптимизация); rice writes and removes this file.
 -- Hyprland shows such a game's frame at once instead of waiting for the screen: less input lag, with
 -- tearing. Games run on XWayland (Proton, Steam, Wine) or are osu!; browsers and video players are
@@ -1456,12 +1656,8 @@ cmd_proton() {  # which Proton runs .exe files (proton-run reads ~/.config/hypr-
         info "сейчас: автоматически (последняя UMU-Proton)"
     fi
     [ ${#options[@]} -gt 1 ] || info "других версий нет; поставь их в ProtonPlus (раздел Steam), они появятся здесь"
-    if have_tty && fetch_gum; then
-        choice=$("$GUM" choose --height 12 --header "Какой Proton запускает .exe?" --cursor "› " "${GUM_STYLE[@]}" \
-            --label-delimiter="=" "${options[@]}" </dev/tty) || return 0
-    else
-        die "нужен терминал"
-    fi
+    have_tty || die "нужен терминал: rice proton спрашивает, какую версию взять"
+    choice=$(choose_one "Какой Proton запускает .exe?" "${options[@]}") || return 0
     mkdir -p "$(dirname "$conf")"
     if [ "$choice" = auto ]; then
         rm -f "$conf"
@@ -1478,18 +1674,14 @@ cmd_upgrade() {
     pkg_repo_enabled || setup_pkg_repo
     pac -Syu || die "pacman -Syu не прошёл"
     ok "официальные репозитории и hypr-rice"
-    # AUR packages that are not in the hypr-rice repo.
-    local foreign=() p
+    # AUR packages that are not in the hypr-rice repo: -Qm lists only packages no enabled repo has,
+    # and the hypr-rice repo is one of them, so its packages were upgraded by -Syu above.
+    local foreign=()
     mapfile -t foreign < <(pacman -Qqm)
-    local rest=()
-    for p in "${foreign[@]}"; do
-        pkg_repo_enabled && pacman -Si "hypr-rice/$p" >/dev/null 2>&1 && continue
-        rest+=("$p")
-    done
-    if [ ${#rest[@]} -gt 0 ] && aur_reachable && command -v yay >/dev/null; then
+    if [ ${#foreign[@]} -gt 0 ] && aur_reachable && command -v yay >/dev/null; then
         yay -Sua --noconfirm --answerdiff None --answerclean None || warn "часть AUR-пакетов не обновилась"
-    elif [ ${#rest[@]} -gt 0 ]; then
-        info "AUR недоступен; пакеты не из репозитория hypr-rice не обновлены: ${rest[*]}"
+    elif [ ${#foreign[@]} -gt 0 ]; then
+        info "AUR недоступен; пакеты не из репозитория hypr-rice не обновлены: ${foreign[*]}"
     fi
     command -v flatpak >/dev/null && flatpak update --user -y --noninteractive >/dev/null 2>&1 || true
     finish
@@ -1513,7 +1705,10 @@ cmd_repair() {
 
 cmd_report() {
     local out="$HOME/rice-report.txt"
-    {
+    # Every section is written whatever fails before it: a broken system is what the report is for,
+    # and under set -e the first missing file or stopped service would end it there.
+    (
+        set +e
         echo "hypr-rice report $(date '+%F %T')"
         echo "rice: $(cat "$MARKER" 2>/dev/null || echo 'не установлен')  src: $(git -C "$SRC" log -1 --format='%h %s' 2>/dev/null)"
         echo "os: $(. /etc/os-release; echo "$PRETTY_NAME")  kernel: $(uname -r)"
@@ -1542,15 +1737,15 @@ cmd_report() {
         done
         echo
         echo "== hyprland"
-        hyprctl version 2>/dev/null | head -n 2 || echo "  не запущен"
+        hyprctl version 2>/dev/null | head -n 2 || echo "  не запущен"  # pipefail: the pipe fails when hyprctl does
         hyprctl configerrors 2>/dev/null
         echo
         echo "== user services"
         systemctl --user --no-pager --failed 2>/dev/null | head -n 20
         echo
         echo "== pacman.conf repos"
-        grep -E '^\[' /etc/pacman.conf
-    } > "$out" 2>&1
+        grep -E '^\[' "$PACMAN_CONF"
+    ) > "$out" 2>&1 || true
     ok "отчёт: $out (пришли его тому, кто помогает)"
 }
 
@@ -1578,17 +1773,25 @@ cmd_uninstall() {
     else
         info "бэкапа прежних настроек нет: файлы райса просто удалятся"
     fi
-    ask "Удалить hypr-rice из домашней папки?" n || return 0
+    ask "Удалить hypr-rice?" n || return 0
+    need_sudo
+    load_apps
+    undo_program_steps
+    # Before the files go: the user units it disables are among them.
+    teardown_system
+
     local f
-    cd "$SRC/home"
-    while IFS= read -r -d '' f; do rm -f "$HOME/${f#./}"; done < <(find . -type f -print0 -o -type l -print0)
+    while IFS= read -r f; do rm -f "$HOME/$f"; done < <(installed_rice_files)
     while read -r _ f; do rm -f "$HOME/$f"; done < "$SRC/packages/release.sha256"
+    restore_merged_files
+    unset_claude_statusline
     cd "$HOME"
     rm -f "$MARKER" "$HOME/.local/bin/rice" "$HOME/.local/share/applications/hypr-rice-manager.desktop" \
-          "$HOME/.config/hypr-rice/install.conf"
+          "$HOME/.config/hypr-rice/install.conf" "$MANIFEST"
     if [ -n "$backup" ]; then
         # Foreign configs were moved as whole directories, ours file by file under home/.
         for f in "$backup"/*; do
+            [ -e "$f" ] || continue  # an empty backup: the pattern stays as it is
             case "$(basename "$f")" in
                 home) (cd "$backup/home" && tar -cf - .) | tar -C "$HOME" -xf - ;;
                 hypr) mkdir -p "$HOME/.config/hypr" && cp -a "$f/." "$HOME/.config/hypr/" ;;
@@ -1597,20 +1800,86 @@ cmd_uninstall() {
         done
         ok "возвращено из $backup"
     fi
-    info "Системные пакеты и SDDM остались; удалить их: sudo pacman -Rs <пакеты>"
+    info "Пакеты остались; удалить их: sudo pacman -Rs <пакеты>"
 }
 
+installed_rice_files() {  # the files of ~ the rice put there, relative to ~
+    if [ -f "$MANIFEST" ]; then
+        cat "$MANIFEST"
+        return
+    fi
+    # Installs from before the list: what this version ships, the merged files aside.
+    local f
+    while IFS= read -r -d '' f; do
+        f=${f#./}
+        is_merged "$f" || printf '%s\n' "$f"
+    done < <(cd "$SRC/home" && find . -type f -print0 -o -type l -print0)
+}
+
+# The setup steps of installed programs and the game optimisations change the system (zram, earlyoom,
+# the .exe rule in the kernel, AntiDPI, NTSync); without the rice nothing would manage them.
+undo_program_steps() {
+    local id tok
+    for id in "${APP_IDS[@]}"; do
+        app_packages_installed "$id" || continue
+        for tok in ${APP_SRC[$id]}; do
+            [[ $tok == hook:* ]] || continue
+            run_unhook "${tok#hook:}" || warn "не отменился шаг ${tok#hook:}"
+        done
+    done
+    # linux-zen stays: it may be the kernel running now.
+    for id in gamemode ntsync tearing; do
+        if tuning_on "$id"; then "tuning_${id}_off" || warn "не выключилось: $id"; fi
+    done
+}
+
+restore_merged_files() {  # each merged file back to the user's own from before the rice
+    local path saved
+    for path in "${MERGED_JSON[@]}"; do
+        saved="$ORIGINALS/$path"
+        if [ -f "$saved" ]; then
+            [ -f "$HOME/$path" ] && cp -a "$HOME/$path" "$HOME/$path.rice-backup"
+            mkdir -p "$(dirname "$HOME/$path")"
+            mv "$saved" "$HOME/$path"
+            ok "$path: возвращён твой прежний (с райсом — $path.rice-backup)"
+        elif [ -e "$saved.absent" ] && cmp -s "$HOME/$path" "$SRC/home/$path"; then
+            rm -f "$HOME/$path"
+        elif [ -e "$HOME/$path" ]; then
+            info "$path оставлен: в нём твои настройки вместе с настройками райса"
+        fi
+        rm -f "$saved.absent"
+    done
+    find "$ORIGINALS" -depth -type d -empty -delete 2>/dev/null || true
+}
+
+unset_claude_statusline() {  # setup_apps_config pointed Claude Code's status line at the rice's script
+    local cfg="$HOME/.claude/settings.json"
+    [ -f "$cfg" ] || return 0
+    jq -e '.statusLine.command == "~/.claude/statusline.sh"' "$cfg" >/dev/null 2>&1 || return 0
+    jq 'del(.statusLine)' "$cfg" > "$cfg.tmp" && mv "$cfg.tmp" "$cfg"
+}
+
+# The launcher runs `kitty -e rice`: the menu stays until "Выход", and the output of every action
+# stays on screen until Enter. Each action is a rice of its own, so its errors (die) end only it.
 menu() {
-    fetch_gum || die "меню не открылось (нет gum); команды: rice install|apps|remove|update|upgrade|proton|games|repair|report|uninstall"
     local choice
-    choice=$("$GUM" choose --height 12 --header "hypr-rice — что сделать?" --cursor "› " "${GUM_STYLE[@]}" \
-        "Установить программы=apps" "Удалить программы=remove" "Обновить райс=update" \
-        "Обновить систему и программы=upgrade" "Proton для .exe: версия=proton" \
-        "Игры: оптимизация=games" \
-        "Починить (SDDM, тема, сервисы)=repair" \
-        "Отчёт для помощи=report" "Переустановить райс=install" "Удалить райс=uninstall" \
-        --label-delimiter="=" </dev/tty) || exit 0
-    [ -n "$choice" ] && run "$choice"
+    have_tty || die "меню нужен терминал; команды: rice install|apps|remove|update|upgrade|proton|games|repair|report|uninstall"
+    # Here, not in choose_one's $(...): a failed download is then neither repeated nor announced each round.
+    fetch_gum || true
+    while choice=$(choose_one "hypr-rice — что сделать?" \
+            "Установить программы=apps" "Удалить программы=remove" "Обновить райс=update" \
+            "Обновить систему и программы=upgrade" "Proton для .exe: версия=proton" \
+            "Игры: оптимизация=games" \
+            "Починить (SDDM, тема, сервисы)=repair" \
+            "Отчёт для помощи=report" "Переустановить райс=install" "Удалить райс=uninstall" \
+            "Выход=quit"); do
+        case "$choice" in
+            ""|quit) return 0 ;;
+        esac
+        "$SRC/rice" "$choice" || true
+        echo
+        read -r -p "    Enter — назад в меню " _ </dev/tty || return 0
+    done
 }
 
 # The author's working copy (marked by an untracked .author): there the live configs are the

@@ -28,7 +28,8 @@ curl -fsSI --max-time 15 https://github.com >/dev/null || die "нет досту
 if ! command -v git >/dev/null; then
     echo "    Нужен git, введи пароль sudo:"
     if { : </dev/tty; } 2>/dev/null; then sudo -v </dev/tty; else sudo -v; fi || die "sudo не сработал"
-    sudo pacman -S --needed --noconfirm git >/dev/null || sudo pacman -Sy --needed --noconfirm git >/dev/null \
+    # A stale database is fixed by a sync together with the upgrade: Arch does not support one without it.
+    sudo pacman -S --needed --noconfirm git >/dev/null || sudo pacman -Syu --needed --noconfirm git >/dev/null \
         || die "не удалось поставить git"
 fi
 
@@ -38,11 +39,19 @@ signed_by_author() {
     git -C "$SRC" -c gpg.format=ssh -c gpg.ssh.allowedSignersFile="$TRUST" verify-commit "$1" >/dev/null 2>&1
 }
 
+# A clone of hypr-rice, by the URL it was cloned from; any other git repository is the user's own.
+is_rice_clone() {
+    [[ $(git -C "$SRC" config --get remote.origin.url 2>/dev/null) =~ github\.com[:/]larion928/hypr-rice(\.git)?$ ]]
+}
+
 echo "==> Скачиваю hypr-rice"
 if [ -d "$SRC/.git" ]; then
-    git -C "$SRC" fetch -q --depth 1 origin "$BRANCH"
+    is_rice_clone || die "папка $SRC — чужой git-репозиторий, не hypr-rice; выбери другую (RICE_SRC)"
+    # The clone is single-branch: another branch is fetched into its own origin/ ref explicitly.
+    git -C "$SRC" fetch -q --depth 1 origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
     signed_by_author "origin/$BRANCH" || die "версия на GitHub не подписана ключом автора, ничего не изменено"
-    git -C "$SRC" reset -q --hard "origin/$BRANCH"
+    # Checked out as a branch of that name: rice update follows the branch HEAD is on.
+    git -C "$SRC" checkout -q -f -B "$BRANCH" "origin/$BRANCH"
 else
     # Only an empty or missing folder: RICE_SRC may point at something of the user's.
     [ ! -e "$SRC" ] || [ -z "$(ls -A "$SRC" 2>/dev/null)" ] || die "папка $SRC не пустая и это не hypr-rice, выбери другую (RICE_SRC)"

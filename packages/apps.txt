@@ -3,7 +3,8 @@
 #   name           package from the official repos ([multilib] is enabled when needed)
 #   aur:name       AUR package: hypr-rice-pkgs repo first, then yay, then the GitHub mirror of the AUR
 #   flatpak:id     Flathub app (installed per user)
-#   appimage:URL   AppImage saved to ~/Applications/<id>.AppImage with a launcher entry
+#   appimage:URL#sha256=HEX   AppImage of a pinned version, saved to ~/Applications/<id>.AppImage with a
+#                  launcher entry; refused when the download does not match HEX
 #   file:path      file of the rice (relative to ~) that only ships with this program
 #   release:path   prebuilt file of the rice (relative to ~), downloaded from the GitHub release "files"
 #                  and checked against packages/release.sha256
@@ -29,8 +30,8 @@ proton      | Игры       | Proton для .exe (umu + ProtonPlus) | umu-launc
 lutris      | Игры       | Lutris                           | lutris
 heroic      | Игры       | Heroic (Epic и GOG)              | aur:heroic-games-launcher-bin
 prismlauncher | Игры     | Prism Launcher (Minecraft)       | prismlauncher
-prism       | Игры       | Ely Prism Launcher (Minecraft)   | appimage:https://github.com/ElyPrismLauncher/Launcher/releases/latest/download/PineconeMC-Linux-x86_64.AppImage
-osu         | Игры       | osu!                             | appimage:https://github.com/ppy/osu/releases/latest/download/osu.AppImage
+prism       | Игры       | Ely Prism Launcher (Minecraft)   | appimage:https://github.com/ElyPrismLauncher/Launcher/releases/download/11.1.2/PineconeMC-Linux-x86_64.AppImage#sha256=068129b472da7658dd77919250cfb88f38e2b43a65ab92239e0b5a726ba9444d
+osu         | Игры       | osu!                             | appimage:https://github.com/ppy/osu/releases/download/2026.1117.0-lazer/osu.AppImage#sha256=4ebbcb5b581c036f16785500af5c8d13ad1e6d93196fd36be8f245c2a0ea1d2d
 gamemode    | Игры       | GameMode                         | gamemode lib32-gamemode
 mangohud    | Игры       | MangoHud (FPS в играх)           | mangohud lib32-mangohud
 claude      | Разработка | Claude Code                      | aur:claude-code
