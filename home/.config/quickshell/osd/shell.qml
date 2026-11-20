@@ -5,6 +5,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import Quickshell.Services.Pipewire
 import "common"
@@ -85,6 +86,8 @@ ShellRoot {
 
     PanelWindow {
         id: win
+        // Shown on whichever monitor has focus now.
+        screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? null
         visible: root.shown || fade.running
         anchors.bottom: true
         margins.bottom: 90

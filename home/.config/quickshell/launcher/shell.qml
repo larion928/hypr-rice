@@ -9,6 +9,8 @@ import Quickshell.Hyprland
 import Quickshell.Widgets
 import "common"
 import "common/color.js" as Color
+import "common/keys.js" as KeyName
+import "common/url.js" as Url
 
 ShellRoot {
     id: root
@@ -178,6 +180,8 @@ ShellRoot {
 
     PanelWindow {
         id: win
+        // The monitor that had focus when panel.sh opened the panel ($RICE_MONITOR).
+        screen: Quickshell.screens.find(s => s.name === Quickshell.env("RICE_MONITOR")) ?? null
         implicitWidth: 680
         implicitHeight: 560
         exclusionMode: ExclusionMode.Ignore
@@ -231,7 +235,7 @@ ShellRoot {
                     id: fieldIcon
                     visible: !!theme.ui.headerIcon
                     anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
-                    source: theme.ui.headerIcon ? "file://" + theme.dir + "/" + theme.ui.headerIcon : ""
+                    source: theme.ui.headerIcon ? Url.fromPath(theme.dir + "/" + theme.ui.headerIcon) : ""
                     width: 22; height: 22; sourceSize: Qt.size(44, 44)
                 }
                 Text {
@@ -260,9 +264,9 @@ ShellRoot {
                     onTextChanged: root.query = text
                     Keys.onPressed: e => {
                         if (e.key === Qt.Key_Escape) root.close();
-                        else if (e.key === Qt.Key_Down || (e.key === Qt.Key_J && e.modifiers & Qt.ControlModifier) || e.key === Qt.Key_Tab) {
+                        else if (e.key === Qt.Key_Down || (KeyName.of(e) === "J" && (e.modifiers & Qt.ControlModifier)) || e.key === Qt.Key_Tab) {
                             root.current = Math.min(root.current + 1, root.results.length - 1); root.armed = ""; e.accepted = true;
-                        } else if (e.key === Qt.Key_Up || (e.key === Qt.Key_K && e.modifiers & Qt.ControlModifier) || e.key === Qt.Key_Backtab) {
+                        } else if (e.key === Qt.Key_Up || (KeyName.of(e) === "K" && (e.modifiers & Qt.ControlModifier)) || e.key === Qt.Key_Backtab) {
                             root.current = Math.max(root.current - 1, 0); root.armed = ""; e.accepted = true;
                         } else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) {
                             root.activate(root.current); e.accepted = true;
@@ -313,7 +317,9 @@ ShellRoot {
                             anchors.verticalCenter: parent.verticalCenter
                             IconImage {
                                 id: appIcon
-                                anchors.fill: parent
+                                // Sized from the start: a source set while the size is still 0 is
+                                // rendered at the SVG's own size, which can be huge.
+                                implicitSize: 32
                                 visible: source != ""
                                 source: row.modelData.icon ? Quickshell.iconPath(row.modelData.icon, true) : ""
                             }

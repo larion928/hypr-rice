@@ -8,6 +8,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import "common"
 import "common/color.js" as Color
+import "common/listmodel.js" as ListModelSync
 
 ShellRoot {
     id: root
@@ -108,6 +109,7 @@ ShellRoot {
             const list = Object.values(best);
             list.sort((x, y) => (y.inUse - x.inUse) || (!!net.saved[y.ssid] - !!net.saved[x.ssid]) || (y.signal - x.signal));
             net.networks = list;
+            ListModelSync.sync(otherNetworks, list.filter(n => !n.inUse), "ssid");
             if (current) net.active = Object.assign({}, net.active || {}, { ssid: current.ssid, signal: current.signal });
         }
 
@@ -115,12 +117,16 @@ ShellRoot {
             busy = n.ssid;
             message = "Подключаюсь к " + n.ssid + "…";
             messageIsError = false;
+            // The password goes to nmcli's "Password:" prompt (--ask) through stdin: on the command
+            // line any user would read it in `ps`.
             if (net.saved[n.ssid] && !password)
                 connectProc.command = ["nmcli", "connection", "up", "id", n.ssid];
             else if (password)
-                connectProc.command = ["nmcli", "device", "wifi", "connect", n.ssid, "password", password];
+                connectProc.command = ["nmcli", "--ask", "device", "wifi", "connect", n.ssid];
             else
                 connectProc.command = ["nmcli", "device", "wifi", "connect", n.ssid];
+            connectProc.password = password;
+            connectProc.stdinEnabled = !!password;
             connectProc.target = n.ssid;
             connectProc.running = true;
         }
@@ -190,6 +196,15 @@ ShellRoot {
     Process {
         id: connectProc
         property string target: ""
+        property string password: ""
+        // Closing stdin after the one answer: a wrong password makes nmcli ask again, and an end of
+        // input then fails the connection instead of leaving it waiting.
+        onStarted: {
+            if (!password) return;
+            write(password + "\n");
+            password = "";
+            stdinEnabled = false;
+        }
         stderr: StdioCollector { id: connectErr }
         onExited: code => {
             net.busy = "";
@@ -224,6 +239,10 @@ ShellRoot {
     }
     Timer { interval: 5000; running: true; repeat: true; onTriggered: if (!net.busy) net.refresh() }
 
+    // The networks but the one in use, kept in place across refreshes: a row being typed into keeps
+    // its password field and focus.
+    ListModel { id: otherNetworks }
+
     function signalGlyph(signal) {
         const level = signal >= 75 ? 3 : signal >= 50 ? 2 : signal >= 25 ? 1 : 0;
         return ["\u{f091f}", "\u{f0922}", "\u{f0925}", "\u{f0928}"][level];
@@ -232,6 +251,8 @@ ShellRoot {
     // ---------- window ----------
 
     PanelWindow {
+        // The monitor that had focus when panel.sh opened the panel ($RICE_MONITOR).
+        screen: Quickshell.screens.find(s => s.name === Quickshell.env("RICE_MONITOR")) ?? null
         anchors { top: true; bottom: true; left: true; right: true }
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
@@ -395,8 +416,8 @@ ShellRoot {
                             width: parent.width
                             spacing: 6
                             Repeater {
-                                model: net.networks.filter(n => !n.inUse)
-                                NetworkRow { required property var modelData; network: modelData }
+                                model: otherNetworks
+                                NetworkRow { required property var model; network: model }
                             }
                         }
                     }

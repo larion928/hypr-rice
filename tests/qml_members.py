@@ -17,7 +17,8 @@ for object_id in sys.argv[2:]:
     body = text[opening:end]
     defined = set(re.findall(r"(?:property\s+\w+(?:<\w+>)?|signal|function)\s+(\w+)", body))
     defined |= {"running", "command", "text", "x", "y", "width", "height", "visible", "write"}
-    used = set(re.findall(rf"\b{object_id}\.(\w+)", text))
+    # "/" before: a path in an import ("common/keys.js"), not the object.
+    used = set(re.findall(rf"(?<![/\w]){object_id}\.(\w+)", text))
     for name in sorted(used - defined):
         print(f"{object_id}.{name} is used but not defined")
         missing = True

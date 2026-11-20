@@ -9,6 +9,8 @@ import Quickshell.Wayland
 import Quickshell.Widgets
 import "common"
 import "common/color.js" as Color
+import "common/keys.js" as KeyName
+import "common/url.js" as Url
 
 ShellRoot {
     id: root
@@ -24,7 +26,7 @@ ShellRoot {
 
     FolderListModel {
         id: files
-        folder: "file://" + root.dir
+        folder: Url.fromPath(root.dir)
         nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
         showDirs: false
         sortField: FolderListModel.Time   // newest first
@@ -39,10 +41,14 @@ ShellRoot {
         return m ? `${+m[3]} ${months[+m[2] - 1]}, ${m[4]}:${m[5]}` : name;
     }
 
+    readonly property var imageTypes: ({ png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp" })
+
     function copy(path) {
-        Quickshell.execDetached(["sh", "-c", 'wl-copy --type image/png < "$1"', "sh", path]);
-        flash.text = "Скопировано в буфер";
-        flash.restart();
+        if (fileAction.running) return;
+        const type = imageTypes[path.split(".").pop().toLowerCase()];
+        fileAction.command = ["sh", "-c", 'wl-copy --type "$2" < "$1"', "sh", path, type];
+        fileAction.done = "Скопировано в буфер";
+        fileAction.running = true;
     }
     function open(path) {
         Quickshell.execDetached(["xdg-open", path]);
@@ -54,11 +60,22 @@ ShellRoot {
             disarm.restart();
             return;
         }
+        if (fileAction.running) return;
         armed = "";
-        Quickshell.execDetached(["gio", "trash", path]);
-        flash.text = "Перемещено в корзину";
-        flash.restart();
+        fileAction.command = ["gio", "trash", path];
+        fileAction.done = "Перемещено в корзину";
+        fileAction.running = true;
         if (preview >= files.count - 1) preview = files.count - 2;
+    }
+
+    // Copy or trash; what it did is flashed only when it worked.
+    Process {
+        id: fileAction
+        property string done: ""
+        onExited: code => {
+            flash.text = code === 0 ? done : "Не получилось";
+            flash.restart();
+        }
     }
 
     function close() {
@@ -75,6 +92,8 @@ ShellRoot {
     }
 
     PanelWindow {
+        // The monitor that had focus when panel.sh opened the panel ($RICE_MONITOR).
+        screen: Quickshell.screens.find(s => s.name === Quickshell.env("RICE_MONITOR")) ?? null
         anchors { top: true; bottom: true; left: true; right: true }
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
@@ -97,12 +116,15 @@ ShellRoot {
 
             Keys.onPressed: e => {
                 const n = files.count;
+                const key = KeyName.of(e);
                 if (e.key === Qt.Key_Escape) {
                     if (root.preview >= 0) root.preview = -1; else root.close();
+                } else if (n === 0) {
+                    return;
                 } else if (root.preview >= 0) {
-                    if (e.key === Qt.Key_Left || e.key === Qt.Key_H) root.preview = Math.max(0, root.preview - 1);
-                    else if (e.key === Qt.Key_Right || e.key === Qt.Key_L) root.preview = Math.min(n - 1, root.preview + 1);
-                    else if (e.key === Qt.Key_C) root.copy(root.pathAt(root.preview));
+                    if (e.key === Qt.Key_Left || key === "H") root.preview = Math.max(0, root.preview - 1);
+                    else if (e.key === Qt.Key_Right || key === "L") root.preview = Math.min(n - 1, root.preview + 1);
+                    else if (key === "C") root.copy(root.pathAt(root.preview));
                     else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) root.open(root.pathAt(root.preview));
                     else if (e.key === Qt.Key_Delete) root.trash(root.pathAt(root.preview));
                 } else {
@@ -111,7 +133,7 @@ ShellRoot {
                     else if (e.key === Qt.Key_Right) grid.moveCurrentIndexRight();
                     else if (e.key === Qt.Key_Up) grid.moveCurrentIndexUp();
                     else if (e.key === Qt.Key_Down) grid.moveCurrentIndexDown();
-                    else if (e.key === Qt.Key_C) root.copy(root.pathAt(grid.currentIndex));
+                    else if (key === "C") root.copy(root.pathAt(grid.currentIndex));
                     else if (e.key === Qt.Key_Delete) root.trash(root.pathAt(grid.currentIndex));
                 }
             }
@@ -138,7 +160,7 @@ ShellRoot {
                     spacing: 12
                     Image {
                         visible: !!theme.ui.headerIcon
-                        source: theme.ui.headerIcon ? "file://" + theme.dir + "/" + theme.ui.headerIcon : ""
+                        source: theme.ui.headerIcon ? Url.fromPath(theme.dir + "/" + theme.ui.headerIcon) : ""
                         width: 26; height: 26; sourceSize: Qt.size(52, 52)
                         anchors.verticalCenter: parent.verticalCenter
                     }
@@ -202,7 +224,7 @@ ShellRoot {
                             border.color: cell.current || hover.hovered ? (theme.c.accent || "white") : Color.withAlpha(theme.c.muted, 0.3)
                             Image {
                                 anchors.fill: parent
-                                source: "file://" + cell.filePath
+                                source: Url.fromPath(cell.filePath)
                                 sourceSize: Qt.size(480, 270)
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
@@ -243,7 +265,7 @@ ShellRoot {
                     Image {
                         id: big
                         anchors.fill: parent
-                        source: root.preview >= 0 ? "file://" + root.pathAt(root.preview) : ""
+                        source: root.preview >= 0 ? Url.fromPath(root.pathAt(root.preview)) : ""
                         fillMode: Image.PreserveAspectFit
                         asynchronous: true
                         cache: false

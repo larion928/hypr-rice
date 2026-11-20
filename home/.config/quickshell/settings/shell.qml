@@ -14,6 +14,8 @@ import Quickshell.Widgets
 import Quickshell.Services.SystemTray
 import "common"
 import "common/color.js" as Color
+import "common/url.js" as Url
+import "common/keys.js" as KeyName
 
 ShellRoot {
     id: root
@@ -79,8 +81,12 @@ ShellRoot {
         return "'" + String(text).replace(/'/g, "'\\''") + "'";
     }
 
+    // The file is written whole or not at all (a temporary beside it, renamed over it), and the
+    // command runs only when the write succeeded.
     function writeFile(path, text, after) {
-        Quickshell.execDetached(["sh", "-c", 'printf "%s" "$1" > "$2" && [ -z "$3" ] || sh -c "$3"',
+        Quickshell.execDetached(["sh", "-c",
+                                 'tmp="$2.tmp.$$"; printf "%s" "$1" > "$tmp" && mv -f "$tmp" "$2" || { rm -f "$tmp"; exit 1; }\n'
+                                 + '[ -z "$3" ] || sh -c "$3"',
                                  "sh", text, path, after || ""]);
     }
 
@@ -111,7 +117,8 @@ ShellRoot {
                 if (!modes.find(x => x.w === m.width && x.h === m.height))
                     modes.push({ w: m.width, h: m.height, rate: m.refreshRate });
                 return { name: m.name, desc: m.description || "", w: m.width, h: m.height,
-                         rate: m.refreshRate, x: m.x, y: m.y, scale: m.scale, disabled: !!m.disabled, modes: modes };
+                         rate: m.refreshRate, x: m.x, y: m.y, scale: m.scale, disabled: !!m.disabled, modes: modes,
+                         rotated: m.transform % 2 === 1 };
             });
             list = out;
             edit = JSON.parse(JSON.stringify(out));
@@ -131,8 +138,9 @@ ShellRoot {
         }
 
         function changed() { return JSON.stringify(edit) !== JSON.stringify(list); }
-        function lw(m) { return Math.round(m.w / m.scale); }
-        function lh(m) { return Math.round(m.h / m.scale); }
+        // Logical size: a monitor turned by 90 or 270 degrees has its width and height swapped.
+        function lw(m) { return Math.round((m.rotated ? m.h : m.w) / m.scale); }
+        function lh(m) { return Math.round((m.rotated ? m.w : m.h) / m.scale); }
 
         // A monitor dropped at logical (x, y): snap to the other screens' edges, then keep the
         // layout's top-left corner at 0x0.
@@ -156,15 +164,73 @@ ShellRoot {
             edit = e;
         }
 
-        function spec(m) {
-            if (m.disabled) return `hl.monitor({ output = "${m.name}", disabled = true })`;
+        // The panel sets these fields of hl.monitor; whatever else monitors.lua has for an output
+        // (transform, mirror, vrr, bitdepth, ...) is the user's and is written back as it is.
+        readonly property var ownFields: ["output", "mode", "position", "scale", "disabled"]
+
+        function spec(m, kept) {
+            const extra = (kept[m.name] || []).map(field => ", " + field).join("");
+            if (m.disabled) return `hl.monitor({ output = "${m.name}", disabled = true${extra} })`;
             const rate = (+m.rate).toFixed(2).replace(/\.?0+$/, "");
-            return `hl.monitor({ output = "${m.name}", mode = "${m.w}x${m.h}@${rate}", position = "${m.x}x${m.y}", scale = ${m.scale} })`;
+            return `hl.monitor({ output = "${m.name}", mode = "${m.w}x${m.h}@${rate}", position = "${m.x}x${m.y}", scale = ${m.scale}${extra} })`;
+        }
+
+        // output name -> the fields of its hl.monitor in monitors.lua that the panel does not set,
+        // as Lua text ("transform = 1").
+        function keptFields(text) {
+            const kept = {};
+            for (const call of monitorCalls(text)) {
+                const output = call.fields.map(f => /^output\s*=\s*["'](.*)["']$/.exec(f)).find(found => found);
+                if (!output) continue;
+                kept[output[1]] = call.fields.filter(f => !ownFields.includes((/^(\w+)\s*=/.exec(f) || [])[1]));
+            }
+            return kept;
+        }
+
+        // Every hl.monitor({...}) in Lua text: where it starts and ends, and its fields split at the
+        // top-level commas (strings, nested tables and comments do not split them).
+        function monitorCalls(text) {
+            const calls = [];
+            const opener = /hl\.monitor\(\{/g;
+            let found;
+            while ((found = opener.exec(text))) {
+                const fields = [];
+                let field = "", depth = 1, quote = "", i = opener.lastIndex;
+                for (; i < text.length; i++) {
+                    const ch = text[i];
+                    if (quote) {
+                        if (ch === "\\") field += text[i++];
+                        else if (ch === quote) quote = "";
+                    } else if (ch === "-" && text[i + 1] === "-") {
+                        i = text.indexOf("\n", i);
+                        if (i === -1) i = text.length;
+                        continue;
+                    } else if (ch === '"' || ch === "'") {
+                        quote = ch;
+                    } else if (ch === "{") {
+                        depth++;
+                    } else if (ch === "}" && --depth === 0) {
+                        break;
+                    } else if (ch === "," && depth === 1) {
+                        fields.push(field.trim());
+                        field = "";
+                        continue;
+                    }
+                    field += text[i] || "";
+                }
+                fields.push(field.trim());
+                const close = text.indexOf(")", i);
+                const end = close === -1 ? text.length : close + 1;
+                calls.push({ start: found.index, end: end, fields: fields.filter(f => f) });
+                opener.lastIndex = end;
+            }
+            return calls;
         }
 
         function apply() {
             if (edit.filter(m => !m.disabled).length === 0) { status = "Хотя бы один экран должен остаться включённым"; return; }
-            Quickshell.execDetached(["hyprctl", "eval", edit.map(spec).join("\n")]);
+            const kept = keptFields(monFile.text());
+            Quickshell.execDetached(["hyprctl", "eval", edit.map(m => spec(m, kept)).join("\n")]);
             pending = true;
             countdown = 15;
             status = "";
@@ -190,13 +256,16 @@ ShellRoot {
         function save(oldText) {
             // Our monitor lines replace any hl.monitor(...) in the file; the rest (workspace rules
             // and the like) stays.
-            const rest = (oldText || "")
-                .replace(/^-- Monitors written by the settings panel.*\n/gm, "")
-                .replace(/hl\.monitor\(\{[\s\S]*?\}\)[ \t]*\n?/g, "")
-                .replace(/^\s*\n/, "");
+            let rest = oldText || "";
+            for (const call of monitorCalls(rest).reverse()) {
+                const lineEnd = /^[ \t]*\n?/.exec(rest.slice(call.end))[0].length;
+                rest = rest.slice(0, call.start) + rest.slice(call.end + lineEnd);
+            }
+            rest = rest.replace(/^-- Monitors written by the settings panel.*\n/gm, "").replace(/^\s*\n/, "");
+            const kept = keptFields(oldText || "");
             const head = "-- Monitors written by the settings panel (Alt+F2); other lines below are kept.\n"
                 + 'hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })\n'
-                + edit.map(spec).join("\n") + "\n";
+                + edit.map(m => spec(m, kept)).join("\n") + "\n";
             root.writeFile(root.home + "/.config/hypr/monitors.lua", head + (rest ? "\n" + rest : ""), "");
             list = JSON.parse(JSON.stringify(edit));
             status = "Сохранено в monitors.lua";
@@ -208,7 +277,7 @@ ShellRoot {
         command: ["hyprctl", "monitors", "all", "-j"]
         stdout: StdioCollector { onStreamFinished: mon.parse(this.text) }
     }
-    FileView { id: monFile; path: root.home + "/.config/hypr/monitors.lua" }
+    FileView { id: monFile; path: root.home + "/.config/hypr/monitors.lua"; blockLoading: true }
     Timer { id: saveTimer; interval: 150; onTriggered: mon.save(monFile.text()) }
     Timer { id: refreshTimer; interval: 1200; onTriggered: monProc.running = true }
     Timer {
@@ -322,29 +391,25 @@ ShellRoot {
             captured = "";
             conflict = "";
             // Hyprland handles its own binds before any window sees the keys; in the passthrough
-            // submap everything reaches us.
+            // submap everything reaches us. Until the capture ends, every bind is off: the guard
+            // and the timeout below make sure it does end.
             Quickshell.execDetached(["hyprctl", "dispatch", 'hl.dsp.submap("passthrough")']);
+            captureGuard.running = true;
+            captureTimeout.restart();
             scene.forceActiveFocus();
         }
 
         function stopCapture() {
             capturing = "";
+            captureGuard.running = false;
+            captureTimeout.stop();
             Quickshell.execDetached(["hyprctl", "dispatch", 'hl.dsp.submap("reset")']);
         }
 
-        // Layout-independent: letters and digits by keycode (US positions), so a Russian layout
-        // still gives "R" for the R key.
-        readonly property var byCode: ({
-            10: "1", 11: "2", 12: "3", 13: "4", 14: "5", 15: "6", 16: "7", 17: "8", 18: "9", 19: "0",
-            20: "minus", 21: "equal", 24: "Q", 25: "W", 26: "E", 27: "R", 28: "T", 29: "Y", 30: "U",
-            31: "I", 32: "O", 33: "P", 34: "bracketleft", 35: "bracketright", 38: "A", 39: "S", 40: "D",
-            41: "F", 42: "G", 43: "H", 44: "J", 45: "K", 46: "L", 47: "semicolon", 48: "apostrophe",
-            49: "grave", 51: "backslash", 52: "Z", 53: "X", 54: "C", 55: "V", 56: "B", 57: "N", 58: "M",
-            59: "comma", 60: "period", 61: "slash"
-        })
-
+        // Letters and digits by their place on the keyboard, so a Russian layout still gives "R".
         function keyName(e) {
-            if (byCode[e.nativeScanCode]) return byCode[e.nativeScanCode];
+            const placed = KeyName.of(e);
+            if (placed) return placed;
             if (e.key >= Qt.Key_F1 && e.key <= Qt.Key_F24) return "F" + (e.key - Qt.Key_F1 + 1);
             const named = {};
             named[Qt.Key_Return] = "Return"; named[Qt.Key_Enter] = "KP_Enter"; named[Qt.Key_Space] = "space";
@@ -438,6 +503,25 @@ ShellRoot {
     }
 
     FileView { id: registryFile; path: root.registryPath; blockLoading: true }
+
+    // Binds come back if the panel dies during a capture (a crash, kill -9): the guard's stdin is a
+    // pipe from the panel and closes only when the panel's process is gone. stopCapture stops the
+    // guard first, so a capture that ends normally leaves the submap to it.
+    Process {
+        id: captureGuard
+        stdinEnabled: true
+        command: ["sh", "-c", 'read -r _; [ "$(hyprctl submap)" = passthrough ] && hyprctl dispatch \'hl.dsp.submap("reset")\'']
+    }
+    // A capture nobody finishes (the window lost the keyboard, the user walked away).
+    Timer {
+        id: captureTimeout
+        interval: 15000
+        onTriggered: {
+            keys.stopCapture();
+            keys.status = "Время вышло, клавиша не назначена";
+        }
+    }
+    Component.onDestruction: if (keys.capturing !== "") keys.stopCapture()
     Process {
         id: bindsProc
         command: ["hyprctl", "binds", "-j"]
@@ -668,7 +752,7 @@ ShellRoot {
             themeEdit.offerAnimated(path);
             themeEdit.write("printf '%s\\n' " + root.quote(path) + " > " + root.quote(root.home + "/.config/hypr/current-wallpaper")
                             + " && " + root.quote(root.home + "/.local/bin/wallpaper") + " " + root.quote(path)
-                            + " && changetheme --keep-wallpaper " + themeEdit.editing.name);
+                            + " && changetheme --keep-wallpaper " + root.quote(themeEdit.editing.name));
         }
 
         // ---- panel: this theme's own waybar layout, or null to follow the one saved for every theme
@@ -856,10 +940,10 @@ ShellRoot {
 
         // ---- saving
         function save() {
-            themeEdit.write(themeEdit.editing.current ? "changetheme --keep-wallpaper " + themeEdit.editing.name : "");
+            themeEdit.write(themeEdit.editing.current ? "changetheme --keep-wallpaper " + root.quote(themeEdit.editing.name) : "");
         }
         function switchTo() {
-            themeEdit.write("changetheme " + themeEdit.editing.name);
+            themeEdit.write("changetheme " + root.quote(themeEdit.editing.name));
             root.close();
         }
         // Writes the file, then runs: the removed wallpapers' copies go, a colour change rebuilds what
@@ -1299,6 +1383,8 @@ ShellRoot {
     }
 
     PanelWindow {
+        // The monitor that had focus when panel.sh opened the panel ($RICE_MONITOR).
+        screen: Quickshell.screens.find(s => s.name === Quickshell.env("RICE_MONITOR")) ?? null
         visible: !root.picking
         anchors { top: true; bottom: true; left: true; right: true }
         exclusionMode: ExclusionMode.Ignore
@@ -1792,7 +1878,7 @@ ShellRoot {
                                 clip: true
                                 Image {
                                     x: 8; y: 8; width: parent.width - 16; height: 140
-                                    source: tcard.modelData.thumb ? "file://" + tcard.modelData.thumb : ""
+                                    source: Url.fromPath(tcard.modelData.thumb)
                                     fillMode: Image.PreserveAspectCrop
                                     asynchronous: true
                                 }
@@ -2076,7 +2162,7 @@ ShellRoot {
                         Image {
                             required property string modelData
                             width: 40; height: 40
-                            source: "file://" + modelData
+                            source: Url.fromPath(modelData)
                             asynchronous: true
                         }
                     }
@@ -2471,7 +2557,7 @@ ShellRoot {
                         anchors.centerIn: parent
                         width: 32; height: 32
                         sourceSize: Qt.size(64, 64)
-                        source: "file:///usr/share/icons/Papirus/48x48/places/folder-" + folderCell.modelData + ".svg"
+                        source: Url.fromPath("/usr/share/icons/Papirus/48x48/places/folder-" + folderCell.modelData + ".svg")
                     }
                     MouseArea {
                         id: folderArea
@@ -3024,7 +3110,7 @@ ShellRoot {
                 anchors.verticalCenter: parent.verticalCenter
                 width: visible ? 16 : 0; height: 16
                 sourceSize: Qt.size(32, 32)
-                source: visible ? "file://" + themeEdit.editing.dir + "/assets/battery-0.svg" : ""
+                source: visible ? Url.fromPath(themeEdit.editing.dir + "/assets/battery-0.svg") : ""
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
@@ -3114,7 +3200,7 @@ ShellRoot {
                             required property string modelData
                             width: 28; height: 28
                             sourceSize: Qt.size(56, 56)
-                            source: "file://" + modelData
+                            source: Url.fromPath(modelData)
                             asynchronous: true
                         }
                     }
@@ -3173,7 +3259,7 @@ ShellRoot {
                         anchors { horizontalCenter: parent.horizontalCenter; top: parent.top; topMargin: 12 }
                         width: 40; height: 40
                         sourceSize: Qt.size(80, 80)
-                        source: "file://" + batteryCell.modelData.dir + "/assets/battery-0.svg"
+                        source: Url.fromPath(batteryCell.modelData.dir + "/assets/battery-0.svg")
                     }
                     Text {
                         anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 10 }
@@ -3284,7 +3370,7 @@ ShellRoot {
             color: theme.c.bg2 || "black"
             Image {
                 anchors.fill: parent
-                source: themeEdit.editing && themeEdit.editing.thumb ? "file://" + themeEdit.editing.thumb : ""
+                source: themeEdit.editing ? Url.fromPath(themeEdit.editing.thumb) : ""
                 fillMode: Image.PreserveAspectCrop
             }
             Repeater {
@@ -3424,7 +3510,7 @@ ShellRoot {
                     opacity: engineItem.modelData.addable ? 1 : 0.4
                     Image {
                         anchors { fill: parent; margins: parent.border.width }
-                        source: engineItem.modelData.preview ? "file://" + engineItem.modelData.preview : ""
+                        source: Url.fromPath(engineItem.modelData.preview)
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
                     }
@@ -3477,7 +3563,7 @@ ShellRoot {
                 clip: true
                 Image {
                     anchors.fill: parent
-                    source: userFiles.framePreview ? "file://" + userFiles.framePreview : ""
+                    source: Url.fromPath(userFiles.framePreview)
                     fillMode: Image.PreserveAspectFit
                     cache: false
                 }
@@ -3554,7 +3640,7 @@ ShellRoot {
                     border.color: wallTile.modelData.on ? (theme.c.accent || "white") : Color.withAlpha(theme.c.muted, 0.3)
                     Image {
                         anchors { fill: parent; margins: 2 }
-                        source: "file://" + wallTile.modelData.thumb
+                        source: Url.fromPath(wallTile.modelData.thumb)
                         sourceSize.width: 480
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true

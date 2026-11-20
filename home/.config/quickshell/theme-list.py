@@ -22,7 +22,10 @@ THUMBS = Path.home() / ".cache/theme-thumbs"
 
 
 def thumbnail(wallpaper):
-    """A small copy of the wallpaper for the cards, cached under a name made from its path."""
+    """A small copy of the wallpaper for the cards, cached under a name made from its path;
+    "" for a wallpaper that is gone (the card shows no picture instead of the list failing)."""
+    if not wallpaper.is_file():
+        return ""
     thumb = THUMBS / (hashlib.sha1(str(wallpaper).encode()).hexdigest()[:16] + ".jpg")
     if not thumb.exists() or thumb.stat().st_mtime < wallpaper.stat().st_mtime:
         image = Image.open(wallpaper_still.still(wallpaper)).convert("RGB")

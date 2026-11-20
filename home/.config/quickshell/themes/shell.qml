@@ -9,6 +9,8 @@ import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Widgets
 import "common/color.js" as Color
+import "common/keys.js" as KeyName
+import "common/url.js" as Url
 
 ShellRoot {
     id: root
@@ -65,6 +67,8 @@ ShellRoot {
 
     PanelWindow {
         id: win
+        // The monitor that had focus when panel.sh opened the panel ($RICE_MONITOR).
+        screen: Quickshell.screens.find(s => s.name === Quickshell.env("RICE_MONITOR")) ?? null
         anchors { top: true; bottom: true; left: true; right: true }
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
@@ -88,11 +92,12 @@ ShellRoot {
             }
 
             Keys.onPressed: e => {
+                const key = KeyName.of(e);
                 if (e.key === Qt.Key_Escape) root.close();
-                else if (e.key === Qt.Key_Left || e.key === Qt.Key_Backtab || e.key === Qt.Key_H) root.move(-1);
-                else if (e.key === Qt.Key_Right || e.key === Qt.Key_Tab || e.key === Qt.Key_L) root.move(1);
-                else if (e.key === Qt.Key_Up || e.key === Qt.Key_K) root.move(-root.columns);
-                else if (e.key === Qt.Key_Down || e.key === Qt.Key_J) root.move(root.columns);
+                else if (e.key === Qt.Key_Left || e.key === Qt.Key_Backtab || key === "H") root.move(-1);
+                else if (e.key === Qt.Key_Right || e.key === Qt.Key_Tab || key === "L") root.move(1);
+                else if (e.key === Qt.Key_Up || key === "K") root.move(-root.columns);
+                else if (e.key === Qt.Key_Down || key === "J") root.move(root.columns);
                 else if (e.key === Qt.Key_PageUp) root.turnPage(-1);
                 else if (e.key === Qt.Key_PageDown) root.turnPage(1);
                 else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) root.apply();
@@ -202,7 +207,7 @@ ShellRoot {
                                 color: cardRoot.c.bg2
                                 Image {
                                     anchors.fill: parent
-                                    source: cardRoot.t.thumb ? "file://" + cardRoot.t.thumb : ""
+                                    source: Url.fromPath(cardRoot.t.thumb)
                                     fillMode: Image.PreserveAspectCrop
                                     asynchronous: true
                                 }
@@ -214,7 +219,7 @@ ShellRoot {
                                 spacing: 10
                                 Image {
                                     visible: !!cardRoot.t.ui.headerIcon
-                                    source: cardRoot.t.ui.headerIcon ? "file://" + cardRoot.t.dir + "/" + cardRoot.t.ui.headerIcon : ""
+                                    source: cardRoot.t.ui.headerIcon ? Url.fromPath(cardRoot.t.dir + "/" + cardRoot.t.ui.headerIcon) : ""
                                     width: 24; height: 24; sourceSize: Qt.size(48, 48)
                                     anchors.verticalCenter: parent.verticalCenter
                                 }

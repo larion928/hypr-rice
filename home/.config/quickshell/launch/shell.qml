@@ -5,6 +5,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import "common"
 import "common/color.js" as Color
@@ -16,6 +17,7 @@ ShellRoot {
 
     property var launch: ({ title: "", percent: 0, stage: "", detail: "", status: "running", started: 0 })
     readonly property bool failed: launch.status === "failed"
+    readonly property real percent: Math.max(0, Math.min(100, Number(launch.percent) || 0))
     property real now: Date.now() / 1000
 
     FileView {
@@ -37,12 +39,16 @@ ShellRoot {
         onExited: Qt.quit()
     }
 
+    // "" until proton-run has written when the start began.
     function elapsed() {
+        if (!root.launch.started) return "";
         const seconds = Math.max(0, Math.floor(root.now - root.launch.started));
         return Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0");
     }
 
     PanelWindow {
+        // Shown on whichever monitor has focus now.
+        screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? null
         anchors.bottom: true
         margins.bottom: 160
         implicitWidth: 480
@@ -76,7 +82,7 @@ ShellRoot {
                     Text {
                         id: percentText
                         anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                        text: root.launch.percent + "%"
+                        text: Math.round(root.percent) + "%"
                         font.family: theme.font; font.pixelSize: 16; font.bold: true
                         color: root.failed ? (theme.c.crit || "red") : (theme.c.accent || "white")
                     }
@@ -86,7 +92,7 @@ ShellRoot {
                     width: parent.width; height: 8; radius: 4
                     color: Color.withAlpha(theme.c.muted, 0.3)
                     Rectangle {
-                        width: parent.width * root.launch.percent / 100; height: parent.height; radius: 4
+                        width: parent.width * root.percent / 100; height: parent.height; radius: 4
                         color: root.failed ? (theme.c.crit || "red") : (theme.c.accent || "white")
                         Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
                     }

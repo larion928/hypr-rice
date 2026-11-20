@@ -8,6 +8,8 @@ import Quickshell.Io
 import Quickshell.Wayland
 import "common"
 import "common/color.js" as Color
+import "common/keys.js" as KeyName
+import "common/url.js" as Url
 
 ShellRoot {
     id: root
@@ -51,12 +53,18 @@ ShellRoot {
 
     Timer { id: disarm; interval: 3500; onTriggered: root.armed = "" }
 
+    // For the "terminal" style prompt. $HOSTNAME is a shell variable, not in the environment, and
+    // /etc/hostname may be missing; the kernel always knows.
+    FileView { id: hostnameFile; path: "/proc/sys/kernel/hostname"; blockLoading: true }
+
     IpcHandler {
         target: "panel"
         function close(): void { root.close(); }
     }
 
     PanelWindow {
+        // The monitor that had focus when panel.sh opened the panel ($RICE_MONITOR).
+        screen: Quickshell.screens.find(s => s.name === Quickshell.env("RICE_MONITOR")) ?? null
         anchors { top: true; bottom: true; left: true; right: true }
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
@@ -78,15 +86,16 @@ ShellRoot {
             }
 
             Keys.onPressed: e => {
+                const key = KeyName.of(e);
                 if (e.key === Qt.Key_Escape) root.close();
-                else if (e.key === Qt.Key_Left || e.key === Qt.Key_Up || e.key === Qt.Key_H || e.key === Qt.Key_K || e.key === Qt.Key_Backtab) {
+                else if (e.key === Qt.Key_Left || e.key === Qt.Key_Up || key === "H" || key === "K" || e.key === Qt.Key_Backtab) {
                     root.current = (root.current + root.actions.length - 1) % root.actions.length; root.armed = "";
-                } else if (e.key === Qt.Key_Right || e.key === Qt.Key_Down || e.key === Qt.Key_J || e.key === Qt.Key_Tab) {
+                } else if (e.key === Qt.Key_Right || e.key === Qt.Key_Down || key === "J" || e.key === Qt.Key_Tab) {
                     root.current = (root.current + 1) % root.actions.length; root.armed = "";
                 } else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) {
                     root.activate(root.current);
                 } else {
-                    const i = root.actions.findIndex(x => x.key === e.text.toUpperCase());
+                    const i = root.actions.findIndex(x => x.key === key);
                     if (i >= 0) root.activate(i);
                 }
             }
@@ -106,7 +115,7 @@ ShellRoot {
                     Image {
                         id: headIcon
                         visible: !!theme.ui.headerIcon
-                        source: theme.ui.headerIcon ? "file://" + theme.dir + "/" + theme.ui.headerIcon : ""
+                        source: theme.ui.headerIcon ? Url.fromPath(theme.dir + "/" + theme.ui.headerIcon) : ""
                         width: 34; height: 34; sourceSize: Qt.size(68, 68)
                         anchors.verticalCenter: parent.verticalCenter
                         RotationAnimation on rotation { from: 0; to: 360; duration: 12000; loops: Animation.Infinite }
@@ -205,7 +214,7 @@ ShellRoot {
                     x: 26; y: 24
                     spacing: 6
                     Text {
-                        text: (Quickshell.env("USER") || "user") + "@" + (Quickshell.env("HOSTNAME") || "archlinux") + ":~$ power --menu"
+                        text: (Quickshell.env("USER") || "user") + "@" + (hostnameFile.text().trim() || "localhost") + ":~$ power --menu"
                         font.family: theme.bodyFont; font.pixelSize: 17
                         color: theme.c.accent || "green"
                     }

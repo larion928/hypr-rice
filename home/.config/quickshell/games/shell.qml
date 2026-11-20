@@ -9,6 +9,7 @@ import Quickshell.Wayland
 import Quickshell.Widgets
 import "common"
 import "common/color.js" as Color
+import "common/url.js" as Url
 
 ShellRoot {
     id: root
@@ -98,20 +99,30 @@ ShellRoot {
     // A program's icon: a name from the icon theme, or (as some .desktop files give it) a picture's path.
     function iconSource(icon) {
         if (!icon) return "";
-        return icon.startsWith("/") ? "file://" + icon : Quickshell.iconPath(icon, true);
+        return icon.startsWith("/") ? Url.fromPath(icon) : Quickshell.iconPath(icon, true);
     }
     function added(kind, target) {
         return root.games.some(g => g.kind === kind && g.target === target);
     }
 
+    // games.py's JSON on stdout; when that is not JSON, what it said on stderr is the message
+    // (an empty shelf alone would look like "no games yet").
+    function parsed(what, code, out, err) {
+        try {
+            return JSON.parse(out.text);
+        } catch (e) {
+            root.message = "games.py " + what + ": " + (err.text.trim().split("\n").pop() || "код " + code);
+            return null;
+        }
+    }
     Process {
         id: listProc
         command: ["python3", root.backend, "list"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try { root.games = JSON.parse(this.text); } catch (e) { root.games = []; }
-                root.current = Math.min(root.current, Math.max(0, root.shown.length - 1));
-            }
+        stdout: StdioCollector { id: listOut }
+        stderr: StdioCollector { id: listErr }
+        onExited: code => {
+            root.games = root.parsed("list", code, listOut, listErr) || root.games;
+            root.current = Math.min(root.current, Math.max(0, root.shown.length - 1));
         }
     }
     // Pictures for games that have none: found in the background, then the shelf is read again.
@@ -123,11 +134,9 @@ ShellRoot {
     Process {
         id: steamProc
         command: ["python3", root.backend, "steam"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try { root.steamGames = JSON.parse(this.text); } catch (e) { root.steamGames = []; }
-            }
-        }
+        stdout: StdioCollector { id: steamOut }
+        stderr: StdioCollector { id: steamErr }
+        onExited: code => root.steamGames = root.parsed("steam", code, steamOut, steamErr) || []
     }
     Process {
         id: runProc
@@ -145,6 +154,8 @@ ShellRoot {
     }
 
     PanelWindow {
+        // The monitor that had focus when panel.sh opened the panel ($RICE_MONITOR).
+        screen: Quickshell.screens.find(s => s.name === Quickshell.env("RICE_MONITOR")) ?? null
         visible: !root.picking
         anchors { top: true; bottom: true; left: true; right: true }
         exclusionMode: ExclusionMode.Ignore
@@ -296,7 +307,7 @@ ShellRoot {
                 anchors.fill: parent
                 anchors.margins: parent.border.width
                 visible: card.modelData.cover !== ""
-                source: card.modelData.cover ? "file://" + card.modelData.cover : ""
+                source: Url.fromPath(card.modelData.cover)
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
             }
@@ -425,7 +436,7 @@ ShellRoot {
                             opacity: steamCell.inLibrary ? 0.4 : 1
                             Image {
                                 anchors.fill: parent
-                                source: steamCell.modelData.cover ? "file://" + steamCell.modelData.cover : ""
+                                source: Url.fromPath(steamCell.modelData.cover)
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
                             }

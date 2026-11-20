@@ -11,6 +11,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import "common"
+import "common/url.js" as Url
 
 ShellRoot {
     id: root
@@ -120,7 +121,7 @@ ShellRoot {
                 property rect hover: Qt.rect(0, 0, 0, 0)
                 property point mouse: Qt.point(-1, -1)
                 property bool dragging: false
-                readonly property url frozen: "file://" + root.run + "/" + win.name + ".png"
+                readonly property url frozen: Url.fromPath(root.run + "/" + win.name + ".png")
                 readonly property real scale: frozenImage.sourceSize.width > 0
                     ? frozenImage.sourceSize.width / win.width : 1
                 readonly property string themeDir: theme.dir
@@ -148,7 +149,7 @@ ShellRoot {
                 Loader {
                     id: themeLoader
                     anchors.fill: parent
-                    source: "file://" + theme.dir + "/screenshot.qml"
+                    source: Url.fromPath(theme.dir + "/screenshot.qml")
                     onLoaded: item.ctx = ctx
                 }
 

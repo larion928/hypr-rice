@@ -9,6 +9,8 @@ import Quickshell.Hyprland
 import Quickshell.Widgets
 import "common"
 import "common/color.js" as Color
+import "common/listmodel.js" as ListModelSync
+import "common/url.js" as Url
 
 ShellRoot {
     id: root
@@ -16,6 +18,7 @@ ShellRoot {
     Theme { id: theme }
 
     property var items: []
+    property string itemsJson: ""   // histui's last answer as text: an identical one changes nothing
     property string query: ""
     property bool dnd: false
     property bool closing: false
@@ -25,10 +28,11 @@ ShellRoot {
         refresh();
     }
 
-    // Notification bodies may carry basic markup; show them as plain text.
+    // Notification bodies may carry basic markup; show them as plain text. &amp; goes last, so
+    // "&amp;lt;" stays the text "&lt;" instead of turning into "<".
     function plain(s) {
-        return String(s || "").replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<")
-            .replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "").trim();
+        return String(s || "").replace(/<[^>]*>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+            .replace(/&quot;/g, "\"").replace(/&amp;/g, "&").replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "").trim();
     }
 
     readonly property var months: ["января", "февраля", "марта", "апреля", "мая", "июня", "июля",
@@ -47,7 +51,8 @@ ShellRoot {
         return ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2);
     }
 
-    // Flat list for the ListView: day headers interleaved with notifications.
+    // Flat list for the ListView: day headers interleaved with notifications. Every row has the
+    // same roles (ListModel wants that); `key` names the row across refreshes.
     readonly property var rows: {
         const q = query.trim().toLowerCase();
         const list = items.filter(n => !q || [n.app_name, n.summary, n.body].join(" ").toLowerCase().indexOf(q) !== -1)
@@ -57,21 +62,47 @@ ShellRoot {
         for (const n of list) {
             const day = dayLabel(n.timestamp);
             if (day !== last) {
-                out.push({ kind: "day", label: day });
+                out.push({ key: "day:" + day, kind: "day", label: day, nid: "" });
                 last = day;
             }
-            out.push({ kind: "n", n: n });
+            out.push({ key: "n:" + n.histui_id, kind: "n", label: "", nid: n.histui_id });
         }
         return out;
     }
+    readonly property var byId: {
+        const map = {};
+        for (const n of items) {
+            map[n.histui_id] = n;
+        }
+        return map;
+    }
+
+    // `rows` updated in place, so a refresh does not scroll the list to the top, collapse an open
+    // card or replay the fade-in.
+    ListModel { id: rowModel }
+    onRowsChanged: ListModelSync.sync(rowModel, rows, "key")
     readonly property int unread: items.filter(n => !n.histui_dismissed_at).length
+
+    // Bumped by every action: a list read before it may still show what the action changed.
+    property int generation: 0
 
     Process {
         id: listProc
+        property int generation
         command: ["histui", "get", "--format", "json", "--limit", "300"]
         stdout: StdioCollector {
             onStreamFinished: {
-                try { root.items = JSON.parse(text) || []; } catch (e) { console.warn("histui:", e); }
+                if (listProc.generation !== root.generation) {
+                    Qt.callLater(root.refresh);
+                    return;
+                }
+                if (text === root.itemsJson) return;
+                try {
+                    root.items = JSON.parse(text) || [];
+                    root.itemsJson = text;
+                } catch (e) {
+                    console.warn("histui:", e);
+                }
             }
         }
     }
@@ -80,25 +111,42 @@ ShellRoot {
         command: ["histui", "dnd", "status"]
         stdout: StdioCollector { onStreamFinished: root.dnd = /enabled/.test(text) && !/disabled/.test(text) }
     }
-    // Actions run one at a time; the list is refreshed after each.
+    // Actions run one at a time, in the order they were asked for; the list is read again once
+    // none is left. Until then a refresh would show the state from before them.
+    property var pendingActions: []
     Process {
         id: actProc
-        onExited: root.refresh()
+        onExited: Qt.callLater(root.runNextAction)
     }
 
     function refresh() {
-        if (!listProc.running) listProc.running = true;
+        if (actProc.running) return;
+        if (!listProc.running) {
+            listProc.generation = generation;
+            listProc.running = true;
+        }
         if (!dndProc.running) dndProc.running = true;
     }
 
     function act(cmd) {
+        generation++;
+        pendingActions.push(cmd);
+        runNextAction();
+    }
+
+    function runNextAction() {
         if (actProc.running) return;
-        actProc.command = cmd;
+        if (!pendingActions.length) {
+            refresh();
+            return;
+        }
+        actProc.command = pendingActions.shift();
         actProc.running = true;
     }
 
     function remove(id) {
         items = items.filter(n => n.histui_id !== id);
+        itemsJson = "";
         act(["histui", "set", id, "--delete"]);
     }
 
@@ -118,6 +166,7 @@ ShellRoot {
         }
         confirmClear = false;
         items = [];
+        itemsJson = "";
         act(["histui", "prune", "--keep", "0"]);
     }
 
@@ -141,6 +190,8 @@ ShellRoot {
 
     PanelWindow {
         id: panel
+        // The monitor that had focus when panel.sh opened the panel ($RICE_MONITOR).
+        screen: Quickshell.screens.find(s => s.name === Quickshell.env("RICE_MONITOR")) ?? null
         anchors { top: true; right: true; bottom: true }
         implicitWidth: 440
         margins { top: 6; right: 10; bottom: 10 }
@@ -202,7 +253,7 @@ ShellRoot {
                         spacing: 10
                         Image {
                             visible: !!theme.ui.headerIcon
-                            source: theme.ui.headerIcon ? "file://" + theme.dir + "/" + theme.ui.headerIcon : ""
+                            source: theme.ui.headerIcon ? Url.fromPath(theme.dir + "/" + theme.ui.headerIcon) : ""
                             width: 22; height: 22; sourceSize: Qt.size(44, 44)
                             anchors.verticalCenter: parent.verticalCenter
                         }
@@ -280,15 +331,16 @@ ShellRoot {
                 anchors { left: parent.left; right: parent.right; top: head.bottom; bottom: foot.top; margins: 16; topMargin: 12 }
                 clip: true
                 spacing: 8
-                model: root.rows
+                model: rowModel
                 boundsBehavior: Flickable.StopAtBounds
 
                 delegate: Item {
                     id: row
-                    required property var modelData
-                    required property int index
-                    readonly property bool isDay: modelData.kind === "day"
-                    readonly property var n: modelData.n || ({})
+                    required property string kind
+                    required property string label
+                    required property string nid
+                    readonly property bool isDay: kind === "day"
+                    readonly property var n: root.byId[row.nid] || ({})
                     width: list.width
                     height: isDay ? dayText.implicitHeight + 8 : card.height
 
@@ -296,7 +348,7 @@ ShellRoot {
                         id: dayText
                         visible: row.isDay
                         y: 4
-                        text: row.modelData.label || ""
+                        text: row.label
                         font.family: theme.titleFont; font.pixelSize: 14; font.bold: true; font.italic: !!theme.ui.italicTitle
                         color: theme.c.accent2 || theme.c.accent || "white"
                     }

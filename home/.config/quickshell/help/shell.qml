@@ -8,6 +8,8 @@ import Quickshell.Io
 import Quickshell.Wayland
 import "common"
 import "common/color.js" as Color
+import "common/keys.js" as KeyName
+import "common/url.js" as Url
 
 ShellRoot {
     id: root
@@ -115,6 +117,8 @@ ShellRoot {
     }
 
     PanelWindow {
+        // The monitor that had focus when panel.sh opened the panel ($RICE_MONITOR).
+        screen: Quickshell.screens.find(s => s.name === Quickshell.env("RICE_MONITOR")) ?? null
         anchors { top: true; bottom: true; left: true; right: true }
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
@@ -127,7 +131,7 @@ ShellRoot {
             anchors.fill: parent
             opacity: 0
             focus: true
-            Keys.onPressed: e => { if (e.key === Qt.Key_Escape || e.key === Qt.Key_F1 || e.key === Qt.Key_Q) root.close(); }
+            Keys.onPressed: e => { if (e.key === Qt.Key_Escape || e.key === Qt.Key_F1 || KeyName.of(e) === "Q") root.close(); }
             Component.onCompleted: inAnim.start()
             NumberAnimation { id: inAnim; target: scene; property: "opacity"; to: 1; duration: 200 }
             SequentialAnimation {
@@ -156,7 +160,7 @@ ShellRoot {
                     spacing: 14
                     Image {
                         visible: !!theme.ui.headerIcon
-                        source: theme.ui.headerIcon ? "file://" + theme.dir + "/" + theme.ui.headerIcon : ""
+                        source: theme.ui.headerIcon ? Url.fromPath(theme.dir + "/" + theme.ui.headerIcon) : ""
                         width: 30; height: 30; sourceSize: Qt.size(60, 60)
                         anchors.verticalCenter: parent.verticalCenter
                     }

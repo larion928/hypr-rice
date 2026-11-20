@@ -16,10 +16,14 @@ close_panel() {
     quickshell ipc -p "$conf" call panel close >/dev/null 2>&1 || quickshell kill -p "$conf" >/dev/null 2>&1
 }
 
-# Replaces the calling script with the panel.
+# Replaces the calling script with the panel. The panel opens on the monitor that has focus now
+# ($RICE_MONITOR): Quickshell would put it on its first screen, and Hyprland's own idea of the
+# focused monitor reaches a panel only after its window is made.
 open_panel() {
     local theme
     theme=$(cat "$HOME/.config/hypr/current-theme" 2>/dev/null || echo claude)
     export RICE_THEME_DIR="$HOME/.config/hypr/themes/$theme"
+    RICE_MONITOR=$(hyprctl monitors -j | jq -r '.[] | select(.focused) | .name')
+    export RICE_MONITOR
     exec quickshell -n -p "$(panel_conf "$1")"
 }
