@@ -1,0 +1,77 @@
+/* Hypr ${label}. ${generated} */
+:root {
+    --hypr-radius: ${radius}px;
+    --toolbox-background-color: ${side} !important;
+    --toolbox-background-color-inactive: ${side} !important;
+    --toolbox-text-color: ${fg} !important;
+    --toolbox-text-color-inactive: ${muted} !important;
+    --toolbar-background-color: ${side} !important;
+    --toolbar-text-color: ${fg} !important;
+    --toolbar-field-background-color: ${field} !important;
+    --toolbar-field-background-color-focus: ${field} !important;
+    --toolbar-field-text-color: ${fg} !important;
+    --toolbar-field-text-color-focus: ${fg} !important;
+    --toolbar-field-border-color: transparent !important;
+    --toolbar-field-border-color-focus: ${accent} !important;
+    --toolbarbutton-icon-fill: ${fg} !important;
+    --toolbarbutton-background-color-hover: ${hover} !important;
+    --toolbarbutton-background-color-active: ${selected} !important;
+    --toolbarbutton-border-radius: var(--hypr-radius) !important;
+    --tab-background-color-selected: ${selected} !important;
+    --tab-text-color-selected: ${fg} !important;
+    --tab-icon-fill-loading: ${accent} !important;
+    --tab-border-radius: var(--hypr-radius) !important;
+    --lwt-tab-line-color: ${accent} !important;
+    --tabs-navbar-separator-color: transparent !important;
+    --chrome-content-separator-color: transparent !important;
+    --tabpanel-background-color: ${bg} !important;
+    --sidebar-background-color: ${side} !important;
+    --sidebar-text-color: ${fg} !important;
+    --sidebar-border-color: transparent !important;
+    --panel-background-color: ${bg2} !important;
+    --panel-text-color: ${fg} !important;
+    --panel-border-color: ${border} !important;
+    --panel-border-radius: var(--hypr-radius) !important;
+    --urlbarview-background-color-selected: ${accent} !important;
+    --urlbarview-text-color-selected: ${bg} !important;
+    --urlbarview-background-color-hover: ${hover} !important;
+    --border-color: ${border} !important;
+    --focus-outline-color: ${accent} !important;
+    --color-accent-primary: ${accent} !important;
+    --color-accent-primary-hover: ${accent2} !important;
+    --color-accent-primary-active: ${accent2} !important;
+    --button-background-color-primary: ${accent} !important;
+    --button-background-color-primary-hover: ${accent2} !important;
+    --button-text-color-primary: ${bg} !important;
+    /* Zen mixes most of its colours from these two. */
+    --zen-primary-color: ${accent} !important;
+    --zen-branding-bg: ${bg} !important;
+    --zen-colors-border: ${border} !important;
+}
+
+#navigator-toolbox, #sidebar-box, menupopup, panel {
+    font-family: "${font}", sans-serif !important;
+}
+
+.tabbrowser-tab:not([selected], [visuallyselected]):hover > .tab-stack > .tab-background {
+    background: ${hover} !important;
+}
+.tabbrowser-tab:is([selected], [visuallyselected], [multiselected]) > .tab-stack > .tab-background {
+    background: ${selected} !important;
+}
+
+:is(#urlbar-background, #urlbar .urlbar-background) {
+    background-color: ${field} !important;
+    border-radius: var(--hypr-radius) !important;
+}
+#urlbar:is([focused], [open]) :is(#urlbar-background, .urlbar-background) {
+    outline: ${line}px solid ${accent} !important;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45)${glow} !important;
+}
+
+menupopup, panel {
+    --panel-border-radius: var(--hypr-radius) !important;
+}
+menuitem:hover, menu:hover, menuitem[_moz-menuactive], menu[_moz-menuactive] {
+    background-color: ${selected} !important;
+}

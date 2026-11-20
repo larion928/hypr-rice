@@ -1,0 +1,7 @@
+
+#navigator-toolbox {
+    background: linear-gradient(${dim}, ${dim}), url("${wallpaper_url}") center 35% / cover !important;
+}
+#TabsToolbar, #nav-bar, #PersonalToolbar {
+    background: transparent !important;
+}

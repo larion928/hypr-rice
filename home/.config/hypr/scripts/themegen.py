@@ -1,55 +1,9 @@
 #!/usr/bin/env python3
-"""Generate app configs from ~/.config/hypr/themes/<name>/palette.json and ui.json.
-
-  themegen.py switch <theme> [--keep-wallpaper] [--offline]
-                                                 changetheme's wallpaper and palette steps: picks a wallpaper
-                                                 (the theme's own and the user's, minus those switched off),
-                                                 shows it (not --offline), then applies the theme
-  themegen.py apply <theme> [--wallpaper PATH]   write configs for the active theme
-  themegen.py build                              regenerate artifacts that bundle every theme
-                                                 (drift themes, Code - OSS extension, neoHtop,
-                                                 Telegram themes, battery icons)
-  themegen.py refresh                            re-theme apps that appeared since the last change
-                                                 (Firefox profiles, Obsidian vaults); run at login
-  themegen.py offer <theme>                      offer the theme to a running Telegram / AyuGram, which
-                                                 opens its full-screen preview; changetheme runs it last
-  themegen.py bar-preview <theme>                what each waybar module shows on this machine now, as JSON,
-                                                 for the bar in the settings window
-  themegen.py icons                              every icon of the Nerd Font with its name, as JSON, for
-                                                 the icon picker in the settings window
-  themegen.py icon-themes                        installed icon themes with sample icons and the ones to
-                                                 install, as JSON, for the settings window
-  themegen.py cursor-themes                      installed cursor themes with pictures of a few cursors and
-                                                 the ones to install, as JSON, for the settings window
-  themegen.py cursor-add <file>                  a cursor theme from an archive or an osu! skin (.osk);
-                                                 prints the names installed, as JSON
-  themegen.py cursor-remove <name>               removes a cursor theme the user added
-  themegen.py frame-length <file>                how long a GIF (frames) or a video (seconds) is, as JSON
-  themegen.py frame-prepare <file>               what the frame picker reads (a GIF made into an mp4), as JSON
-  themegen.py frame-forget <file>                removes a GIF's mp4 made by frame-prepare
-  themegen.py frame <file> <at> <out.png> [width]  that moment of it as a PNG (a preview when width is given)
-  themegen.py wallpaper-play <file>              for ~/.local/bin/wallpaper: the wallpaper's still picture, and
-                                                 for an animation the mp4 mpvpaper plays, one per line
-  themegen.py wallpaper-import <file> <folder>   an animation kept in folder as the mp4 it plays from; prints it
-  themegen.py wallpaper-needs                    the package animated wallpapers still need, or nothing
-  themegen.py wallpaper-engine                   Wallpaper Engine's subscribed wallpapers, as JSON
-  themegen.py wallpaper-engine-add <id> <folder> a video one kept in folder as the mp4 it plays from; prints it
-  themegen.py new <label> --from <theme>         a theme of the user's own (~/.config/hypr-rice/themes):
-                                                 a copy of <theme> with its edits written in; prints its name
-  themegen.py import <file.zip>                  a theme from an archive made by export; prints its name
-  themegen.py export <theme> <file.zip>          the theme with its edits written in, for someone else
-  themegen.py delete <theme>                     removes a theme: one of the user's own for good, one of
-                                                 the rice until restore (updates leave it out meanwhile)
-  themegen.py restore <theme>                    brings a removed theme of the rice back
-  themegen.py factory <theme>                    the theme as the rice ships it: no edits, its files again
-  themegen.py removed-themes                     the removed themes of the rice, as JSON
-  themegen.py promote <theme>                    makes a theme of the user's own part of the rice
-                                                 (~/.config/hypr/themes, which sync.sh publishes)
-
-Each program has its module in apptheme/.
-"""
+"""Generate app configs from ~/.config/hypr/themes/<name>/palette.json and ui.json: one module per
+program in apptheme/ (apps/, desktop/, cursors/, icons/, wallpapers/), the themes themselves in
+apptheme/themes/. COMMANDS at the end of this file is the list of commands; running it without one
+(or with arguments that do not fit) prints them with their arguments."""
 import contextlib
-import json
 import os
 import random
 import subprocess
@@ -59,13 +13,16 @@ import zipfile
 from functools import partial
 from pathlib import Path
 
-from apptheme import (animated, bar_preview, battery, chromium, css_palette, cursor_install, cursor_theme,
-                      cursor_themes, drift, factory_reset, firefox, frames, glyphs, gtk, hypr, hyprlock, icon_theme,
-                      icon_themes, kitty, neohtop, obsidian, removed_themes, system, telegram, user_themes, vesktop,
-                      vscode, wallpaper_engine, wallpaper_still, waybar, windows)
+from command_table import Command, printing, printing_json, run
+from apptheme.apps import chromium, drift, firefox, gtk, kitty, obsidian, telegram, vesktop, vscode
+from apptheme.cursors import cursor_install, cursor_theme, cursor_themes
+from apptheme.desktop import bar_preview, battery, css_palette, hypr, hyprlock, system, waybar, windows
 from apptheme.files import write
+from apptheme.icons import glyphs, icon_theme, icon_themes
 from apptheme.paths import HOME, HYPR, THEMES
-from apptheme.theme import all_names, load
+from apptheme.themes import factory_reset, removed_themes, user_themes
+from apptheme.themes.theme import all_names, load
+from apptheme.wallpapers import animated, frames, wallpaper_engine, wallpaper_still
 
 
 def switch(name, keep_wallpaper, offline):
@@ -160,7 +117,7 @@ def run_each(steps):
         try:
             step()
         except Exception as error:  # any failure is one program's, the rest go on
-            report_failure(getattr(step, "func", step).__module__.removeprefix("apptheme."), error)
+            report_failure(getattr(step, "func", step).__module__.rpartition(".")[2], error)
             status = 1
     return status
 
@@ -176,7 +133,6 @@ def build():
     themes = [load(name) for name in all_names()]
     drift.build(themes)
     print("vscode:", vscode.build(themes))
-    print("neohtop:", neohtop.build(themes))
     print("telegram:", telegram.build(themes))
     battery.build(themes)
     current = current_theme()
@@ -209,119 +165,6 @@ def current_wallpaper():
     return wallpaper if wallpaper and Path(wallpaper).exists() else None
 
 
-def main(argv):
-    """The command's exit status; a theme that is not there is a line on stderr and 1, not a traceback."""
-    try:
-        return run_command(argv)
-    except ValueError as error:
-        print(error, file=sys.stderr)
-        return 1
-
-
-def run_command(argv):
-    if len(argv) >= 2 and argv[0] == "switch":
-        return switch(argv[1], "--keep-wallpaper" in argv[2:], "--offline" in argv[2:])
-    elif len(argv) >= 2 and argv[0] == "apply":
-        return apply(argv[1], wallpaper_argument(argv))
-    elif argv[:1] == ["build"]:
-        build()
-    elif argv[:1] == ["refresh"]:
-        return refresh()
-    elif len(argv) >= 2 and argv[0] == "offer":
-        telegram.offer(load(argv[1]))
-    elif argv[:1] == ["icon-themes"]:
-        print(json.dumps(icon_themes.listing(), ensure_ascii=False))
-    elif argv[:1] == ["cursor-themes"]:
-        print(json.dumps(cursor_themes.listing(), ensure_ascii=False))
-    elif argv[:1] == ["icons"]:
-        print(json.dumps(glyphs.all_icons(), ensure_ascii=False))
-    elif len(argv) >= 2 and argv[0] == "bar-preview":
-        print(json.dumps(bar_preview.preview(load(argv[1])), ensure_ascii=False))
-    elif argv[:1] == ["removed-themes"]:
-        print(json.dumps(removed_themes.listing(), ensure_ascii=False))
-    elif argv[:1] in (["cursor-add"], ["cursor-remove"], ["frame-length"], ["frame-prepare"], ["frame-forget"], ["frame"],
-                      ["wallpaper-play"], ["wallpaper-import"], ["wallpaper-needs"], ["wallpaper-engine"],
-                      ["wallpaper-engine-add"]):
-        return files_from_user(argv)
-    elif argv[:1] in (["new"], ["import"], ["export"], ["delete"], ["restore"], ["factory"], ["promote"]):
-        return manage_themes(argv)
-    else:
-        print(__doc__.strip(), file=sys.stderr)
-        return 2
-    return 0
-
-
-def manage_themes(argv):
-    """Adding and removing themes: new, import, export, delete, restore, factory, promote. 1 with the reason on
-    stderr when the theme or the archive does not fit."""
-    command, rest = argv[0], argv[1:]
-    try:
-        if command == "new" and len(rest) == 3 and rest[1] == "--from":
-            print(user_themes.create(rest[0], rest[2]))
-        elif command == "import" and len(rest) == 1:
-            print(user_themes.import_archive(rest[0]))
-        elif command == "export" and len(rest) == 2:
-            user_themes.export(rest[0], rest[1])
-            return 0
-        elif command == "delete" and len(rest) == 1:
-            delete_theme(rest[0])
-        elif command == "restore" and len(rest) == 1:
-            removed_themes.restore(rest[0])
-        elif command == "factory" and len(rest) == 1:
-            factory_reset.reset(rest[0])
-        elif command == "promote" and len(rest) == 1:
-            user_themes.promote(rest[0])
-        else:
-            print(__doc__.strip(), file=sys.stderr)
-            return 2
-    except (ValueError, OSError, zipfile.BadZipFile) as error:
-        print(error, file=sys.stderr)
-        return 1
-    # The theme list changed: drift, Code - OSS, Telegram and the battery icons follow it. Its report
-    # goes to stderr: stdout carries only the new theme's name.
-    with contextlib.redirect_stdout(sys.stderr):
-        build()
-    return 0
-
-
-def files_from_user(argv):
-    """Cursors and wallpaper frames from files the user picked. 1 with the reason on stderr when the
-    file does not fit."""
-    command, rest = argv[0], argv[1:]
-    try:
-        if command == "cursor-add" and len(rest) == 1:
-            print(json.dumps(cursor_install.install(rest[0]), ensure_ascii=False))
-        elif command == "cursor-remove" and len(rest) == 1:
-            cursor_install.remove(rest[0])
-        elif command == "frame-length" and len(rest) == 1:
-            print(json.dumps(frames.length(rest[0])))
-        elif command == "frame-prepare" and len(rest) == 1:
-            print(json.dumps(frames.prepare(rest[0]), ensure_ascii=False))
-        elif command == "frame-forget" and len(rest) == 1:
-            frames.forget(rest[0])
-        elif command == "wallpaper-engine" and not rest:
-            print(json.dumps(wallpaper_engine.listing(), ensure_ascii=False))
-        elif command == "wallpaper-engine-add" and len(rest) == 2:
-            print(wallpaper_engine.add(rest[0], rest[1]))
-        elif command == "wallpaper-needs" and not rest:
-            print(animated.missing_package())
-        elif command == "wallpaper-import" and len(rest) == 2:
-            print(animated.import_into(rest[0], rest[1]))
-        elif command == "wallpaper-play" and len(rest) == 1:
-            print(wallpaper_still.still(rest[0]))
-            if animated.is_animated(rest[0]):
-                print(animated.playable(rest[0]))
-        elif command == "frame" and len(rest) in (3, 4):
-            frames.frame(rest[0], float(rest[1]), rest[2], int(rest[3]) if len(rest) == 4 else 0)
-        else:
-            print(__doc__.strip(), file=sys.stderr)
-            return 2
-    except (ValueError, OSError) as error:
-        print(error, file=sys.stderr)
-        return 1
-    return 0
-
-
 def delete_theme(name):
     current = current_theme()
     if current and current.name == name:
@@ -332,12 +175,137 @@ def delete_theme(name):
         removed_themes.remove(name)
 
 
-def wallpaper_argument(argv):
+def wallpaper_argument(options):
     """The path after --wallpaper; None when it is missing or empty."""
-    if "--wallpaper" not in argv:
+    if "--wallpaper" not in options:
         return None
-    rest = argv[argv.index("--wallpaper") + 1:]
+    rest = options[options.index("--wallpaper") + 1:]
     return rest[0] if rest and rest[0] else None
+
+
+def wallpaper_play(file):
+    """The wallpaper's still picture and, for an animation, the mp4 that is played: one per line."""
+    print(wallpaper_still.still(file))
+    if animated.is_animated(file):
+        print(animated.playable(file))
+
+
+def frame(file, at, out, width="0"):
+    frames.frame(file, float(at), out, int(width))
+
+
+def rebuilding_themes(change):
+    """change, then the files that bundle every theme built again: drift, Code - OSS, Telegram and the
+    battery icons follow the theme list. build's report goes to stderr: stdout carries only what change
+    prints, the new theme's name."""
+    def changed_and_rebuilt(*arguments):
+        change(*arguments)
+        with contextlib.redirect_stdout(sys.stderr):
+            build()
+    return changed_and_rebuilt
+
+
+FILE_ERRORS = (OSError,)
+ARCHIVE_ERRORS = (OSError, zipfile.BadZipFile)
+
+COMMANDS = {
+    "switch": Command(
+        lambda name, *flags: switch(name, "--keep-wallpaper" in flags, "--offline" in flags),
+        "<theme> [--keep-wallpaper] [--offline]",
+        "changetheme's wallpaper and palette steps: picks a wallpaper, shows it (not --offline), applies the theme"),
+    "apply": Command(
+        lambda name, *options: apply(name, wallpaper_argument(options)),
+        "<theme> [--wallpaper PATH]", "write configs for the active theme"),
+    "build": Command(
+        build, "",
+        "regenerate what bundles every theme (drift themes, Code - OSS extension, Telegram themes, battery icons)"),
+    "refresh": Command(
+        refresh, "",
+        "re-theme apps that appeared since the last change (Firefox profiles, Obsidian vaults); run at login"),
+    "offer": Command(
+        lambda name: telegram.offer(load(name)), "<theme>",
+        "offer the theme to a running Telegram / AyuGram, which opens its full-screen preview"),
+    "bar-preview": Command(
+        printing_json(lambda name: bar_preview.preview(load(name))), "<theme>",
+        "what each waybar module shows on this machine now, as JSON, for the bar in the settings window"),
+    "icons": Command(
+        printing_json(glyphs.all_icons), "",
+        "every icon of the Nerd Font with its name, as JSON, for the icon picker in the settings window"),
+    "icon-themes": Command(
+        printing_json(icon_themes.listing), "",
+        "installed icon themes with sample icons and the ones to install, as JSON, for the settings window"),
+    "cursor-themes": Command(
+        printing_json(cursor_themes.listing), "",
+        "installed cursor themes with pictures of a few cursors and the ones to install, as JSON"),
+    "cursor-add": Command(
+        printing_json(cursor_install.install), "<file>",
+        "a cursor theme from an archive or an osu! skin (.osk); prints the names installed, as JSON",
+        FILE_ERRORS),
+    "cursor-remove": Command(
+        cursor_install.remove, "<name>", "removes a cursor theme the user added", FILE_ERRORS),
+    "frame-length": Command(
+        printing_json(frames.length), "<file>",
+        "how long a GIF (frames) or a video (seconds) is, as JSON", FILE_ERRORS),
+    "frame-prepare": Command(
+        printing_json(frames.prepare), "<file>",
+        "what the frame picker reads (a GIF made into an mp4), as JSON", FILE_ERRORS),
+    "frame-forget": Command(
+        frames.forget, "<file>", "removes a GIF's mp4 made by frame-prepare", FILE_ERRORS),
+    "frame": Command(
+        frame, "<file> <at> <out.png> [<width>]",
+        "that moment of it as a PNG (a preview when width is given)", FILE_ERRORS),
+    "wallpaper-play": Command(
+        wallpaper_play, "<file>",
+        "for ~/.local/bin/wallpaper: the wallpaper's still picture and, for an animation, the mp4 mpvpaper plays",
+        FILE_ERRORS),
+    "wallpaper-import": Command(
+        printing(animated.import_into), "<file> <folder>",
+        "an animation kept in folder as the mp4 it plays from; prints it", FILE_ERRORS),
+    "wallpaper-needs": Command(
+        printing(animated.missing_package), "",
+        "the package animated wallpapers still need, or nothing", FILE_ERRORS),
+    "wallpaper-engine": Command(
+        printing_json(wallpaper_engine.listing), "",
+        "Wallpaper Engine's subscribed wallpapers, as JSON", FILE_ERRORS),
+    "wallpaper-engine-add": Command(
+        printing(wallpaper_engine.add), "<id> <folder>",
+        "a video one kept in folder as the mp4 it plays from; prints it", FILE_ERRORS),
+    "new": Command(
+        rebuilding_themes(printing(lambda label, _from, theme: user_themes.create(label, theme))),
+        "<label> --from <theme>",
+        "a theme of the user's own (~/.config/hypr-rice/themes): a copy of <theme> with its edits written in; "
+        "prints its name", ARCHIVE_ERRORS),
+    "import": Command(
+        rebuilding_themes(printing(user_themes.import_archive)), "<file.zip>",
+        "a theme from an archive made by export; prints its name", ARCHIVE_ERRORS),
+    "export": Command(
+        user_themes.export, "<theme> <file.zip>",
+        "the theme with its edits written in, for someone else", ARCHIVE_ERRORS),
+    "delete": Command(
+        rebuilding_themes(delete_theme), "<theme>",
+        "removes a theme: one of the user's own for good, one of the rice until restore", ARCHIVE_ERRORS),
+    "restore": Command(
+        rebuilding_themes(removed_themes.restore), "<theme>", "brings a removed theme of the rice back",
+        ARCHIVE_ERRORS),
+    "factory": Command(
+        rebuilding_themes(factory_reset.reset), "<theme>",
+        "the theme as the rice ships it: no edits, its files again", ARCHIVE_ERRORS),
+    "removed-themes": Command(
+        printing_json(removed_themes.listing), "", "the removed themes of the rice, as JSON"),
+    "promote": Command(
+        rebuilding_themes(user_themes.promote), "<theme>",
+        "makes a theme of the user's own part of the rice (~/.config/hypr/themes, which sync.sh publishes)",
+        ARCHIVE_ERRORS),
+}
+
+
+def main(argv):
+    """The command's exit status; a theme that is not there is a line on stderr and 1, not a traceback."""
+    try:
+        return run("themegen.py", COMMANDS, argv)
+    except ValueError as error:
+        print(error, file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

@@ -1,0 +1,4 @@
+
+.tabbrowser-tab:is([selected], [multiselected]) > .tab-stack > .tab-background {
+    box-shadow: inset 0 -${line}px 0 ${accent}${glow} !important;
+}

@@ -5,7 +5,7 @@
 # rewrite of themegen is checked: tests/themegen_snapshot.sh before; (rewrite); ... after;
 # diff -r before after.
 # The programs it themes are faked as installed (Firefox, Zen, Obsidian, Vesktop, Code - OSS,
-# drift, Chromium, neoHtop); sudo, gsettings, systemctl, pkill, hyprctl and pgrep only record their calls.
+# drift, Chromium); sudo, gsettings, systemctl, pkill, hyprctl and pgrep only record their calls.
 # SRC_HOME (default: the repo's home/) is where themegen.py and the themes are taken from.
 set -euo pipefail
 
@@ -30,7 +30,7 @@ fake_installed_programs() {
     local h=$FAKE_HOME
     mkdir -p "$h/.mozilla/firefox/test.default" "$h/.zen/test.default" "$h/vault/.obsidian" \
         "$h/.config/obsidian" "$h/.config/vesktop/settings" "$h/.config/Code - OSS/User" \
-        "$h/.config/drift" "$h/.config/chromium/Default" "$h/neohtop/src/lib/definitions"
+        "$h/.config/drift" "$h/.config/chromium/Default"
     touch "$h/.mozilla/firefox/test.default/prefs.js" "$h/.zen/test.default/prefs.js"
     echo 'user_pref("browser.startup.page", 3);' > "$h/.mozilla/firefox/test.default/user.js"
     echo "{\"vaults\": {\"v\": {\"path\": \"$h/vault\"}}}" > "$h/.config/obsidian/obsidian.json"

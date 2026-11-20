@@ -66,7 +66,7 @@ assert (home / "settings.json").is_symlink() and (home / "dotfiles.json").read_t
 
     def test_set_gtk_ini_adds_a_missing_key(self):
         self.check("""
-from apptheme.icon_theme import SETTINGS_FILES, set_gtk_ini
+from apptheme.icons.icon_theme import SETTINGS_FILES, set_gtk_ini
 gtk3, gtk4 = SETTINGS_FILES
 gtk3.parent.mkdir(parents=True)
 gtk4.parent.mkdir(parents=True)
@@ -83,7 +83,7 @@ assert gtk4.read_text() == ("gtk-theme-name=Graphite-Dark\\n[Settings]\\ngtk-cur
     def test_a_failed_factory_copy_keeps_the_theme(self):
         self.check("""
 from pathlib import Path
-from apptheme import factory_reset
+from apptheme.themes import factory_reset
 from apptheme.paths import THEMES
 folder = THEMES / "night"
 folder.mkdir(parents=True)
@@ -106,7 +106,7 @@ assert sorted(p.name for p in THEMES.parent.iterdir()) == ["scripts", "themes"],
 
     def test_gtk4_imports_the_base_theme_that_was_chosen(self):
         self.check("""
-from apptheme import gtk
+from apptheme.apps import gtk
 assert gtk.gtk4_import("Adwaita-dark", "gtk.css") == ""
 graphite = gtk.Path("/usr/share/themes/Graphite-Dark/gtk-4.0/gtk.css")
 if graphite.exists():
@@ -118,10 +118,10 @@ if graphite.exists():
         bare = self.sandbox.add_theme("bare")
         (bare / "hyprlock.conf").unlink()
         self.check("""
-from apptheme import hyprlock
+from apptheme.desktop import hyprlock
 from apptheme.files import GENERATED
 from apptheme.paths import HYPR
-from apptheme.theme import load
+from apptheme.themes.theme import load
 hyprlock.apply(load("night"), None)
 assert (HYPR / "hyprlock.conf").is_symlink()
 hyprlock.apply(load("bare"), None)
@@ -134,8 +134,8 @@ assert not link.is_symlink() and GENERATED in link.read_text() and "input-field"
         local = self.sandbox.home / ".config/hypr-rice/waybar/config.local.json"
         local.write_text('{"clock": ["not", "a", "module"]}')
         result = self.sandbox.python("""
-from apptheme import waybar
-from apptheme.theme import load
+from apptheme.desktop import waybar
+from apptheme.themes.theme import load
 waybar.write_config(load("night"))
 """)
         self.assertNotEqual(result.returncode, 0)
@@ -144,9 +144,9 @@ waybar.write_config(load("night"))
         local.write_text('{"clock": {"format": "x"}, "height": 30}')
         self.check("""
 import json
-from apptheme import waybar
+from apptheme.desktop import waybar
 from apptheme.paths import RICE_CONF
-from apptheme.theme import load
+from apptheme.themes.theme import load
 waybar.write_config(load("night"))
 config = json.loads((RICE_CONF / "waybar/config.json").read_text())
 assert config["clock"]["format"] == "x" and len(config["clock"]) > 1 and config["height"] == 30, config["clock"]
@@ -157,8 +157,8 @@ assert config["clock"]["format"] == "x" and len(config["clock"]) > 1 and config[
         old = self.sandbox.home / ".vscode-oss/extensions/larion.hypr-themes-1.0.1"
         old.mkdir(parents=True)
         self.check("""
-from apptheme import vscode
-from apptheme.theme import load
+from apptheme.apps import vscode
+from apptheme.themes.theme import load
 vscode.build([load("night")])
 """)
         calls = self.sandbox.recorded()
@@ -167,20 +167,17 @@ vscode.build([load("night")])
         old.rmdir()
         self.sandbox.calls.unlink()
         self.check("""
-from apptheme import vscode
-from apptheme.theme import load
+from apptheme.apps import vscode
+from apptheme.themes.theme import load
 vscode.build([load("night")])
 """)
         self.assertFalse(any("--uninstall-extension" in call for call in self.sandbox.recorded()))
 
-    def test_neohtop_without_a_checkout_does_nothing(self):
+    def test_neohtop_themes_without_a_checkout_write_nothing(self):
         self.sandbox.add_theme("night")
         (self.sandbox.home / "neohtop").mkdir()  # some other folder of that name
-        self.check("""
-from apptheme import neohtop
-from apptheme.theme import load
-assert neohtop.build([load("night")]) is None
-""")
+        result = self.sandbox.run(["python3", self.sandbox.home / ".config/hypr/scripts/neohtop-themes.py"])
+        self.assertEqual(result.returncode, 1, result.stderr)
         self.assertEqual(list((self.sandbox.home / "neohtop").iterdir()), [])
 
 

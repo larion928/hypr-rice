@@ -24,7 +24,7 @@ class BrowserWallpaperTest(unittest.TestCase):
 import os
 from pathlib import Path
 from PIL import Image
-from apptheme import browser
+from apptheme.apps import browser
 wallpaper = Path.home() / "wall.png"
 Image.new("RGB", (64, 32), (200, 0, 0)).save(wallpaper)
 first = browser.wallpaper_jpeg(wallpaper, 16, 80)
@@ -48,8 +48,8 @@ assert len(entries) == 2, entries  # the old version's 16 px entry is gone, the 
         self.check("""
 from pathlib import Path
 from PIL import Image
-from apptheme import browser, firefox
-from apptheme.theme import load
+from apptheme.apps import browser, firefox
+from apptheme.themes.theme import load
 wallpaper = Path.home() / "wall.png"
 Image.new("RGB", (64, 32)).save(wallpaper)
 def no_decoding(*args):
@@ -71,8 +71,8 @@ class GtkReloadTest(unittest.TestCase):
         day = self.sandbox.add_theme("day")
         (day / "palette.json").write_text((day / "palette.json").read_text().replace('"night"', '"day"', 1))
         result = self.sandbox.python("""
-from apptheme import gtk
-from apptheme.theme import load
+from apptheme.apps import gtk
+from apptheme.themes.theme import load
 started = []
 gtk.reload = lambda: started.append("reload")
 gtk.apply(load("night"))
@@ -102,7 +102,7 @@ assert started == ["reload", "reload"], started
     def test_without_a_session_bus_nothing_is_waited_for(self):
         result = self.sandbox.python("""
 import time
-from apptheme import gtk
+from apptheme.apps import gtk
 start = time.monotonic()
 gtk.reload()
 print(time.monotonic() - start)
@@ -117,7 +117,7 @@ print(time.monotonic() - start)
         code = f"""
 import sys, time
 sys.path.insert(0, {str(scripts)!r})
-from apptheme import gtk
+from apptheme.apps import gtk
 import gi.repository.Gio
 start = time.monotonic()
 gtk.reload()

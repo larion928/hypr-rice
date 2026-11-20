@@ -24,8 +24,8 @@ jobs:
           exit $status
       - name: Python parses
         run: |
-          python -m py_compile home/.config/hypr/scripts/*.py
-          python -m compileall -q doctor
+          # The scripts' packages (apptheme/, gamelib/) too, not only the top-level files.
+          python -m compileall -q home/.config/hypr/scripts doctor
           for f in $(grep -rlI '^#!.*python' home/.local/bin home/.config/hypr-rice/waybar/scripts); do
             python -m py_compile "$f"
           done
@@ -44,7 +44,8 @@ jobs:
     container: archlinux:base-devel
     steps:
       # jq: the battery and rice tests; python-pillow, python-fonttools, python-gobject + gtk3: what themegen
-      # imports (apptheme/*.py, icon_themes.py needs the Gtk 3 typelib); fontconfig: fc-match in glyphs.py;
+      # imports (apptheme/**, apptheme/icons/icon_themes.py needs the Gtk 3 typelib); fontconfig: fc-match in
+      # apptheme/icons/glyphs.py;
       # ffmpeg: the animated-wallpaper tests, which are skipped without it.
       # lua: tests/python drives the Hyprland config's event handlers with a stand-in `hl`.
       - run: pacman -Syu --noconfirm --needed jq python python-pillow python-fonttools python-gobject gtk3 fontconfig ffmpeg lua

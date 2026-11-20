@@ -1,0 +1,20 @@
+
+:root {
+    --zen-toolbar-element-bg: ${hover} !important;
+    --zen-toolbar-element-bg-hover: ${selected} !important;
+}
+.tabbrowser-tab:not([zen-essential]):is([visuallyselected], [multiselected]) > .tab-stack > .tab-background {
+    box-shadow: inset ${line_zen}px 0 0 ${accent}${glow} !important;
+}
+.tabbrowser-tab:is([visuallyselected], [multiselected]) {
+    --tab-background-color-selected: ${selected} !important;
+}
+/* The sidebar gets its own dimmed glass over the wallpaper, so the tab list stays readable. */
+#navigator-toolbox {
+    background: ${sidebar_glass} !important;
+    backdrop-filter: blur(18px) !important;
+}
+#urlbar[zen-floating-urlbar="true"] .urlbar-background {
+    background-color: ${field} !important;
+    outline: ${line}px solid ${accent_soft} !important;
+}

@@ -1,0 +1,5 @@
+
+#zen-browser-background, #zen-toolbar-background {
+    --zen-main-browser-background: linear-gradient(${dim}, ${dim}), url("${wallpaper_url}") center / cover !important;
+    --zen-main-browser-background-toolbar: linear-gradient(${dim}, ${dim}), url("${wallpaper_url}") center / cover !important;
+}

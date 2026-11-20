@@ -327,8 +327,9 @@ EOF
     PATH="$HOME/bin:$PATH" python3 - "$REPO/home/.config/hypr/scripts" "$HOME" <<'PY' || fail "генератор упал"
 import sys
 sys.path.insert(0, sys.argv[1])
-from apptheme import kitty, waybar
-from apptheme.theme import load
+from apptheme.apps import kitty
+from apptheme.desktop import waybar
+from apptheme.themes.theme import load
 home = sys.argv[2]
 theme = load("claude")
 assert theme.font == "Test Mono", theme.font
@@ -363,8 +364,8 @@ EOF
     python3 - "$REPO/home/.config/hypr/scripts" <<'PY' || fail "раскладка собрана не так"
 import sys
 sys.path.insert(0, sys.argv[1])
-from apptheme import waybar
-from apptheme.theme import load
+from apptheme.desktop import waybar
+from apptheme.themes.theme import load
 coffee = waybar.config_for(load("coffee"))
 assert coffee["modules-left"] == ["clock"], coffee["modules-left"]   # custom/claude is claude's own
 assert coffee["modules-right"] == ["tray"], coffee["modules-right"]
@@ -390,7 +391,7 @@ test_waybar_finds_cpu_sensor() {
 import sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-from apptheme import waybar
+from apptheme.desktop import waybar
 root = Path(sys.argv[2])
 waybar.HWMON = root / "class/hwmon"
 waybar.THERMAL_ZONE = root / "class/thermal/thermal_zone0"
@@ -413,8 +414,8 @@ test_waybar_icon_edits() {
     python3 - "$REPO/home/.config/hypr/scripts" <<'PY' || fail "значки заменены не так"
 import sys
 sys.path.insert(0, sys.argv[1])
-from apptheme import waybar
-from apptheme.theme import load
+from apptheme.desktop import waybar
+from apptheme.themes.theme import load
 config = waybar.config_for(load("coffee"))
 assert config["cpu"]["format"] == "X {usage}%", config["cpu"]["format"]
 assert config["pulseaudio"]["format"] == "V {volume}%", config["pulseaudio"]["format"]
@@ -437,8 +438,9 @@ test_icon_edits() {
     PATH="$HOME/bin:$PATH" python3 - "$REPO/home/.config/hypr/scripts" <<'PY' || fail "значки применены не так"
 import sys
 sys.path.insert(0, sys.argv[1])
-from apptheme import battery, icon_theme
-from apptheme.theme import load
+from apptheme.desktop import battery
+from apptheme.icons import icon_theme
+from apptheme.themes.theme import load
 coffee = load("coffee")
 frames = battery.frames(coffee)
 assert len(frames) == 7, len(frames)                                  # night's moon phases
@@ -453,8 +455,8 @@ PY
     PATH="$HOME/bin:$PATH" python3 - "$REPO/home/.config/hypr/scripts" <<'PY' || fail "тема значков не вернулась"
 import sys
 sys.path.insert(0, sys.argv[1])
-from apptheme import icon_theme
-from apptheme.theme import load
+from apptheme.icons import icon_theme
+from apptheme.themes.theme import load
 icon_theme.apply(load("coffee"))
 PY
     grep -qx "gtk-icon-theme-name=Papirus-Dark" "$HOME/.config/gtk-3.0/settings.ini" || fail "без правки не вернулась тема значков райса"
@@ -466,7 +468,7 @@ test_bar_preview_formats() {
     python3 - "$REPO/home/.config/hypr/scripts" <<'PY' || fail "превью панели собрано не так"
 import sys
 sys.path.insert(0, sys.argv[1])
-from apptheme import bar_preview as bar
+from apptheme.desktop import bar_preview as bar
 assert bar.render("{icon} {volume}%", {"volume": 70}, ["low", "mid", "high"], 70) == "high 70%"
 assert bar.render("{icon} {volume}%", {"volume": 10}, {"default": ["low", "mid", "high"]}, 10) == "low 10%"
 assert bar.render(" {}", {"": "96"}) == "96"
@@ -538,8 +540,8 @@ test_window_edits() {
     python3 - "$REPO/home/.config/hypr/scripts" <<'PY' || fail "правки окон записаны не так"
 import sys
 sys.path.insert(0, sys.argv[1])
-from apptheme import windows
-from apptheme.theme import load
+from apptheme.desktop import windows
+from apptheme.themes.theme import load
 coffee = load("coffee")
 own = windows.own(coffee)
 assert (own["gaps_in"], own["gaps_out"], own["border_size"], own["rounding"]) == (5, 10, 3, 6), own
@@ -620,7 +622,7 @@ test_gtk_reload_lands_on_base_theme() {
     PATH="$HOME/bin:$PATH" python3 - "$REPO/home/.config/hypr/scripts" "$HOME/calls" <<'PY' || fail "тема GTK не та"
 import sys
 sys.path.insert(0, sys.argv[1])
-from apptheme import gtk
+from apptheme.apps import gtk
 gtk.reload()
 last = open(sys.argv[2]).read().splitlines()[-1]
 assert last == f"set org.gnome.desktop.interface gtk-theme {gtk.base_theme()}", last
@@ -764,8 +766,9 @@ test_user_theme_from_edited_theme() {
 import dataclasses, json, sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-from apptheme import user_themes, waybar, windows
-from apptheme.theme import all_names, load
+from apptheme.desktop import waybar, windows
+from apptheme.themes import user_themes
+from apptheme.themes.theme import all_names, load
 home = Path(sys.argv[2])
 
 name = user_themes.create("Моя тема", "coffee")
@@ -823,7 +826,7 @@ test_user_theme_import_refuses_bad_archives() {
 import shutil, sys, zipfile
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-from apptheme import user_themes
+from apptheme.themes import user_themes
 home = Path(sys.argv[2])
 coffee = home / ".config/hypr/themes/coffee"
 
@@ -858,7 +861,7 @@ test_user_theme_yields_to_rice_theme() {
     python3 - "$HOME/.config/hypr/scripts" <<'PY' 2>"$HOME/err" || fail "ссылка заменила тему райса"
 import sys
 sys.path.insert(0, sys.argv[1])
-from apptheme import user_themes
+from apptheme.themes import user_themes
 from apptheme.paths import THEMES
 user_themes.link()
 assert not (THEMES / "coffee").is_symlink() and (THEMES / "coffee/hypr.lua").exists()
@@ -891,8 +894,8 @@ import sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
 import themegen
-from apptheme import removed_themes
-from apptheme.theme import all_names
+from apptheme.themes import removed_themes
+from apptheme.themes.theme import all_names
 home = Path(sys.argv[2])
 
 try:
@@ -923,8 +926,8 @@ test_factory_reset() {
 import json, sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-from apptheme import factory_reset
-from apptheme.theme import load
+from apptheme.themes import factory_reset
+from apptheme.themes.theme import load
 home = Path(sys.argv[2])
 factory_reset.reset("coffee")
 coffee = home / ".config/hypr/themes/coffee"
@@ -956,24 +959,24 @@ test_games_library() {
 import sys, time
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-import games
+from gamelib import launch, library, listing, pictures, steam_games
 home = Path(sys.argv[2])
-kinds = {name: games.add_file(home / "games" / name)["kind"]
+kinds = {name: library.add_file(home / "games" / name)["kind"]
          for name in ("Some_Game.exe", "no-suffix-windows", "Tool.AppImage", "native-game")}
 assert kinds == {"Some_Game.exe": "exe", "no-suffix-windows": "exe", "Tool.AppImage": "appimage", "native-game": "native"}, kinds
 try:
-    games.add_file(home / "games/readme.txt")
+    library.add_file(home / "games/readme.txt")
     raise AssertionError("текстовый файл принят за игру")
 except ValueError:
     pass
-again = games.add_file(home / "games/Some_Game.exe")
-assert len(games.games()) == 4 and again["name"] == "Some Game", (len(games.games()), again)
+again = library.add_file(home / "games/Some_Game.exe")
+assert len(library.games()) == 4 and again["name"] == "Some Game", (len(library.games()), again)
 
-assert [g["name"] for g in games.steam_games()] == ["Noita"], games.steam_games()
-noita = games.add({"kind": "steam", "target": "881100", "name": "Noita"})
+assert [g["name"] for g in steam_games.installed()] == ["Noita"], steam_games.installed()
+noita = library.add({"kind": "steam", "target": "881100", "name": "Noita"})
 
-games.launch(again["id"])
-games.launch(noita["id"])
+launch.launch(again["id"])
+launch.launch(noita["id"])
 # Both start detached, so they may finish in either order and take a while on a busy machine.
 started_file = home / "started"
 for _ in range(50):
@@ -982,18 +985,18 @@ for _ in range(50):
     time.sleep(0.1)
 started = sorted(started_file.read_text().splitlines())
 assert started == sorted([f"{home}/.local/bin/proton-run {home}/games/Some_Game.exe", "steam steam://rungameid/881100"]), started
-assert games.listing()[0]["id"] in (again["id"], noita["id"]) and games.game(noita["id"])["played"] > 0
+assert listing.listing()[0]["id"] in (again["id"], noita["id"]) and library.game(noita["id"])["played"] > 0
 
 (home / "games/native-game").unlink()
-native = next(g for g in games.listing() if g["kind"] == "native")
+native = next(g for g in listing.listing() if g["kind"] == "native")
 assert not native["present"]
 try:
-    games.launch(native["id"])
+    launch.launch(native["id"])
     raise AssertionError("запущена игра, которой нет")
 except ValueError:
     pass
-games.remove(native["id"])
-assert all(g["kind"] != "native" for g in games.games())
+library.remove(native["id"])
+assert all(g["kind"] != "native" for g in library.games())
 PY
 }
 
@@ -1011,10 +1014,10 @@ from pathlib import Path
 sys.path.insert(0, sys.argv[1])
 import urllib.error
 import urllib.request
-import games
+from gamelib import launch, library, listing, pictures, steam_games
 home = Path(sys.argv[2])
-games.STORE_SEARCH = f"file://{home}/store/search.json?{{}}"
-games.STORE_COVERS = (f"file://{home}/store/missing-{{}}.jpg", f"file://{home}/store/cover.jpg?{{}}")
+pictures.STORE_SEARCH = f"file://{home}/store/search.json?{{}}"
+pictures.STORE_COVERS = (f"file://{home}/store/missing-{{}}.jpg", f"file://{home}/store/cover.jpg?{{}}")
 # The store answers 404 for a cover size it has not; file:// would say "no connection" instead.
 real_urlopen = urllib.request.urlopen
 def store_urlopen(url, timeout=None):
@@ -1022,32 +1025,32 @@ def store_urlopen(url, timeout=None):
         raise urllib.error.HTTPError(url, 404, "Not Found", None, None)
     return real_urlopen(url, timeout=timeout)
 urllib.request.urlopen = store_urlopen
-pinball = games.add_file(home / "games/Pinball/pinball.exe")
-balatro = games.add({"kind": "app", "target": "Balatro", "name": "Balatro", "icon": "balatro"})
-osu = games.add({"kind": "app", "target": "osu", "name": "osu!", "icon": "osu"})
-games.find_pictures()
-assert games.game(pinball["id"]).get("icon") == str(home / "games/Pinball/icon.png"), games.game(pinball["id"])
-assert Path(games.game(balatro["id"])["cover"]).read_bytes().startswith(b"\xff\xd8"), games.game(balatro["id"])
-assert not games.game(osu["id"]).get("cover"), "osu! получила обложку чужой игры (McOsu)"
-assert all(entry.get("looked") for entry in games.games())
+pinball = library.add_file(home / "games/Pinball/pinball.exe")
+balatro = library.add({"kind": "app", "target": "Balatro", "name": "Balatro", "icon": "balatro"})
+osu = library.add({"kind": "app", "target": "osu", "name": "osu!", "icon": "osu"})
+pictures.find_pictures()
+assert library.game(pinball["id"]).get("icon") == str(home / "games/Pinball/icon.png"), library.game(pinball["id"])
+assert Path(library.game(balatro["id"])["cover"]).read_bytes().startswith(b"\xff\xd8"), library.game(balatro["id"])
+assert not library.game(osu["id"]).get("cover"), "osu! получила обложку чужой игры (McOsu)"
+assert all(entry.get("looked") for entry in library.games())
 
 (home / "store/search.json").write_text('{"items": [{"id": 3, "name": "osu!"}]}')
-games.find_pictures()
-assert not games.game(osu["id"]).get("cover"), "поиск повторился для уже просмотренной игры"
-games.uncover(balatro["id"])
-assert games.game(balatro["id"])["cover"] == "" and not list((home / ".local/share/hypr-rice/game-covers").glob(balatro["id"] + ".*"))
+pictures.find_pictures()
+assert not library.game(osu["id"]).get("cover"), "поиск повторился для уже просмотренной игры"
+library.uncover(balatro["id"])
+assert library.game(balatro["id"])["cover"] == "" and not list((home / ".local/share/hypr-rice/game-covers").glob(balatro["id"] + ".*"))
 
 # Offline: the game's own icon is found all the same, and the game is left unlooked so the store is
 # asked again next time.
 (home / "games/Solitaire").mkdir()
 (home / "games/Solitaire/solitaire.exe").write_bytes(b"MZ")
 (home / "games/Solitaire/icon.png").write_bytes(b"PNG")
-solitaire = games.add_file(home / "games/Solitaire/solitaire.exe")
+solitaire = library.add_file(home / "games/Solitaire/solitaire.exe")
 def offline(url, timeout=None):
     raise urllib.error.URLError("no network")
 urllib.request.urlopen = offline
-games.find_pictures()
-offline_game = games.game(solitaire["id"])
+pictures.find_pictures()
+offline_game = library.game(solitaire["id"])
 assert offline_game.get("icon") == str(home / "games/Solitaire/icon.png"), offline_game
 assert not offline_game.get("looked"), "без сети игра помечена просмотренной"
 PY
@@ -1136,10 +1139,10 @@ test_games_gamemode_not_for_steam() {
     PATH="$HOME/bin:$PATH" python3 - "$REPO/home/.config/hypr/scripts" <<'PY' || fail "gamemoderun не там"
 import sys
 sys.path.insert(0, sys.argv[1])
-import games
-assert games.command_for({"kind": "app", "target": "steam"}) == ["gtk-launch", "steam"]
-assert games.command_for({"kind": "app", "target": "osu"}) == ["gamemoderun", "gtk-launch", "osu"]
-assert games.command_for({"kind": "steam", "target": "881100"}) == ["steam", "steam://rungameid/881100"]
+from gamelib import launch, library, listing, pictures, steam_games
+assert launch.command_for({"kind": "app", "target": "steam"}) == ["gtk-launch", "steam"]
+assert launch.command_for({"kind": "app", "target": "osu"}) == ["gamemoderun", "gtk-launch", "osu"]
+assert launch.command_for({"kind": "steam", "target": "881100"}) == ["steam", "steam://rungameid/881100"]
 PY
 }
 
@@ -1152,8 +1155,9 @@ import sys
 from pathlib import Path
 from PIL import Image
 sys.path.insert(0, sys.argv[1])
-from apptheme import bake, wallpaper_still
-from apptheme.theme import load
+from apptheme.themes import bake
+from apptheme.wallpapers import wallpaper_still
+from apptheme.themes.theme import load
 home = Path(sys.argv[2])
 coffee = home / ".config/hypr/themes/coffee"
 frames = [Image.new("RGB", (8, 8), color) for color in ((200, 0, 0), (0, 0, 200))]
@@ -1184,7 +1188,7 @@ import sys, tarfile, zipfile
 from pathlib import Path
 from PIL import Image
 sys.path.insert(0, sys.argv[1])
-from apptheme import cursor_install
+from apptheme.cursors import cursor_install
 home = Path(sys.argv[2])
 icons = home / ".local/share/icons"
 
@@ -1229,7 +1233,7 @@ import shutil, subprocess, sys
 from pathlib import Path
 from PIL import Image
 sys.path.insert(0, sys.argv[1])
-from apptheme import frames
+from apptheme.wallpapers import frames
 home = Path(sys.argv[2])
 pictures = [Image.new("RGB", (40, 20), color) for color in ((200, 0, 0), (0, 200, 0), (0, 0, 200))]
 pictures[0].save(home / "a.gif", save_all=True, append_images=pictures[1:], duration=100)
@@ -1280,7 +1284,7 @@ test_animated_wallpapers_one_format() {
 import json, subprocess, sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-from apptheme import animated, wallpaper_still
+from apptheme.wallpapers import animated, wallpaper_still
 home = Path(sys.argv[2])
 animated.screen_width = lambda: 640
 
@@ -1349,7 +1353,7 @@ test_animated_wallpapers_need_mpvpaper() {
 import sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-from apptheme import animated
+from apptheme.wallpapers import animated
 home = Path(sys.argv[2])
 assert animated.missing_package() == "mpvpaper", animated.missing_package()
 kept = animated.import_into(home / "w/anim.gif", home / "added")
@@ -1367,7 +1371,7 @@ test_wallpaper_engine_videos() {
 import json, subprocess, sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-from apptheme import animated, wallpaper_engine
+from apptheme.wallpapers import animated, wallpaper_engine
 home = Path(sys.argv[2])
 workshop = home / ".local/share/Steam/steamapps/workshop/content/431960"
 animated.screen_width = lambda: 640

@@ -46,9 +46,9 @@ import urllib.error, urllib.request
 def offline(*args, **kwargs):
     raise urllib.error.URLError("no network")
 urllib.request.urlopen = offline
-import games
-games.find_pictures()
-assert "looked" not in games.games()[0], games.games()
+from gamelib import library, pictures
+pictures.find_pictures()
+assert "looked" not in library.games()[0], library.games()
 """)
         self.assertEqual(result.returncode, 0, result.stderr)
 

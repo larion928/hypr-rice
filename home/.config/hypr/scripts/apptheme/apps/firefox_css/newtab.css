@@ -1,0 +1,63 @@
+/* Hypr ${label}: the new tab page. ${generated} */
+@-moz-document url("about:newtab"), url("about:home") {
+    :root {
+        --newtab-background-color: ${bg} !important;
+        --newtab-background-color-secondary: ${bg2} !important;
+        --newtab-text-primary-color: ${fg} !important;
+        --newtab-text-secondary-color: ${muted} !important;
+        --newtab-primary-action-background: ${accent} !important;
+        --newtab-element-hover-color: ${hover} !important;
+        --color-accent-primary: ${accent} !important;
+        --color-accent-primary-hover: ${accent2} !important;
+        --color-accent-primary-active: ${accent2} !important;
+        --button-background-color-primary: ${accent} !important;
+        --button-background-color-primary-hover: ${accent2} !important;
+        --button-text-color-primary: ${bg} !important;
+    }
+    body {
+        background: linear-gradient(rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.45)),
+                    ${bg} url("data:image/jpeg;base64,${wallpaper}") center / cover no-repeat fixed !important;
+    }
+    .logo-and-wordmark .logo {
+        background-image: url("data:image/svg+xml;base64,${emblem}") !important;
+        background-size: contain !important;
+        filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.6));
+    }
+    .logo-and-wordmark .wordmark {
+        display: none !important;
+    }
+    .logo-and-wordmark::after {
+        content: "${label}";
+        margin-inline-start: 18px;
+        font: ${title_style} 600 46px "${display}", serif;
+        text-transform: ${title_case};
+        color: ${fg};
+        text-shadow: 0 2px 14px rgba(0, 0, 0, 0.7);
+    }
+    /* The search box is a custom element; its shadow DOM only takes these variables. */
+    .search-wrapper content-search-handoff-ui {
+        --content-search-handoff-ui-background-color: ${dim} !important;
+        --content-search-handoff-ui-color: ${fg} !important;
+        --content-search-handoff-ui-fill: ${muted} !important;
+        --content-search-handoff-ui-border-radius: ${radius}px !important;
+        --content-search-handoff-ui-border-width: ${line}px !important;
+        --content-search-handoff-ui-unfocused-border-color: ${accent_soft} !important;
+        --content-search-handoff-ui-fakefocus-border-color: ${accent} !important;
+        --content-search-handoff-ui-fakefocus-box-shadow-inner: ${accent_soft} !important;
+        backdrop-filter: blur(14px);
+        border-radius: ${radius}px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4)${glow};
+    }
+    .top-site-outer .tile {
+        background-color: ${dim} !important;
+        border-radius: ${radius}px !important;
+        backdrop-filter: blur(10px);
+    }
+    .top-site-outer:hover .tile {
+        outline: ${line}px solid ${accent} !important;
+    }
+    .top-site-outer .title {
+        color: ${fg} !important;
+        text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+    }
+}
