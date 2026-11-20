@@ -25,6 +25,7 @@ jobs:
       - name: Python parses
         run: |
           python -m py_compile home/.config/hypr/scripts/*.py
+          python -m compileall -q doctor
           for f in $(grep -rlI '^#!.*python' home/.local/bin home/.config/hypr-rice/waybar/scripts); do
             python -m py_compile "$f"
           done

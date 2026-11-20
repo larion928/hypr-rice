@@ -1,0 +1,12 @@
+[Unit]
+Description=hypr-rice system check, daily
+
+[Timer]
+OnCalendar=daily
+# A day missed while the machine was off is checked at the next login; the delay lets the session
+# (and its notification daemon) come up first.
+Persistent=true
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target

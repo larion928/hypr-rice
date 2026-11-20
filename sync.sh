@@ -45,6 +45,8 @@ PATHS=(
     .config/systemd/user/portal-restart.timer
     .config/systemd/user/cache-trim.service
     .config/systemd/user/cache-trim.timer
+    .config/systemd/user/rice-doctor.service
+    .config/systemd/user/rice-doctor.timer
     .config/systemd/user/xdg-desktop-portal-hyprland.service.d
     .config/systemd/user/xdg-desktop-portal.service.d
     ".config/Code - OSS/User/settings.json"

@@ -11,6 +11,7 @@
 #   rice games        game optimisations, each on or off: GameMode, NTSync, tearing, linux-zen
 #   rice repair       re-apply SDDM, GTK theme and services
 #   rice report       write ~/rice-report.txt for whoever helps you debug
+#   rice doctor       check the system and the rice; --fix [-y] cures, --full slow checks too (rice doctor -h)
 #   rice uninstall    remove the rice and put the last backup back
 #
 # Environment: RICE_THEME, RICE_ASSUME=y|n, RICE_APPS=all|none|id,id, RICE_MODE=replace|coexist
@@ -1137,12 +1138,13 @@ setup_system() {
 CACHE_TRIM=/usr/local/bin/rice-cache-trim
 CACHE_TRIM_HOOK=/etc/pacman.d/hooks/rice-cache-trim.hook
 
-setup_maintenance() {  # package caches kept under 200 MB, weekly TRIM for SSDs
+setup_maintenance() {  # package caches kept under 200 MB, weekly TRIM for SSDs, the daily rice doctor
     sudo install -m755 "$SRC/system/rice-cache-trim" "$CACHE_TRIM"
     sudo install -Dm644 "$SRC/system/rice-cache-trim.hook" "$CACHE_TRIM_HOOK"
     systemctl --user enable cache-trim.timer >/dev/null 2>&1 || warn "не включился cache-trim.timer"
+    systemctl --user enable rice-doctor.timer >/dev/null 2>&1 || warn "не включился rice-doctor.timer"
     sudo systemctl enable fstrim.timer >/dev/null 2>&1 || warn "не включился fstrim.timer"
-    ok "кэш пакетов не больше 200 МБ, TRIM для SSD раз в неделю"
+    ok "кэш пакетов не больше 200 МБ, TRIM для SSD раз в неделю, проверка системы раз в день"
 }
 
 # The mirror of setup_system, setup_maintenance and setup_pkg_repo, for uninstall. SDDM itself, its
@@ -1151,7 +1153,7 @@ teardown_system() {
     local f conf
     sudo rm -f "$SUDOERS_RULE" "$THEME_ROOT" "$CACHE_TRIM" "$CACHE_TRIM_HOOK" "$SDDM_CONF_D/99-hypr-rice.conf" \
         "$TMPFILES_D/hypr-rice-power.conf" "$TMPFILES_D/hypr-rice-battery.conf"
-    systemctl --user disable --now cache-trim.timer >/dev/null 2>&1 || true
+    systemctl --user disable --now cache-trim.timer rice-doctor.timer >/dev/null 2>&1 || true
     if cmp -s "$TMPFILES_D/fn-lock.conf" "$SRC/system/fn-lock.conf"; then sudo rm -f "$TMPFILES_D/fn-lock.conf"; fi
     # hypr-theme-root writes this one when no theme was set at all.
     if cmp -s "$SDDM_CONF_D/10-theme.conf" "$SRC/system/sddm-theme.conf"; then sudo rm -f "$SDDM_CONF_D/10-theme.conf"; fi
@@ -1749,6 +1751,10 @@ cmd_report() {
     ok "отчёт: $out (пришли его тому, кто помогает)"
 }
 
+cmd_doctor() {  # the doctor is python, next to this script (doctor/)
+    PYTHONPATH="$SRC${PYTHONPATH:+:$PYTHONPATH}" exec python3 -m doctor "$@"
+}
+
 # The backup taken when the rice was first installed, or nothing if it replaced no other configs.
 # Installs from before install.conf kept it get the oldest backup that is not one of the rice
 # itself (older versions also backed the rice up on every update; those have the install marker).
@@ -1863,20 +1869,24 @@ unset_claude_statusline() {  # setup_apps_config pointed Claude Code's status li
 # stays on screen until Enter. Each action is a rice of its own, so its errors (die) end only it.
 menu() {
     local choice
-    have_tty || die "меню нужен терминал; команды: rice install|apps|remove|update|upgrade|proton|games|repair|report|uninstall"
+    have_tty || die "меню нужен терминал; команды: rice install|apps|remove|update|upgrade|proton|games|repair|report|doctor|uninstall"
     # Here, not in choose_one's $(...): a failed download is then neither repeated nor announced each round.
     fetch_gum || true
     while choice=$(choose_one "hypr-rice — что сделать?" \
             "Установить программы=apps" "Удалить программы=remove" "Обновить райс=update" \
             "Обновить систему и программы=upgrade" "Proton для .exe: версия=proton" \
             "Игры: оптимизация=games" \
-            "Починить (SDDM, тема, сервисы)=repair" \
+            "Проверить систему=doctor" "Починить (SDDM, тема, сервисы)=repair" \
             "Отчёт для помощи=report" "Переустановить райс=install" "Удалить райс=uninstall" \
             "Выход=quit"); do
         case "$choice" in
             ""|quit) return 0 ;;
         esac
-        "$SRC/rice" "$choice" || true
+        if [ "$choice" = doctor ]; then
+            "$SRC/rice" doctor --fix || true  # every cure is asked about first
+        else
+            "$SRC/rice" "$choice" || true
+        fi
         echo
         read -r -p "    Enter — назад в меню " _ </dev/tty || return 0
     done
@@ -1899,8 +1909,9 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
     case "${1:-}" in
         install|apps|remove|update|upgrade|proton|games|repair|report|uninstall) run "$1" ;;
         apply-update) run apply_update ;;  # run by `rice update` from the freshly fetched script
+        doctor) shift; cmd_doctor "$@" ;;
         ""|menu) menu ;;
-        -h|--help|help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' ;;
+        -h|--help|help) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//' ;;
         *) die "неизвестная команда: $1 (rice help)" ;;
     esac
     # Bash reads a script as it runs it: past this point it would read whatever the file holds now,

@@ -1,0 +1,11 @@
+[Unit]
+Description=hypr-rice daily system check (rice doctor --notify)
+
+[Service]
+Type=oneshot
+# "-": whatever its exit, the unit does not end failed, so the doctor never finds its own unit broken.
+# No start timeout: the run waits up to an hour for a click on its notification and then ends by itself.
+ExecStart=-%h/.local/bin/rice doctor --notify
+TimeoutStartSec=infinity
+Nice=10
+IOSchedulingClass=idle
