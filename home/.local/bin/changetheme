@@ -219,17 +219,18 @@ if [ -f "$HISTUI_CSS" ]; then
     if [ "$(systemctl --user show -p NeedDaemonReload --value histuid)" = yes ]; then
         systemctl --user daemon-reload
     fi
-    systemctl --user restart histuid
-
-    if histuid_on_bus; then
-        echo "Обновлена тема уведомлений для histui: $THEME"
-    elif systemctl --user is-active --quiet histuid; then
-        echo "Предупреждение: histuid запущен, но за 2 с не занял шину уведомлений"
-    else
+    if ! systemctl --user restart histuid; then
         echo "ОШИБКА: Демон histuid не запустился!"
         systemctl --user status histuid
         exit 1
     fi
+    echo "Обновлена тема уведомлений для histui: $THEME"
+    # histuid takes the bus about half a second after its restart; the switch does not wait for that.
+    # A daemon that never takes it is logged, where rice doctor finds it (the menus that run changetheme
+    # show none of its output anyway). Off our output too: whoever reads it would wait for the check.
+    { histuid_on_bus || echo "histuid перезапущен, но за 2 с не занял шину уведомлений" \
+          | systemd-cat -t changetheme -p err; } {lock}>&- >/dev/null 2>&1 &
+    disown
 else
     echo "Предупреждение: файл histui.css не найден в теме $THEME, оставляю текущий стиль"
 fi

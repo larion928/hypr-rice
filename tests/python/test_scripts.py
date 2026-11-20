@@ -1,5 +1,6 @@
 """changetheme, wallpaper and waybar-start, run in a sandbox: nothing reaches the session they run in."""
 import shutil
+import time
 import unittest
 
 from PIL import Image
@@ -64,6 +65,22 @@ class ChangethemeTest(unittest.TestCase):
         self.assertTrue(any(call.startswith("wallpaper ") for call in calls), calls)
         held = self.locks.read_text() if self.locks.exists() else ""
         self.assertNotIn("hypr-rice-changetheme.lock", held)
+
+    def test_the_switch_does_not_wait_for_histuid_to_take_the_bus(self):
+        theme = self.sandbox.add_theme("night")
+        Image.new("RGB", (8, 8)).save(theme / "wall.png")
+        self.sandbox.stub("busctl", 'echo "u 7"')  # the bus name never becomes histuid's (MainPID 42)
+        logged = self.sandbox.root / "logged"
+        self.sandbox.stub("systemd-cat", f'cat >> "{logged}"')
+        started = time.monotonic()
+        result = self.changetheme("night")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertLess(time.monotonic() - started, 1.5)
+        # The check goes on behind it (about 2 s) and logs what it found.
+        deadline = time.monotonic() + 6
+        while not logged.exists() and time.monotonic() < deadline:
+            time.sleep(0.1)
+        self.assertIn("не занял шину уведомлений", logged.read_text())
 
     def test_one_python_start_picks_the_wallpaper_and_applies(self):
         theme = self.sandbox.add_theme("night")
