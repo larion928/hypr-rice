@@ -4,6 +4,7 @@ stub that records its call in the sandbox's calls file and succeeds; pgrep repor
 RICE_HOME points the tests at another copy of the rice: the repo's home/ (CI), an older version."""
 import os
 import shutil
+import signal
 import subprocess
 import tempfile
 from pathlib import Path
@@ -13,7 +14,7 @@ LIVE_SCRIPTS = LIVE_HOME / ".config/hypr/scripts"
 LIVE_BIN = LIVE_HOME / ".local/bin"
 LIVE_THEMES = LIVE_HOME / ".config/hypr/themes"
 RECORDED = ("sudo", "gsettings", "systemctl", "pkill", "hyprctl", "code-oss", "busctl", "notify-send", "awww",
-            "waybar", "mpvpaper")
+            "waybar", "mpvpaper", "systemd-cat", "logger")
 THEME_FILES = ("palette.json", "ui.json", "hyprlock.conf", "hypr.lua", "style.css", "histui.css", "waybar.json")
 
 
@@ -24,6 +25,9 @@ class Sandbox:
         self.stubs = self.root / "bin"
         self.calls = self.root / "calls"
         self.runtime = self.root / "run"
+        # Each command runs in its own process group: cleanup ends whatever it left running in the background,
+        # which would otherwise go on after the stubs are gone and reach the real programs and the session.
+        self.process_groups = []
         for folder in (self.home / ".config/hypr/themes", self.home / ".config/hypr-rice/waybar", self.stubs,
                        self.runtime):
             folder.mkdir(parents=True)
@@ -34,6 +38,11 @@ class Sandbox:
         self.stub("pgrep", "exit 1")
 
     def cleanup(self):
+        for group in self.process_groups:
+            try:
+                os.killpg(group, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
         shutil.rmtree(self.root, ignore_errors=True)
 
     def stub(self, name, body=""):
@@ -59,8 +68,15 @@ class Sandbox:
                 "PYTHONDONTWRITEBYTECODE": "1", "LANG": "C.UTF-8", **extra}
 
     def run(self, argv, timeout=60, **extra_env):
-        return subprocess.run([str(part) for part in argv], env=self.env(**extra_env), capture_output=True,
-                              text=True, timeout=timeout)
+        with subprocess.Popen([str(part) for part in argv], env=self.env(**extra_env), stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, text=True, start_new_session=True) as process:
+            self.process_groups.append(process.pid)
+            try:
+                stdout, stderr = process.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGKILL)
+                raise
+        return subprocess.CompletedProcess(process.args, process.returncode, stdout, stderr)
 
     def themegen(self, *args):
         return self.run(["python3", self.home / ".config/hypr/scripts/themegen.py", *args])
