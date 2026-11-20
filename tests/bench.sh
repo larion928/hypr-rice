@@ -203,7 +203,7 @@ for (path, _, function), (_, _, _, _, callers) in pstats.Stats(profile).stats.it
     if "apptheme" not in Path(path).parts:
         continue
     for (caller_path, _, caller_function), (_, _, _, time_from_caller) in callers.items():
-        if Path(caller_path).name == "themegen.py" and caller_function == "apply":
+        if Path(caller_path).name == "themegen.py" and caller_function in ("apply", "run_each"):
             steps.append((time_from_caller, f"{Path(path).stem}.{function}"))
 
 for seconds, step in sorted(steps, reverse=True):
