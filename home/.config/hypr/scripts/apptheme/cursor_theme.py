@@ -2,11 +2,10 @@
 cursor is read: Hyprland now (hyprctl setcursor) and at its next start (~/.config/hypr/cursor.lua,
 which hyprland.lua loads), GTK programs (gsettings, settings.ini) and X11 ones (~/.icons/default).
 Without a pick the rice's own, WhiteCat."""
-import re
 import subprocess
 
 from .files import GENERATED, write
-from .icon_theme import SETTINGS_FILES
+from .icon_theme import set_gtk_ini
 from .paths import HOME, HYPR
 
 DEFAULT = "WhiteCat"
@@ -32,10 +31,7 @@ def apply(theme):
     subprocess.run(["hyprctl", "setcursor", name, str(pixels)], capture_output=True, check=False)
     subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "cursor-theme", name], check=False)
     subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "cursor-size", str(pixels)], check=False)
-    for settings in SETTINGS_FILES:
-        if settings.exists():
-            text = re.sub(r"^gtk-cursor-theme-name=.*$", f"gtk-cursor-theme-name={name}", settings.read_text(), flags=re.M)
-            text = re.sub(r"^gtk-cursor-theme-size=.*$", f"gtk-cursor-theme-size={pixels}", text, flags=re.M)
-            settings.write_text(text)
+    set_gtk_ini("gtk-cursor-theme-name", name)
+    set_gtk_ini("gtk-cursor-theme-size", pixels)
     # X11 programs that read no setting take the cursor of the "default" theme.
     write(HOME / ".icons/default/index.theme", f"[Icon Theme]\nName=Default\nInherits={name}\n")

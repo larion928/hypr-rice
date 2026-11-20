@@ -152,4 +152,4 @@ def apply(theme):
         themes = data.setdefault("enabledThemes", [])
         if THEME_FILE not in themes:
             themes.append(THEME_FILE)
-            settings.write_text(json.dumps(data, indent=4) + "\n")
+            write(settings.resolve(), json.dumps(data, indent=4) + "\n")

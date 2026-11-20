@@ -99,5 +99,5 @@ def set_dark_mode(base, process):
         browser_theme["color_scheme2"] = 2
         ntp.pop("custom_background_local_to_device", None)
         (profile / "background.jpg").unlink(missing_ok=True)
-        prefs_path.write_text(json.dumps(prefs, separators=(",", ":")))
+        write(prefs_path.resolve(), json.dumps(prefs, separators=(",", ":")))
 

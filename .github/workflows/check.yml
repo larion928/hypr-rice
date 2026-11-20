@@ -45,9 +45,12 @@ jobs:
       # jq: the battery and rice tests; python-pillow, python-fonttools, python-gobject + gtk3: what themegen
       # imports (apptheme/*.py, icon_themes.py needs the Gtk 3 typelib); fontconfig: fc-match in glyphs.py;
       # ffmpeg: the animated-wallpaper tests, which are skipped without it.
-      - run: pacman -Syu --noconfirm --needed jq python python-pillow python-fonttools python-gobject gtk3 fontconfig ffmpeg
+      # lua: tests/python drives the Hyprland config's event handlers with a stand-in `hl`.
+      - run: pacman -Syu --noconfirm --needed jq python python-pillow python-fonttools python-gobject gtk3 fontconfig ffmpeg lua
       - uses: actions/checkout@v5
       - run: tests/run.sh
+      # The scripts as the repo ships them (RICE_HOME), not a live copy: there is none here.
+      - run: RICE_HOME="$PWD/home" PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s tests/python
 
   install:
     needs: syntax

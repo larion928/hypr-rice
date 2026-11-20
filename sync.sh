@@ -71,6 +71,7 @@ PATHS=(
     .local/bin/proton-run
     .local/bin/games
     .local/bin/wallpaper
+    .local/bin/wallpaper-pause
     .local/bin/rice-install-package
     .claude/statusline.sh
 )
@@ -146,8 +147,6 @@ if [ -f "$code_settings" ]; then
     jq 'del(."workbench.colorTheme", ."git-graph.graph.colours")' "$code_settings" > "$code_settings.tmp"
     mv "$code_settings.tmp" "$code_settings"
 fi
-sed -i 's|^ExecStart=/usr/bin/histuid --theme .*|ExecStart=/usr/bin/histuid --theme claude|' \
-    "$DST/.config/systemd/user/histuid.service"
 
 # Prebuilt files too big for git (release: in packages/apps.txt) go to the GitHub release "files"
 # as <file>-<first 12 characters of its sha256>; the repo keeps their checksums, which is what

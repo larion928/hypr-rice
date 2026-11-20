@@ -6,6 +6,7 @@ import os
 import shutil
 from pathlib import Path
 
+from .files import write
 from .paths import HOME, RICE_CONF, THEMES
 
 REMOVED = RICE_CONF / "removed-themes"
@@ -45,8 +46,7 @@ def remove(name):
     if folder.is_symlink() or not (folder / "palette.json").exists():
         raise ValueError(f"нет темы райса «{name}»")
     shutil.rmtree(folder)
-    REMOVED.parent.mkdir(parents=True, exist_ok=True)
-    REMOVED.write_text("".join(f"{removed}\n" for removed in [*names(), name]))
+    write(REMOVED, "".join(f"{removed}\n" for removed in [*names(), name]))
 
 
 def restore(name):
@@ -56,4 +56,4 @@ def restore(name):
     if not (source / "palette.json").exists():
         raise ValueError(f"в райсе больше нет темы «{name}»")
     shutil.copytree(source, THEMES / name)
-    REMOVED.write_text("".join(f"{removed}\n" for removed in names() if removed != name))
+    write(REMOVED, "".join(f"{removed}\n" for removed in names() if removed != name))

@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+"""wallpaper-pause yes|no — pauses or resumes the animated wallpaper through the mpv control socket that
+~/.local/bin/wallpaper gives mpvpaper. The Hyprland config runs it when fullscreen windows come to hide the
+wallpaper on every monitor, or stop hiding it. A picture wallpaper, or a player that is gone, has no
+socket to answer: then there is nothing to pause."""
+import json
+import os
+import socket
+import sys
+
+PAUSED = {"yes": True, "no": False}
+if len(sys.argv) != 2 or sys.argv[1] not in PAUSED:
+    sys.exit("usage: wallpaper-pause yes|no")
+
+path = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "hypr-rice-wallpaper.sock")
+command = {"command": ["set_property", "pause", PAUSED[sys.argv[1]]]}
+with socket.socket(socket.AF_UNIX) as player:
+    player.settimeout(2)
+    try:
+        player.connect(path)
+    except (FileNotFoundError, ConnectionRefusedError):
+        sys.exit()
+    player.sendall(json.dumps(command).encode() + b"\n")
+    # mpv's answer: closing before it could leave the command unread.
+    player.recv(4096)

@@ -7,9 +7,14 @@ import time
 import zipfile
 
 from .colors import mix, with_alpha
+from .files import write
 from .paths import HOME, HYPR
 
-EXTENSION_ID = "larion.hypr-themes"
+EXTENSION_ID = "hypr-rice.hypr-themes"
+# Its id before, with the rice author's name as the publisher. Left installed it would offer every
+# theme a second time, in the colours of the build that installed it.
+OLD_EXTENSION_ID = "larion.hypr-themes"
+INSTALLED_EXTENSIONS = HOME / ".vscode-oss/extensions"
 # Bumped on every build so a running Code - OSS notices the reinstalled themes.
 EXTENSION_VERSION = f"1.0.{int(time.time()) // 60}"
 SETTINGS = HOME / ".config/Code - OSS/User/settings.json"
@@ -32,7 +37,7 @@ def apply(theme):
         data = json.loads(text)
         data["workbench.colorTheme"] = theme_label
         data["git-graph.graph.colours"] = graph
-        SETTINGS.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+        write(SETTINGS.resolve(), json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     except json.JSONDecodeError:
         # settings.json with comments: patch the single key in place.
         if '"workbench.colorTheme"' in text:
@@ -40,7 +45,7 @@ def apply(theme):
                           f'"workbench.colorTheme": "{theme_label}"', text, count=1)
         else:
             text = text.replace("{", f'{{\n  "workbench.colorTheme": "{theme_label}",', 1)
-        SETTINGS.write_text(text)
+        write(SETTINGS.resolve(), text)
 
 
 def theme_json(theme):
@@ -173,6 +178,8 @@ def build(themes):
     pack(extension, vsix, name, publisher)
     if shutil.which("code-oss"):
         subprocess.run(["code-oss", "--install-extension", str(vsix), "--force"], check=False)
+        if any(INSTALLED_EXTENSIONS.glob(f"{OLD_EXTENSION_ID}-*")):
+            subprocess.run(["code-oss", "--uninstall-extension", OLD_EXTENSION_ID], check=False)
     return vsix
 
 

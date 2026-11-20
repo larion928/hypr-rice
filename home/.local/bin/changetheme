@@ -47,8 +47,8 @@ changetheme — переключение темы Hyprland-окружения
                 и только когда панель видна, предлагает тему Telegram/AyuGram
                 (themegen.py offer)
   5. histui   — копирует themes/<тема>/histui.css + текущую палитру
-                colors.css в ~/.config/histui/themes/<тема>/, прописывает
-                --theme <тема> в histuid.service и рестартует демон
+                colors.css в ~/.config/histui/themes/<тема>/, пишет тему в
+                ~/.config/histui/theme.env (её читает histuid.service) и рестартует демон
 
 СТРУКТУРА ПАПКИ ТЕМЫ (~/.config/hypr/themes/<имя>/)
   *.png/jpg/jpeg/webp   обои (можно несколько — выбор случайный); *.gif, *.mp4, *.webm,
@@ -82,6 +82,19 @@ changetheme — переключение темы Hyprland-окружения
 EOF
 }
 
+# Whether histuid owns the notification bus name, waited for up to 2 s after its restart.
+histuid_on_bus() {
+    local owner main_pid
+    for _ in {1..20}; do
+        main_pid=$(systemctl --user show -p MainPID --value histuid)
+        owner=$(busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus \
+            GetConnectionUnixProcessID s org.freedesktop.Notifications 2>/dev/null)
+        [ "$owner" = "u $main_pid" ] && return 0
+        sleep 0.1
+    done
+    return 1
+}
+
 finish() {
     if [ "${THEMEGEN_FAILED:-0}" = 1 ]; then
         echo "Тема $THEME применена не полностью (см. ошибку выше)"
@@ -110,21 +123,36 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
-THEME=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+THEME=$1
 CONFIG_DIR="$HOME/.config/hypr/themes/$THEME"
 
+# A name is a folder in themes/, never a path: "../x" would reach outside it.
+case "$THEME" in
+    */*|.*) echo "Ошибка: '$THEME' — не имя темы"; exit 1 ;;
+esac
 if [ ! -d "$CONFIG_DIR" ]; then
     echo "Ошибка: Папка темы '$THEME' не найдена!"
     exit 1
 fi
 
+# One switch at a time: two at once would mix their files and start two wallpaper players. What is
+# started from here runs without the lock's descriptor ({lock}>&-): a player or a bar that inherited
+# it would hold the lock for as long as it runs.
+exec {lock}>"${XDG_RUNTIME_DIR:-/tmp}/hypr-rice-changetheme.lock"
+flock -w 60 "$lock" || { echo "Ошибка: другое переключение темы не закончилось за минуту"; exit 1; }
+
 # --- 1. Обои ---
 # The theme's own and those added in the settings, minus the ones switched off there.
-mapfile -t WALLPAPERS < <(python3 "$HOME/.config/hypr/scripts/themegen.py" wallpapers "$THEME")
+WALLPAPER_LIST=$(python3 "$HOME/.config/hypr/scripts/themegen.py" wallpapers "$THEME")
+WALLPAPERS_FAILED=$?
+mapfile -t WALLPAPERS < <(printf '%s' "$WALLPAPER_LIST")
 
 SELECTED_WALL=""
 CURRENT_WALL=$(cat "$HOME/.config/hypr/current-wallpaper" 2>/dev/null)
-if [ ${#WALLPAPERS[@]} -eq 0 ]; then
+if [ "$WALLPAPERS_FAILED" != 0 ]; then
+    THEMEGEN_FAILED=1
+    echo "ОШИБКА: themegen.py не смог перечислить обои темы (см. ошибку выше), обои остаются прежними"
+elif [ ${#WALLPAPERS[@]} -eq 0 ]; then
     echo "Предупреждение: В папке темы нет изображений."
 elif [ "$KEEP_WALLPAPER" = 1 ] && printf '%s\n' "${WALLPAPERS[@]}" | grep -qxF "$CURRENT_WALL"; then
     SELECTED_WALL=$CURRENT_WALL
@@ -135,12 +163,12 @@ else
     echo "Устанавливаю обои: $SELECTED_WALL"
     # Restored by the autostart in hyprland.lua, so a theme set offline gets its wallpaper too.
     echo "$SELECTED_WALL" > "$HOME/.config/hypr/current-wallpaper"
-    [ "$OFFLINE" = 1 ] || "$HOME/.local/bin/wallpaper" "$SELECTED_WALL"
+    [ "$OFFLINE" = 1 ] || "$HOME/.local/bin/wallpaper" "$SELECTED_WALL" {lock}>&-
 fi
 
 # --- 2. Палитра и конфиги приложений из themes/<тема>/palette.json ---
 if [ -f "$CONFIG_DIR/palette.json" ]; then
-    if python3 "$HOME/.config/hypr/scripts/themegen.py" apply "$THEME" --wallpaper "$SELECTED_WALL"; then
+    if python3 "$HOME/.config/hypr/scripts/themegen.py" apply "$THEME" --wallpaper "$SELECTED_WALL" {lock}>&-; then
         echo "Применена палитра темы: $THEME"
     else
         # The rest still runs: a half-applied theme beats the old one with a new wallpaper.
@@ -175,8 +203,8 @@ fi
 if [ "$OFFLINE" = 0 ]; then
     # Сначала панель, потом ссылка на тему в Telegram/AyuGram: его предпросмотр открывается на весь
     # экран, и панель, созданная при открытом предпросмотре, не рисуется, пока не перейдёшь в его окно.
-    { "$HOME/.local/bin/waybar-start" reload
-      python3 "$HOME/.config/hypr/scripts/themegen.py" offer "$THEME"; } &>/dev/null &
+    { "$HOME/.local/bin/waybar-start" reload \
+          && python3 "$HOME/.config/hypr/scripts/themegen.py" offer "$THEME"; } &>/dev/null {lock}>&- &
     disown
 fi
 
@@ -188,38 +216,43 @@ if [ -f "$HISTUI_CSS" ]; then
 
     mkdir -p "$HOME/.config/histui/themes/$THEME"
 
-    cp "$HISTUI_CSS" "$HOME/.config/histui/themes/$THEME/style.css"
-    cp "$HISTUI_CSS" "$HOME/.config/histui/themes/$THEME/theme.css"
+    if ! cp "$HISTUI_CSS" "$HOME/.config/histui/themes/$THEME/style.css" \
+        || ! cp "$HISTUI_CSS" "$HOME/.config/histui/themes/$THEME/theme.css"; then
+        echo "ОШИБКА: Не удалось скопировать CSS файл!"
+        exit 1
+    fi
     # палитра, на которую ссылается @import url("colors.css")
     if [ -f "$HOME/.config/histui/colors.css" ]; then
         cp "$HOME/.config/histui/colors.css" "$HOME/.config/histui/themes/$THEME/colors.css"
     fi
 
-    if [ ! -f "$HOME/.config/histui/themes/$THEME/style.css" ]; then
-        echo "ОШИБКА: Не удалось скопировать CSS файл!"
-        exit 1
-    fi
-
+    # The rice's histuid.service reads the theme from theme.env at every start.
+    echo "HISTUI_THEME=$THEME" > "$HOME/.config/histui/theme.env"
     SERVICE_DIR="$HOME/.config/systemd/user"
     SERVICE_FILE="$SERVICE_DIR/histuid.service"
     mkdir -p "$SERVICE_DIR"
-
     if [ ! -f "$SERVICE_FILE" ]; then
         cp /usr/lib/systemd/user/histuid.service "$SERVICE_FILE"
     fi
-
-    sed -i "s|ExecStart=/usr/bin/histuid.*|ExecStart=/usr/bin/histuid --theme $THEME|" "$SERVICE_FILE"
+    # Another unit (the package's) names the theme in ExecStart instead.
+    if ! grep -q 'HISTUI_THEME' "$SERVICE_FILE"; then
+        sed -i "s|ExecStart=/usr/bin/histuid.*|ExecStart=/usr/bin/histuid --theme $THEME|" "$SERVICE_FILE"
+    fi
 
     if [ "$OFFLINE" = 1 ]; then
         echo "Тема уведомлений histui записана: $THEME"
         finish
     fi
-    systemctl --user daemon-reload
+    # Only a unit changed on disk needs it (150 ms): the theme alone is reread by the restart.
+    if [ "$(systemctl --user show -p NeedDaemonReload --value histuid)" = yes ]; then
+        systemctl --user daemon-reload
+    fi
     systemctl --user restart histuid
 
-    sleep 1
-    if systemctl --user is-active --quiet histuid; then
+    if histuid_on_bus; then
         echo "Обновлена тема уведомлений для histui: $THEME"
+    elif systemctl --user is-active --quiet histuid; then
+        echo "Предупреждение: histuid запущен, но за 2 с не занял шину уведомлений"
     else
         echo "ОШИБКА: Демон histuid не запустился!"
         systemctl --user status histuid

@@ -264,7 +264,7 @@ def apply(theme, wallpaper=None):
 def import_sheet(sheet, name):
     text = sheet.read_text() if sheet.exists() else ""
     if f'@import "{name}"' not in text:
-        sheet.write_text(f'@import "{name}";\n' + text)
+        write(sheet.resolve(), f'@import "{name}";\n' + text)
 
 
 def prefs_for(kind, look):
@@ -288,4 +288,4 @@ def write_user_js(path, prefs):
     text = path.read_text() if path.exists() else ""
     text = text.replace(USER_JS_LEGACY + "\n", "")
     block = [f"user_pref({json.dumps(key)}, {json.dumps(value)});" for key, value in prefs.items()]
-    path.write_text(with_block(text, USER_JS_BEGIN, USER_JS_END, block))
+    write(path.resolve(), with_block(text, USER_JS_BEGIN, USER_JS_END, block))

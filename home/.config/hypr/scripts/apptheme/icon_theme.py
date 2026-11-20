@@ -4,6 +4,7 @@ that back, which is why the last one set is remembered."""
 import re
 import subprocess
 
+from .files import write
 from .paths import HOME
 
 DEFAULT = "Papirus-Dark"  # what the rice's gtk-3.0/settings.ini ships
@@ -24,8 +25,7 @@ def apply(theme):
     wanted = chosen(theme)
     if wanted:
         set_icon_theme(wanted)
-        SET_BY_RICE.parent.mkdir(parents=True, exist_ok=True)
-        SET_BY_RICE.write_text(wanted + "\n")
+        write(SET_BY_RICE, wanted + "\n")
     elif SET_BY_RICE.exists():
         set_icon_theme(DEFAULT)
         SET_BY_RICE.unlink()
@@ -33,7 +33,22 @@ def apply(theme):
 
 def set_icon_theme(name):
     subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "icon-theme", name], check=False)
+    set_gtk_ini("gtk-icon-theme-name", name)
+
+
+def set_gtk_ini(key, value):
+    """key=value in each settings.ini of GTK 3 and 4 there is, added under [Settings] when missing. The
+    files are the user's: everything else in them stays."""
+    line = f"{key}={value}"
     for settings in SETTINGS_FILES:
-        if settings.exists():
-            text = re.sub(r"^gtk-icon-theme-name=.*$", f"gtk-icon-theme-name={name}", settings.read_text(), flags=re.M)
-            settings.write_text(text)
+        if not settings.exists():
+            continue
+        text, replaced = re.subn(rf"^{re.escape(key)}\s*=.*$", lambda _: line, settings.read_text(), flags=re.M)
+        if not replaced:
+            text, under_header = re.subn(r"^\[Settings\][ \t]*$", lambda header: f"{header[0]}\n{line}", text,
+                                         count=1, flags=re.M)
+            if not under_header:
+                if text and not text.endswith("\n"):
+                    text += "\n"
+                text += f"[Settings]\n{line}\n"
+        write(settings.resolve(), text)

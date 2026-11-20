@@ -3,11 +3,6 @@ ones the rice offers to install (checked to exist in the repos or the AUR)."""
 import subprocess
 from pathlib import Path
 
-import gi
-
-gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk  # imported once the version above is set
-
 from .paths import HOME
 
 ICON_DIRS = (HOME / ".local/share/icons", HOME / ".icons", Path("/usr/share/icons"))
@@ -55,6 +50,11 @@ def index_fields(index):
 
 def previews(name):
     """Paths of PREVIEW's icons as the theme draws them (falling back the way programs do)."""
+    # Imported here, not at the top: GTK costs every themegen.py command 60 ms, and one without
+    # python-gobject would fail whatever it was asked.
+    import gi
+    gi.require_version("Gtk", "3.0")
+    from gi.repository import Gtk
     theme = Gtk.IconTheme.new()
     theme.set_custom_theme(name)
     found = (theme.lookup_icon(icon, 48, 0) for icon in PREVIEW)

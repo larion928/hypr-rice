@@ -50,7 +50,9 @@ import contextlib
 import json
 import os
 import sys
+import traceback
 import zipfile
+from functools import partial
 from pathlib import Path
 
 from apptheme import (animated, bar_preview, battery, chromium, css_palette, cursor_install, cursor_theme,
@@ -62,28 +64,52 @@ from apptheme.theme import all_names, load
 
 
 def apply(name, wallpaper=None):
+    """0, or 1 when a program's step failed (each failure on stderr; the other programs still change)."""
     theme = load(name)
     # awww already plays an animated wallpaper; the lock and login screens and the browsers get a still.
-    wallpaper = wallpaper_still.still(wallpaper) if wallpaper else None
+    status, wallpaper = still_of(wallpaper)
     # changetheme reloads Hyprland, which drops any screen shader; keep screen-fx in sync.
     (Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "screen-fx-on").unlink(missing_ok=True)
-    hypr.apply(theme)
-    windows.apply(theme)
-    css_palette.apply(theme)
-    waybar.apply(theme)
-    kitty.apply(theme)
-    hyprlock.apply(theme, wallpaper)
-    gtk.apply(theme)
-    icon_theme.apply(theme)
-    cursor_theme.apply(theme)
-    drift.apply(theme)
-    vscode.apply(theme)
-    system.apply(theme, wallpaper)
-    obsidian.apply(theme)
-    vesktop.apply(theme)
-    firefox.apply(theme, wallpaper)
-    chromium.apply(theme, wallpaper)
-    gtk.reload()
+    steps = (
+        partial(hypr.apply, theme), partial(windows.apply, theme), partial(css_palette.apply, theme),
+        partial(waybar.apply, theme), partial(kitty.apply, theme), partial(hyprlock.apply, theme, wallpaper),
+        partial(gtk.apply, theme), partial(icon_theme.apply, theme), partial(cursor_theme.apply, theme),
+        partial(drift.apply, theme), partial(vscode.apply, theme), partial(system.apply, theme, wallpaper),
+        partial(obsidian.apply, theme), partial(vesktop.apply, theme), partial(firefox.apply, theme, wallpaper),
+        partial(chromium.apply, theme, wallpaper), gtk.reload,
+    )
+    return max(status, run_each(steps))
+
+
+def still_of(wallpaper):
+    """(status, the wallpaper's still picture): (0, None) without a wallpaper, (1, None) when no still
+    can be made (a GIF without ffmpeg); the steps then do without one, as with no wallpaper."""
+    if not wallpaper:
+        return 0, None
+    try:
+        return 0, wallpaper_still.still(wallpaper)
+    except Exception as error:  # whatever breaks, the theme still has to be applied
+        report_failure("wallpaper_still", error)
+        return 1, None
+
+
+def run_each(steps):
+    """Runs every step, also after one failed: one broken program's file must not leave every program
+    after it in the old theme. 0, or 1 when a step failed, with the failure on stderr."""
+    status = 0
+    for step in steps:
+        try:
+            step()
+        except Exception as error:  # any failure is one program's, the rest go on
+            report_failure(getattr(step, "func", step).__module__.removeprefix("apptheme."), error)
+            status = 1
+    return status
+
+
+def report_failure(step, error):
+    """One line on stderr: the step, where it broke and why."""
+    where = traceback.extract_tb(error.__traceback__)[-1]
+    print(f"{step}: {type(error).__name__}: {error} ({Path(where.filename).name}:{where.lineno})", file=sys.stderr)
 
 
 def build():
@@ -104,13 +130,11 @@ def refresh():
     run at every Hyprland start."""
     theme = current_theme()
     if not theme:
-        return
-    obsidian.apply(theme)
-    vesktop.apply(theme)
-    wallpaper = current_wallpaper()
-    wallpaper = wallpaper_still.still(wallpaper) if wallpaper else None
-    firefox.apply(theme, wallpaper)
-    chromium.apply(theme, wallpaper)
+        return 0
+    status, wallpaper = still_of(current_wallpaper())
+    steps = (partial(obsidian.apply, theme), partial(vesktop.apply, theme),
+             partial(firefox.apply, theme, wallpaper), partial(chromium.apply, theme, wallpaper))
+    return max(status, run_each(steps))
 
 
 def current_theme():
@@ -127,12 +151,21 @@ def current_wallpaper():
 
 
 def main(argv):
+    """The command's exit status; a theme that is not there is a line on stderr and 1, not a traceback."""
+    try:
+        return run_command(argv)
+    except ValueError as error:
+        print(error, file=sys.stderr)
+        return 1
+
+
+def run_command(argv):
     if len(argv) >= 2 and argv[0] == "apply":
-        apply(argv[1], wallpaper_argument(argv))
+        return apply(argv[1], wallpaper_argument(argv))
     elif argv[:1] == ["build"]:
         build()
     elif argv[:1] == ["refresh"]:
-        refresh()
+        return refresh()
     elif len(argv) >= 2 and argv[0] == "offer":
         telegram.offer(load(argv[1]))
     elif len(argv) >= 2 and argv[0] == "wallpapers":

@@ -1,13 +1,19 @@
 #!/bin/bash
 # wallpaper FILE — puts FILE on the desktop: a picture through awww; an animation (a GIF or a video)
-# as an mp4 played by mpvpaper, decoded by the GPU, looping, paused while windows or a fullscreen game
-# cover it. Under the animation awww shows its first frame: what is seen while the video loads, and
+# as an mp4 played by mpvpaper, decoded by the GPU, looping, paused while fullscreen windows
+# hide it. Under the animation awww shows its first frame: what is seen while the video loads, and
 # if mpvpaper stops. Without mpvpaper a GIF is played by awww and a video shows its first frame.
 # changetheme, the settings window and the Hyprland autostart all set wallpapers through this.
 set -u
 file=${1:?usage: wallpaper FILE}
 THEMEGEN="$HOME/.config/hypr/scripts/themegen.py"
 PLAYER=${WALLPAPER_PLAYER:-mpvpaper}  # the tests put a stand-in here, so they never start the real one
+
+# One at a time (changetheme, the settings window and Hyprland's autostart may overlap): two runs that
+# both stop the old player before either starts its own would leave two players. The player is
+# started without the lock's descriptor: it would hold the lock for as long as it plays.
+exec {lock}>"${XDG_RUNTIME_DIR:-/tmp}/hypr-rice-wallpaper.lock"
+flock -w 30 "$lock" || { echo "wallpaper: другой запуск не закончился за 30 с" >&2; exit 1; }
 
 case "${file,,}" in
     *.gif|*.mp4|*.webm|*.mkv|*.mov|*.avi|*.m4v) animated=1 ;;
@@ -34,5 +40,10 @@ if ! command -v "$PLAYER" >/dev/null; then
 fi
 [ -n "$still" ] && awww img "$still"
 [ -n "$video" ] || exit 1
-# The bottom layer: above awww's background, below every window and the bar.
-exec "$PLAYER" -f -p -a FULL -l bottom -o "no-audio loop hwdec=auto panscan=1.0" ALL "$video"
+# The bottom layer: above awww's background, below every window and the bar. -p pauses it while
+# Hyprland stops drawing it. A fullscreen window on the workspace a monitor shows pauses it through the
+# control socket: the Hyprland config watches for that and runs wallpaper-pause. (mpvpaper's own -a FULL
+# paused it for a fullscreen window on any workspace, hidden ones too.)
+control="${XDG_RUNTIME_DIR:-/tmp}/hypr-rice-wallpaper.sock"
+exec "$PLAYER" -f -p -l bottom -o "no-audio loop hwdec=auto panscan=1.0 input-ipc-server=$control" \
+    ALL "$video" {lock}>&-

@@ -23,5 +23,21 @@ def reset(name):
     source = rice_themes() / name
     if not (source / "palette.json").exists():
         raise ValueError(f"в райсе нет темы «{name}»: правки убраны, файлы темы остались как были")
-    shutil.rmtree(THEMES / name)
-    shutil.copytree(source, THEMES / name)
+    replace_folder(THEMES / name, source)
+
+
+def replace_folder(folder, source):
+    """folder becomes a copy of source; a copy that fails halfway (a full disk) leaves folder as it was.
+    The copy and the old folder wait beside THEMES, where no theme list looks."""
+    fresh = THEMES.parent / f".{folder.name}.factory-new"
+    old = THEMES.parent / f".{folder.name}.factory-old"
+    for leftover in (fresh, old):  # from a run that was killed
+        shutil.rmtree(leftover, ignore_errors=True)
+    try:
+        shutil.copytree(source, fresh)
+    except BaseException:
+        shutil.rmtree(fresh, ignore_errors=True)
+        raise
+    folder.rename(old)
+    fresh.rename(folder)
+    shutil.rmtree(old)

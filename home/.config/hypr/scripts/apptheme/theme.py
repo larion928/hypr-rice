@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .animated import ANIMATED_SUFFIXES
+from .files import write
 from .paths import RICE_CONF, THEMES
 
 # What the user changed per theme in the settings window (Alt+F2, «Тема»); the user's own file, not
@@ -78,7 +79,10 @@ def resolve_body_font(ui, font, display):
 
 
 def load(name):
+    """The theme name; a ValueError when there is none (or the name points outside THEMES)."""
     folder = THEMES / name
+    if "/" in name or name.startswith(".") or not (folder / "palette.json").is_file():
+        raise ValueError(f"нет темы «{name}»")
     palette = json.loads((folder / "palette.json").read_text())
     ui = read_ui(folder)
     own = {"fonts": {"font": palette["font"], "display": palette["display"],
@@ -135,7 +139,7 @@ def forget_edits(name):
     """Drops what the settings window saved for the theme name (deleted, or its edits written in)."""
     every_edit = read_edits()
     if every_edit.get("themes", {}).pop(name, None) is not None:
-        EDITS.write_text(json.dumps(every_edit, indent=2, ensure_ascii=False) + "\n")
+        write(EDITS.resolve(), json.dumps(every_edit, indent=2, ensure_ascii=False) + "\n")
 
 
 def all_names():

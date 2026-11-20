@@ -22,6 +22,9 @@ A game is one of:
   games.py remove ID
   games.py launch ID            starts the game and remembers when
 """
+import contextlib
+import fcntl
+import functools
 import json
 import os
 import re
@@ -31,14 +34,19 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
 
 from apptheme import steam
+from apptheme.files import write
 
 HOME = Path.home()
 LIBRARY = HOME / ".config/hypr-rice/games.json"
+# Held while the library is read, changed and written: the window's changes and a `find` running in the
+# background would otherwise each write over the other's.
+LIBRARY_LOCK = HOME / ".config/hypr-rice/games.lock"
 COVERS = HOME / ".local/share/hypr-rice/game-covers"
 STEAM = steam.STEAM
 # Switched on in rice → Игры: оптимизация: games run under gamemoderun. A Windows game gets it from
@@ -81,7 +89,7 @@ def main(argv):
         else:
             print(__doc__.strip(), file=sys.stderr)
             return 2
-    except ValueError as error:
+    except (ValueError, OSError) as error:  # OSError: a program or file that cannot be started or read
         print(error, file=sys.stderr)
         return 1
     return 0
@@ -99,10 +107,16 @@ def games():
 
 
 def save(library):
-    LIBRARY.parent.mkdir(parents=True, exist_ok=True)
-    temporary = LIBRARY.with_suffix(".tmp")
-    temporary.write_text(json.dumps(library, indent=2, ensure_ascii=False) + "\n")
-    temporary.replace(LIBRARY)
+    write(LIBRARY.resolve(), json.dumps(library, indent=2, ensure_ascii=False) + "\n")
+
+
+@contextlib.contextmanager
+def locked():
+    """The library to itself while a change is read and written (not while the store is asked)."""
+    LIBRARY_LOCK.parent.mkdir(parents=True, exist_ok=True)
+    with LIBRARY_LOCK.open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
 
 
 def game(game_id):
@@ -113,27 +127,30 @@ def game(game_id):
 
 
 def add(entry):
-    library = games()
-    same = next((g for g in library if g["kind"] == entry["kind"] and g["target"] == entry["target"]), None)
-    if same:
-        return same  # added before: the same game twice is no use
-    entry = {"id": secrets.token_hex(4), **entry, "added": int(time.time()), "played": 0}
-    save(library + [entry])
-    return entry
+    with locked():
+        library = games()
+        same = next((g for g in library if g["kind"] == entry["kind"] and g["target"] == entry["target"]), None)
+        if same:
+            return same  # added before: the same game twice is no use
+        entry = {"id": secrets.token_hex(4), **entry, "added": int(time.time()), "played": 0}
+        save(library + [entry])
+        return entry
 
 
 def change(game_id, **fields):
-    library = games()
-    for entry in library:
-        if entry["id"] == game_id:
-            entry.update(fields)
-    save(library)
+    with locked():
+        library = games()
+        for entry in library:
+            if entry["id"] == game_id:
+                entry.update(fields)
+        save(library)
 
 
 def remove(game_id):
     for picture in COVERS.glob(f"{game_id}*"):  # its cover and an icon found for it
         picture.unlink()
-    save([entry for entry in games() if entry["id"] != game_id])
+    with locked():
+        save([entry for entry in games() if entry["id"] != game_id])
 
 
 def add_file(path):
@@ -143,7 +160,7 @@ def add_file(path):
     if not path.is_file():
         raise ValueError(f"нет файла {path}")
     name = re.sub(r"[_.-]+", " ", path.stem).strip() or path.name
-    if path.suffix.lower() in WINDOWS_SUFFIXES or path.read_bytes()[:2] == b"MZ":
+    if path.suffix.lower() in WINDOWS_SUFFIXES or starts_with(path, b"MZ"):
         kind = "exe"
     elif path.suffix.lower() == ".appimage":
         kind = "appimage"
@@ -152,6 +169,11 @@ def add_file(path):
     else:
         raise ValueError(f"{path.name}: не программа (нужен .exe, .AppImage или исполняемый файл)")
     return add({"kind": kind, "target": str(path), "name": name})
+
+
+def starts_with(path, magic):
+    with path.open("rb") as file:
+        return file.read(len(magic)) == magic
 
 
 def set_cover(game_id, image):
@@ -177,6 +199,7 @@ def uncover(game_id):
 # similar one is someone else's game: "osu!" finds only "McOsu"), else an icon: the program's
 # own, an AppImage's own, a picture in the game's folder. Looked for once per game, in the background
 # (the window runs games.py find); "looked" keeps a game with nothing to find from being searched again.
+# A game whose search did not reach the store (offline) is not marked: the next find asks again.
 STORE_SEARCH = "https://store.steampowered.com/api/storesearch/?term={}&l=english&cc=us"
 STORE_COVERS = ("https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{}/library_600x900_2x.jpg",
                 "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{}/library_600x900.jpg")
@@ -188,17 +211,22 @@ def find_pictures():
     for entry in games():
         if entry.get("looked") or entry["kind"] == "steam":
             continue
-        fields = {"looked": int(time.time())}
-        if not entry.get("cover"):
-            fields["cover"] = store_cover(entry)
+        fields = {}
+        try:
+            if not entry.get("cover"):
+                fields["cover"] = store_cover(entry)
+            fields["looked"] = int(time.time())
+        except (OSError, ValueError):
+            pass  # the store did not answer: left unlooked, asked again next time; its own icon is found now
         if not entry.get("icon") and not fields.get("cover"):
             fields["icon"] = own_icon(entry)
         found[entry["id"]] = {key: value for key, value in fields.items() if value}
     # Read again: the window may have added or renamed a game while the store was asked.
-    library = games()
-    for entry in library:
-        entry.update(found.get(entry["id"], {}))
-    save(library)
+    with locked():
+        library = games()
+        for entry in library:
+            entry.update(found.get(entry["id"], {}))
+        save(library)
 
 
 def comparable(name):
@@ -206,12 +234,10 @@ def comparable(name):
 
 
 def store_cover(entry):
-    """The Steam store's tall cover of the game with exactly this name, saved as the game's cover."""
-    try:
-        with urllib.request.urlopen(STORE_SEARCH.format(urllib.parse.quote(entry["name"])), timeout=8) as reply:
-            items = json.load(reply).get("items", [])
-    except (OSError, ValueError):
-        return ""  # offline, or the store answered something else
+    """The Steam store's tall cover of the game with exactly this name, saved as the game's cover; "" when
+    the store has none. OSError when the store cannot be reached, ValueError when it answers no JSON."""
+    with urllib.request.urlopen(STORE_SEARCH.format(urllib.parse.quote(entry["name"])), timeout=8) as reply:
+        items = json.load(reply).get("items", [])
     appid = next((item["id"] for item in items if comparable(item["name"]) == comparable(entry["name"])), None)
     if appid is None:
         return ""
@@ -219,8 +245,8 @@ def store_cover(entry):
         try:
             with urllib.request.urlopen(url.format(appid), timeout=15) as reply:
                 picture = reply.read()
-        except OSError:
-            continue
+        except urllib.error.HTTPError:
+            continue  # the store has not this size; a connection lost halfway goes up as OSError
         if picture.startswith(b"\xff\xd8"):  # a JPEG, not an error page
             COVERS.mkdir(parents=True, exist_ok=True)
             target = COVERS / f"{entry['id']}.jpg"
@@ -284,15 +310,22 @@ def icon_file(icon):
     if not icon or icon.startswith("/"):
         return icon
     try:
-        import gi
-        gi.require_version("Gtk", "3.0")
-        from gi.repository import Gtk
-    except (ImportError, ValueError):
+        theme = system_icons()
+    except (ImportError, ValueError):  # no GTK for Python: the window's own lookup does
         return icon
-    theme = Gtk.IconTheme.new()
-    theme.set_custom_theme(system_icon_theme())
     found = theme.lookup_icon(icon, 256, 0)
     return found.get_filename() if found else icon
+
+
+@functools.cache
+def system_icons():
+    """The system's icon theme, made once per run: a listing asks it for every game."""
+    import gi
+    gi.require_version("Gtk", "3.0")
+    from gi.repository import Gtk
+    theme = Gtk.IconTheme.new()
+    theme.set_custom_theme(system_icon_theme())
+    return theme
 
 
 def system_icon_theme():

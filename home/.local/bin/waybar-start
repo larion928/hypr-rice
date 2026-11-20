@@ -8,8 +8,16 @@
 # window is focused: Hyprland does not draw it, so waybar waits for a frame callback that never comes
 # (seen in the Wayland log). changetheme therefore sends the Telegram link only after this script has
 # seen the bar. Whatever the case, the bar is checked, a failure is logged to
-# ~/.cache/waybar-start.log, and waybar is restarted up to three times.
+# ~/.cache/waybar-start.log, and waybar is restarted up to three times; then the exit status is 1.
 CONF="$HOME/.config/hypr-rice/waybar"
+LOG="$HOME/.cache/waybar-start.log"
+LOG_KEPT_LINES=300  # a log of every failure ever would grow without end; the recent ones tell enough
+
+# One at a time: changetheme's reload and Alt+Shift+O at once would each stop the old waybar and
+# start their own, leaving two bars. waybar is started without the lock's descriptor: it would hold
+# the lock for as long as it runs.
+exec {lock}>"${XDG_RUNTIME_DIR:-/tmp}/hypr-rice-waybar-start.lock"
+flock -w 60 "$lock" || { echo "waybar-start: другой запуск не закончился за минуту" >&2; exit 1; }
 
 # On top of the theme's style.css: fonts.css (the font picked for the theme in the settings, written
 # by themegen) and user.css (the user's own, not part of the rice). The combined file stays next to
@@ -27,7 +35,7 @@ style() {
 start() {
     pkill -x waybar 2>/dev/null
     for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -x waybar >/dev/null || break; sleep 0.2; done
-    setsid -f waybar -c "$CONF/config.json" -s "$(style)" --log-level error >/dev/null 2>&1
+    setsid -f waybar -c "$CONF/config.json" -s "$(style)" --log-level error >/dev/null 2>&1 {lock}>&-
 }
 
 # Every waybar layer is mapped and fully faded in (the fade takes well under a second).
@@ -50,7 +58,8 @@ log_invisible_bar() {
         date '+%F %T'
         ps -o pid,pcpu,etime,args -C waybar
         hyprctl layers -j | jq -c '[.[].levels[][] | select(.namespace == "waybar")]'
-    } >> "$HOME/.cache/waybar-start.log" 2>&1
+    } >> "$LOG" 2>&1
+    tail -n "$LOG_KEPT_LINES" "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
 }
 
 # The style file the running waybar was started with; a reload rereads only that one.
@@ -66,3 +75,4 @@ for _ in 1 2 3; do
     shows_within_4s && exit 0
     log_invisible_bar
 done
+exit 1

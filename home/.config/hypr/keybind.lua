@@ -18,8 +18,22 @@ local menu        = "~/.local/bin/launcher"
 -- The default browser (xdg-settings), so it follows whichever one is installed.
 local browser     = [[sh -c 'gtk-launch "$(xdg-settings get default-web-browser)"']]
 
-local ok, user = pcall(dofile, os.getenv("HOME") .. "/.config/hypr/binds-user.lua")
-if not ok or type(user) ~= "table" then user = {} end
+-- No binds-user.lua: the defaults. A broken one (edited by hand) gives the defaults too, but says so
+-- on screen: otherwise every changed key and mainMod would be gone without a word.
+local user_file = os.getenv("HOME") .. "/.config/hypr/binds-user.lua"
+local user = {}
+local user_handle = io.open(user_file, "r")
+if user_handle then
+    user_handle:close()
+    local ok, result = pcall(dofile, user_file)
+    if ok and type(result) == "table" then
+        user = result
+    else
+        local reason = ok and "он не возвращает таблицу { ... }" or tostring(result)
+        hl.notification.create({ text = "Клавиши по умолчанию: binds-user.lua не загружен: " .. reason,
+                                 timeout = 20000, icon = "error" })
+    end
+end
 user.keys = user.keys or {}
 
 local mainMod = user.mainMod or "ALT"

@@ -22,8 +22,9 @@ def colors_of(theme):
 
 def build(themes):
     repo = HOME / "neohtop"
-    if not repo.exists():
-        return None
+    definitions = repo / "src/lib/definitions"
+    if not definitions.is_dir():
+        return None  # no neoHtop checkout here (only the rice's author keeps one): nothing to do
     entries = []
     for theme in themes:
         entry_colors = "\n".join(f'      {key}: "{value}",' for key, value in colors_of(theme).items())
@@ -32,6 +33,6 @@ def build(themes):
     text = ("// " + GENERATED + "\n"
             'import type { Theme } from "$lib/types";\n\n'
             "export const hyprThemes: Record<string, Theme> = {\n" + "\n".join(entries) + "\n};\n")
-    path = repo / "src/lib/definitions/hyprThemes.ts"
+    path = definitions / "hyprThemes.ts"
     write(path, text)
     return path

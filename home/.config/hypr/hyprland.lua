@@ -1,13 +1,29 @@
 -- Hyprland config (Lua, Hyprland 0.55+). Migrated from hyprland.conf;
 -- the old hyprlang files are kept in hyprlang-backup/.
 
+-- A file of the machine's or the user's own (not part of the rice repo), when it is there. One that
+-- breaks (a typo in user.lua) is skipped with a notification on screen: an error here would stop
+-- the whole config, and everything after it would be lost too.
+local function load_if_present(name)
+    local path = os.getenv("HOME") .. "/.config/hypr/" .. name
+    local file = io.open(path, "r")
+    if not file then
+        return
+    end
+    file:close()
+    local ok, problem = pcall(dofile, path)
+    if not ok then
+        hl.notification.create({ text = name .. " не загружен: " .. tostring(problem), timeout = 20000, icon = "error" })
+    end
+end
+
 ----------------
 --- MONITORS ---
 ----------------
 
 -- Machine-specific (outputs, modes, workspace placement): monitors.lua is not part of the
 -- rice repo, the installer writes a generic one.
-require("monitors")
+load_if_present("monitors.lua")
 
 -----------------
 --- AUTOSTART ---
@@ -24,9 +40,8 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("python3 ~/.config/hypr/scripts/themegen.py refresh")
     -- Session services that must not run under another desktop (its own notification daemon,
     -- portals): started here, stopped at shutdown.
-    -- Another desktop's notification daemon gets D-Bus-activated by the first notification and
-    -- would keep histuid off the bus; it is closed for this session.
-    hl.exec_cmd("pkill -x mako; pkill -x dunst; pkill -x swaync; systemctl --user start histuid.service portal-restart.timer")
+    -- Another desktop's notification daemon that holds the bus is closed by histuid.service itself.
+    hl.exec_cmd("systemctl --user start histuid.service portal-restart.timer")
     -- Volume/brightness OSD, follows the current theme on its own.
     hl.exec_cmd("OSD_BACKLIGHT=$(ls -d /sys/class/backlight/* 2>/dev/null | head -n1) quickshell -d -p ~/.config/quickshell/osd")
     hl.exec_cmd("awww-daemon")
@@ -36,6 +51,60 @@ end)
 
 hl.on("hyprland.shutdown", function()
     hl.exec_cmd("systemctl --user stop histuid.service portal-restart.timer")
+end)
+
+--------------------------
+--- ANIMATED WALLPAPER ---
+--------------------------
+
+-- The animated wallpaper (~/.local/bin/wallpaper) is one mpv drawing on every monitor, so it pauses
+-- everywhere or nowhere: it pauses while each monitor shows a fullscreen window, and plays while any
+-- monitor shows the wallpaper. A fullscreen window on a workspace no monitor shows hides nothing.
+-- A maximized window (fullscreen_mode 1) leaves the wallpaper in the gaps; only a fullscreen one (2) hides it.
+local FULLSCREEN = 2
+
+-- closing: the window being closed; its workspace still counts it as fullscreen when window.close comes.
+local function hides_wallpaper(workspace, closing)
+    if workspace == nil or workspace.fullscreen_mode < FULLSCREEN then
+        return false
+    end
+    return closing == nil or workspace.fullscreen_window == nil
+        or workspace.fullscreen_window.address ~= closing.address
+end
+
+local function wallpaper_hidden(closing)
+    for _, monitor in ipairs(hl.get_monitors()) do
+        if not hides_wallpaper(monitor.active_workspace, closing)
+            and not hides_wallpaper(monitor.active_special_workspace, closing) then
+            return false
+        end
+    end
+    return true
+end
+
+-- Sent only when it changes: the events below come on every workspace switch, and each send starts a process.
+local wallpaper_paused = nil
+
+local function update_wallpaper_pause(closing)
+    local hidden = wallpaper_hidden(closing)
+    if hidden ~= wallpaper_paused then
+        wallpaper_paused = hidden
+        hl.exec_cmd("~/.local/bin/wallpaper-pause " .. (hidden and "yes" or "no"))
+    end
+end
+
+hl.on("window.close", update_wallpaper_pause)
+for _, event in ipairs({ "window.fullscreen", "window.open", "window.destroy", "window.move_to_workspace",
+                         "workspace.active", "workspace.special_active", "workspace.move_to_monitor",
+                         "monitor.added", "monitor.removed" }) do
+    hl.on(event, function() update_wallpaper_pause(nil) end)
+end
+-- A new player (a theme change, the autostart) starts playing: it gets the current state again.
+hl.on("layer.opened", function(layer)
+    if layer.namespace == "mpvpaper" then
+        wallpaper_paused = nil
+        update_wallpaper_pause(nil)
+    end
 end)
 
 -----------------------------
@@ -260,24 +329,17 @@ hl.layer_rule({
 -------------------
 
 -- Per-device input settings; rewritten by ~/.local/bin/mouse-sens.
-require("devices")
+load_if_present("devices.lua")
 require("keybind")
-local function load_if_present(path)
-    local file = io.open(path, "r")
-    if file then
-        file:close()
-        dofile(path)
-    end
-end
 
 -- Symlink to themes/<name>/hypr.lua, switched by ~/.local/bin/changetheme.
 require("theme")
 -- What the user changed in the theme's windows in the settings window (Alt+F2 → Тема → Окна),
 -- written by themegen on every theme change.
-load_if_present(os.getenv("HOME") .. "/.config/hypr/theme-edits.lua")
-load_if_present(os.getenv("HOME") .. "/.config/hypr/cursor.lua")
+load_if_present("theme-edits.lua")
+load_if_present("cursor.lua")
 -- Tearing in fullscreen games, when switched on in rice → Игры: оптимизация.
-load_if_present(os.getenv("HOME") .. "/.config/hypr/games.lua")
+load_if_present("games.lua")
 -- The user's own additions, loaded last so they can override anything above. Not part of the
 -- rice repo: rice update leaves it alone.
-load_if_present(os.getenv("HOME") .. "/.config/hypr/user.lua")
+load_if_present("user.lua")

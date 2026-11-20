@@ -9,13 +9,16 @@ StartLimitIntervalSec=0
 [Service]
 Type=simple
 # Started only from Hyprland: another desktop's daemon may hold the notification bus name
-# (D-Bus activates mako and the like on the first notification), so it goes first.
-ExecStartPre=-/usr/bin/pkill -x mako|dunst|swaync
-ExecStart=/usr/bin/histuid --theme claude
-# auto-restart every 30 minutes
-RuntimeMaxSec=1800
+# (D-Bus activates mako and the like on the first notification), so it goes first. pkill says 1
+# when none of them runs, which is the usual case and not a failure.
+ExecStartPre=/bin/sh -c 'pkill -x "mako|dunst|swaync" || [ $$? -eq 1 ]'
+# The theme comes from theme.env, which changetheme writes: a restart rereads it, so a theme change
+# needs no daemon-reload. Without the file, the theme below.
+Environment=HISTUI_THEME=claude
+EnvironmentFile=-%h/.config/histui/theme.env
+ExecStart=/usr/bin/histuid --theme ${HISTUI_THEME}
 Restart=always
-RestartSec=5
+RestartSec=1
 
 [Install]
 WantedBy=default.target

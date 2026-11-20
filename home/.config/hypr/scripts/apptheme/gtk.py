@@ -1,4 +1,4 @@
-"""GTK 3 and 4 apps: the palette over the Graphite-Dark base theme."""
+"""GTK 3 and 4 apps: the palette over the base theme (Graphite-Dark, else Adwaita-dark)."""
 import subprocess
 import time
 from pathlib import Path
@@ -101,12 +101,18 @@ def apply(theme):
     gtk3_defines = "".join(f"@define-color {key} {value};\n" for key, value in gtk3_colors.items())
     gtk4_defines = "".join(f"@define-color {key} {value};\n" for key, value in gtk4_colors.items())
     rules = GTK_COMMON.format(**rule_colors)
-    head = f"/* Тема «{theme.name}» поверх Graphite-Dark. {GENERATED} */\n"
+    base = base_theme()
+    head = f"/* Тема «{theme.name}» поверх {base}. {GENERATED} */\n"
     write(HOME / ".config/gtk-3.0/gtk.css", head + gtk3_defines + rules)
-    gtk4_base = "/usr/share/themes/Graphite-Dark/gtk-4.0"
     for file_name in ("gtk.css", "gtk-dark.css"):
-        write(HOME / ".config/gtk-4.0" / file_name,
-              head + f'@import url("file://{gtk4_base}/{file_name}");\n' + gtk4_defines + rules)
+        write(HOME / ".config/gtk-4.0" / file_name, head + gtk4_import(base, file_name) + gtk4_defines + rules)
+
+
+def gtk4_import(base, file_name):
+    """GTK 4 picks no theme by name: the user's gtk.css imports the base theme's own. Adwaita ships none,
+    it is built into GTK 4."""
+    css = Path("/usr/share/themes") / base / "gtk-4.0" / file_name
+    return f'@import url("file://{css}");\n' if css.exists() else ""
 
 
 def base_theme():

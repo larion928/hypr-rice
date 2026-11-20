@@ -37,11 +37,26 @@ def write_config(theme):
     local = RICE_CONF / "waybar/config.local.json"
     if local.exists():
         # One level deep: a module option given here replaces the shared one as a whole.
-        for module, options in json.loads(local.read_text()).items():
-            shared = config.get(module)
-            both_tables = isinstance(options, dict) and isinstance(shared, dict)
-            config[module] = {**shared, **options} if both_tables else options
+        for key, value in local_config(local).items():
+            shared = config.get(key)
+            if not isinstance(shared, dict):
+                config[key] = value  # a bar setting (output, height), or a module of this machine only
+            elif isinstance(value, dict):
+                config[key] = {**shared, **value}
+            else:
+                raise ValueError(f"{local}: «{key}» — модуль, а не {{...}}: {json.dumps(value)}; панель осталась прежней")
     write(RICE_CONF / "waybar/config.json", json.dumps(config, indent=4, ensure_ascii=False) + "\n")
+
+
+def local_config(local):
+    """config.local.json as a dict; a ValueError naming the file when it is not one."""
+    try:
+        data = json.loads(local.read_text())
+    except ValueError as error:
+        raise ValueError(f"{local}: не JSON ({error}); панель осталась прежней") from error
+    if not isinstance(data, dict):
+        raise ValueError(f"{local}: нужен объект {{...}}; панель осталась прежней")
+    return data
 
 
 # Waybar's temperature module reads thermal_zone0 unless told otherwise, and a laptop without that zone

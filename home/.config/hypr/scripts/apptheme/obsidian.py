@@ -77,4 +77,4 @@ def apply(theme):
         if "hypr-rice" not in snippets:
             snippets.append("hypr-rice")
             data.setdefault("theme", "obsidian")  # the dark base theme
-            appearance.write_text(json.dumps(data, indent=2) + "\n")
+            write(appearance.resolve(), json.dumps(data, indent=2) + "\n")
