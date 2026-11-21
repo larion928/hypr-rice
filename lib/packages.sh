@@ -123,6 +123,20 @@ aur_install() {  # AUR packages: hypr-rice repo first, then yay, then the GitHub
     [ ${#failed[@]} -eq 0 ] || { warn "не удалось поставить из AUR: ${failed[*]} (логи: ~/.cache/hypr-rice/build-*.log)"; return 1; }
 }
 
+# A program's AUR helpers, as dependencies like its other helpers: they go with it once orphaned. One the
+# user had installed before stays theirs. Marked after the install: the repo, yay and makepkg would each
+# need the flag passed its own way.
+aur_install_as_deps() {  # aur_install_as_deps PKG...
+    local pkg new=()
+    for pkg in "$@"; do
+        pacman -Qq "$pkg" >/dev/null 2>&1 || new+=("$pkg")
+    done
+    aur_install "$@" || true
+    [ ${#new[@]} -gt 0 ] || return 0
+    mapfile -t new < <(pacman -Qq "${new[@]}" 2>/dev/null || true)
+    [ ${#new[@]} -eq 0 ] || sudo pacman -D --asdeps "${new[@]}" >/dev/null || true
+}
+
 ensure_yay() {
     command -v yay >/dev/null && return 0
     # From the hypr-rice repo when it has it.

@@ -153,15 +153,15 @@ app_names() {  # app_names ID...: their names shown, comma-separated
 # ---------- installing ----------
 
 install_apps() {  # install_apps ID...
-    local id pkg packages=() repo_pk=() helper_pk=() aur_pk=() flat=() hooks=() browsers=() path source appimages=0
+    local id pkg packages=() repo_pk=() helper_pk=() aur_pk=() aur_helper_pk=() flat=() hooks=() browsers=() path source appimages=0
     [ $# -gt 0 ] || return 0
     for id in "$@"; do
         mapfile -t packages < <(app_packages "$id")
         for pkg in "${packages[@]}"; do
-            if [[ $pkg == aur:* ]]; then
-                aur_pk+=("${pkg#aur:}")
-            elif [ "$pkg" = "${packages[0]}" ]; then
-                repo_pk+=("$pkg")
+            if [ "$pkg" = "${packages[0]}" ]; then
+                if [[ $pkg == aur:* ]]; then aur_pk+=("${pkg#aur:}"); else repo_pk+=("$pkg"); fi
+            elif [[ $pkg == aur:* ]]; then
+                aur_helper_pk+=("${pkg#aur:}")
             else
                 helper_pk+=("$pkg")
             fi
@@ -189,6 +189,7 @@ install_apps() {  # install_apps ID...
     # own is skipped by --needed and stays theirs.
     [ ${#helper_pk[@]} -eq 0 ] || pac -S --needed --asdeps "${helper_pk[@]}" || warn "часть дополнительных пакетов не встала"
     [ ${#aur_pk[@]} -eq 0 ] || aur_install "${aur_pk[@]}" || true
+    [ ${#aur_helper_pk[@]} -eq 0 ] || aur_install_as_deps "${aur_helper_pk[@]}"
     if [ ${#flat[@]} -gt 0 ]; then
         flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo \
             && flatpak install --user -y --noninteractive flathub "${flat[@]}" >/dev/null \

@@ -83,6 +83,28 @@ test_program_helpers_kept_for_user() {
         || fail "удаление: $(cat "$HOME/calls")"
 }
 
+# A helper from the AUR comes in as a dependency too, so it goes with the program (ProtonPlus with
+# Proton); one the user had already installed stays theirs.
+test_aur_helpers_installed_as_deps() {
+    load_rice
+    APP_IDS=(proton)
+    APP_SRC[proton]="umu-launcher aur:protonplus aur:mine"
+    APP_NAME[proton]="Proton"
+    local installed="$HOME/installed"
+    echo mine > "$installed"
+    pac() { :; }
+    enable_multilib() { :; }
+    aur_install() { printf '%s\n' "$@" >> "$installed"; echo "aur $*" >> "$HOME/calls"; }
+    pacman() {
+        case "$1" in
+            -Qq) shift; grep -xF -f <(printf '%s\n' "$@") "$installed" ;;
+            *) echo "pacman $*" >> "$HOME/calls" ;;
+        esac
+    }
+    install_apps proton >/dev/null 2>&1
+    grep -qx 'pacman -D --asdeps protonplus' "$HOME/calls" || fail "ProtonPlus не отмечен зависимостью: $(cat "$HOME/calls")"
+}
+
 # The catalog itself, read the way rice reads it: every AppImage reaches the installer with its checksum.
 test_catalog_appimages_keep_checksum() {
     load_rice
