@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Text typed in the wrong layout (us/ru), typed again in the other one: features "layout-fix" (the keys) and
-"layout-auto" (after a space, by the dictionaries). rice-layout-fixer.service runs it.
+"layout-auto" (after a space, by the dictionaries); "layout-typo" adds the dictionaries' suggestions to the key.
+rice-layout-fixer.service runs it.
 
 It reads the keyboards and mice (/dev/input; the input group) without taking them, and keeps the keys typed
 since the last reset: a click, a change of window, Enter, an arrow, a Ctrl/Alt/Super combination or the lock
 screen forget them, and nothing is written anywhere. A fix erases the last word (with the spaces after it),
 switches the layout and presses the same keys again through its own virtual keyboard (/dev/uinput), so it works
-in any program whatever it does with text; a second fix of the same word switches it back.
+in any program whatever it does with text; a second fix of the same word switches it back. With layout-typo a word
+that is a word in neither layout becomes hunspell's suggestions instead, one per press, and then what was typed.
   layout-fix word        (SIGUSR1) the last word
   layout-fix selection   (SIGUSR2) the selected text (the primary selection), typed over it in the other layout
 """
@@ -20,6 +22,7 @@ import struct
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 import layout_keys as keys
@@ -62,6 +65,10 @@ class Strokes:
     def reset(self):
         self.keys = []
 
+    def replace_tail(self, count, strokes):
+        """The last count keys are now strokes (a fix typed them over)."""
+        self.keys = (self.keys[:len(self.keys) - count] + strokes)[-STROKE_LIMIT:]
+
     def tail(self):
         """The last word and the spaces typed after it."""
         end = len(self.keys)
@@ -84,7 +91,8 @@ class Strokes:
 
 
 class Speller:
-    """hunspell -a for one dictionary, kept running: a line per word, "*", "+" or "-" when it is a word."""
+    """hunspell -a for one dictionary, kept running: a line per word, "*", "+" or "-" when it is a word,
+    "& word count offset: first, second, ..." when it is not and something is close, "#" when nothing is."""
 
     def __init__(self, dictionary):
         self.process = subprocess.Popen(["hunspell", "-a", "-i", "utf-8", "-d", dictionary], stdin=subprocess.PIPE,
@@ -92,13 +100,22 @@ class Speller:
         self.process.stdout.readline()  # the version banner
 
     def knows(self, word):
+        return self.answer(word)[:1] in "*+-"
+
+    def suggestions(self, word):
+        """The words hunspell offers for a word it does not know, closest first."""
+        answer = self.answer(word)
+        return answer.split(": ", 1)[1].split(", ") if answer.startswith("&") else []
+
+    def answer(self, word):
+        """hunspell's line about the word ("" when it said nothing)."""
         # "^" keeps a word that starts with a hunspell command character a word.
         self.process.stdin.write("^" + word + "\n")
         self.process.stdin.flush()
         answers = []
         while (line := self.process.stdout.readline().rstrip("\n")) != "":
             answers.append(line)
-        return bool(answers) and answers[0][:1] in "*+-"
+        return answers[0] if answers else ""
 
 
 class Session:
@@ -175,19 +192,56 @@ class VirtualKeyboard:
             self.send(keys.LEFT_SHIFT, KEY_UP)
 
 
-class Fixer:
-    """What the keys mean for the buffer, and the fixes. session, keyboard and speller are Session,
-    VirtualKeyboard and a {layout: Speller} (None without layout-auto)."""
+@dataclass(frozen=True)
+class Modes:
+    """The features beside layout-fix: automatic is layout-auto (a fix after a space, never in the excluded window
+    classes), typos is layout-typo (the key offers the dictionaries' suggestions)."""
+    automatic: bool = False
+    typos: bool = False
+    excluded: frozenset = frozenset()
 
-    def __init__(self, session, keyboard, spellers, excluded=()):
+
+class Cycle:
+    """What the last word can become under the key: what was typed, then each candidate, then what was typed again.
+    A choice is (layout, strokes): the keys that put it on the screen in that layout, its punctuation and spaces
+    included."""
+
+    def __init__(self, typed, candidates):
+        self.choices = [typed, *candidates]
+        self.index = 0
+
+    def shown(self):
+        return self.choices[self.index]
+
+    def next(self):
+        self.index = (self.index + 1) % len(self.choices)
+        return self.choices[self.index]
+
+
+# Punctuation a word carries before or after it; the dictionaries are asked about the word without it.
+WORD_EDGES = ".,;:!?\"'() "
+# The key goes through this many of hunspell's suggestions, closest first, before it gives back what was typed.
+SUGGESTIONS_OFFERED = 5
+
+
+def bare(text):
+    return text.strip(WORD_EDGES)
+
+
+class Fixer:
+    """What the keys mean for the buffer, and the fixes. session, keyboard and spellers are Session,
+    VirtualKeyboard and a {layout: Speller} (None when neither layout-auto nor layout-typo is on)."""
+
+    def __init__(self, session, keyboard, spellers, modes=Modes()):
         self.session = session
         self.keyboard = keyboard
         self.spellers = spellers
-        self.excluded = set(excluded)
+        self.modes = modes
         self.strokes = Strokes()
         self.held = set()        # modifier keys held now
         self.before_combination = ([], 0.0)
         self.request = None      # "word" or "selection", carried out once the modifiers are up
+        self.cycle = None        # the last word's Cycle while the buffer still ends with its choice
 
     def key(self, code, value):
         if code in SHIFTS | COMBINING and value == KEY_UP:
@@ -201,15 +255,18 @@ class Fixer:
 
     def pressed(self, code):
         if self.held & COMBINING:
+            # The hotkey itself is a combination: its Cycle has to survive it.
             self.before_combination = (self.strokes.keys, time.monotonic())
             self.strokes.reset()
-        elif self.session.locked():
+            return
+        self.cycle = None
+        if self.session.locked():
             self.strokes.reset()
         elif code == keys.BACKSPACE:
             self.strokes.backspace()
         elif (code, False) in keys.CHARACTERS["us"]:
             self.strokes.add((code, bool(self.held & SHIFTS)))
-            if code == keys.SPACE and self.spellers:
+            if code == keys.SPACE and self.modes.automatic:
                 self.check_finished_word()
         else:
             self.strokes.reset()
@@ -217,6 +274,7 @@ class Fixer:
     def reset(self):
         """A click or another window: the text cursor may be anywhere now."""
         self.strokes.reset()
+        self.cycle = None
 
     def ask(self, request):
         kept, at = self.before_combination
@@ -231,20 +289,54 @@ class Fixer:
         if self.session.locked():
             return
         if request == "word":
-            self.retype(self.strokes.tail())
+            self.fix_word()
         elif request == "selection":
             self.retype_selection()
 
-    def retype(self, strokes):
-        """Erases the strokes, switches the layout and types them again: a word in the other layout."""
-        if all(code == keys.SPACE for code, _ in strokes):
+    def fix_word(self):
+        """The last word becomes the next choice of its Cycle; a new Cycle when the word is not the one shown."""
+        tail = self.strokes.tail()
+        if all(code == keys.SPACE for code, _ in tail):
             return
-        target = keys.other(self.session.layout())
-        for _ in strokes:
+        if self.cycle is None or self.cycle.shown()[1] != tail:
+            self.cycle = Cycle((self.session.layout(), tail), self.candidates(tail))
+        self.put(tail, *self.cycle.next())
+
+    def candidates(self, tail):
+        """What the key offers for the word in tail, typed in the current layout: with layout-typo, hunspell's
+        suggestions for a word that is a word in neither layout; else (or when there are none) the same keys in
+        the other layout."""
+        layout = self.session.layout()
+        other = keys.other(layout)
+        switched = [(other, tail)]
+        if not self.modes.typos:
+            return switched
+        text = keys.typed(layout, tail)
+        word = bare(text)
+        if not word.replace("-", "").isalpha():
+            return switched
+        if self.spellers[layout].knows(word) or self.spellers[other].knows(bare(keys.typed(other, tail))):
+            return switched
+        return self.suggested(layout, text, word) or switched
+
+    def suggested(self, layout, text, word):
+        """text with each of hunspell's closest suggestions for its word in place of the word, as choices; one
+        with a character that is not on the layout is left out."""
+        start = text.index(word)  # what precedes the word is punctuation, so its first match is the word
+        before, after = text[:start], text[start + len(word):]
+        offered = self.spellers[layout].suggestions(word)[:SUGGESTIONS_OFFERED]
+        choices = (keys.strokes_for(layout, before + suggestion + after) for suggestion in offered)
+        return [(layout, strokes) for strokes in choices if strokes is not None]
+
+    def put(self, shown, layout, strokes):
+        """Erases the shown strokes and types strokes in layout; the buffer holds them instead."""
+        for _ in shown:
             self.keyboard.tap(keys.BACKSPACE)
-        self.switch(target)
+        if layout != self.session.layout():
+            self.switch(layout)
         for code, shifted in strokes:
             self.keyboard.tap(code, shifted)
+        self.strokes.replace_tail(len(shown), strokes)
 
     def retype_selection(self):
         text = subprocess.run(["wl-paste", "--primary", "--no-newline"], capture_output=True, text=True).stdout
@@ -266,16 +358,17 @@ class Fixer:
         if not self.wrong_layout(word):
             return
         window_class, fullscreen = self.session.window()
-        if not fullscreen and window_class not in self.excluded:
-            self.retype(self.strokes.tail())
+        if not fullscreen and window_class not in self.modes.excluded:
+            tail = self.strokes.tail()
+            self.put(tail, keys.other(self.session.layout()), tail)
 
     def wrong_layout(self, word):
         """A word of two letters or more that is no word in the layout it was typed in, and is one in the other."""
         if len(word) < 2 or any(code in keys.DIGIT_KEYS and not shifted for code, shifted in word):
             return False
         current = self.session.layout()
-        typed = keys.typed(current, word).strip(".,;:!?\"'()")
-        meant = keys.typed(keys.other(current), word).strip(".,;:!?\"'()")
+        typed = bare(keys.typed(current, word))
+        meant = bare(keys.typed(keys.other(current), word))
         if len(typed) < 2 or not typed.isalpha() or not meant.isalpha():
             return False
         return not self.spellers[current].knows(typed) and self.spellers[keys.other(current)].knows(meant)
@@ -352,8 +445,8 @@ def excluded_classes():
         return []
 
 
-def automatic():
-    result = subprocess.run([sys.executable, str(Path(__file__).with_name("features.py")), "is", "layout-auto"],
+def feature_on(feature_id):
+    result = subprocess.run([sys.executable, str(Path(__file__).with_name("features.py")), "is", feature_id],
                             capture_output=True)
     return result.returncode == 0
 
@@ -371,8 +464,9 @@ def run_daemon():
         keyboard = VirtualKeyboard()
     except PermissionError:
         raise SystemExit("нет доступа к /dev/uinput: " + no_access)
-    spellers = {"us": Speller("en_US"), "ru": Speller("ru_RU")} if automatic() else None
-    fixer = Fixer(session, keyboard, spellers, excluded_classes())
+    modes = Modes(feature_on("layout-auto"), feature_on("layout-typo"), frozenset(excluded_classes()))
+    spellers = {"us": Speller("en_US"), "ru": Speller("ru_RU")} if modes.automatic or modes.typos else None
+    fixer = Fixer(session, keyboard, spellers, modes)
     events = hyprland_events()
 
     wakeup_read, wakeup_write = os.pipe()

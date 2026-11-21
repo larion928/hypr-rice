@@ -111,6 +111,10 @@ FEATURES = (
             "слово (словари русский и английский); отменить — Alt+Shift+Пробел. Не срабатывает в полноэкранных "
             "окнах; работает вместе с исправлением раскладки",
             default=False, needs=("hunspell", "hunspell-ru", "hunspell-en_us"), restarts="rice-layout-fixer.service"),
+    Feature("layout-typo", "Ввод", "Исправление опечаток",
+            "Alt+Shift+Пробел на слове, которого нет ни в русском, ни в английском словаре, — подсказки словаря "
+            "по очереди, после последней — набранное слово. Работает вместе с исправлением раскладки",
+            default=False, needs=("hunspell", "hunspell-ru", "hunspell-en_us"), restarts="rice-layout-fixer.service"),
 )
 BY_ID = {feature.id: feature for feature in FEATURES}
 

@@ -43,11 +43,15 @@ class FakeKeyboard:
 
 
 class FakeSpeller:
-    def __init__(self, *words):
+    def __init__(self, *words, suggested=None):
         self.words = set(words)
+        self.suggested = suggested or {}
 
     def knows(self, word):
         return word.lower() in self.words
+
+    def suggestions(self, word):
+        return self.suggested.get(word, [])
 
 
 def strokes(layout, text):
@@ -58,13 +62,14 @@ class FixerTest(unittest.TestCase):
     def setUp(self):
         self.session = FakeSession()
         self.keyboard = FakeKeyboard()
-        self.spellers = {"us": FakeSpeller("hello", "dog"), "ru": FakeSpeller("привет", "мир")}
+        self.spellers = {"us": FakeSpeller("hello", "dog", suggested={"helo": ["hello", "halo", "he'ló"]}),
+                         "ru": FakeSpeller("привет", "мир", suggested={"превет": ["преет", "привет"]})}
         patcher = mock.patch.object(layout_fixer.time, "sleep")
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def fixer(self, spellers=None):
-        return layout_fixer.Fixer(self.session, self.keyboard, spellers)
+    def fixer(self, **modes):
+        return layout_fixer.Fixer(self.session, self.keyboard, self.spellers, layout_fixer.Modes(**modes))
 
     def type(self, fixer, text, layout="us"):
         for code, shifted in strokes(layout, text):
@@ -135,18 +140,18 @@ class FixerTest(unittest.TestCase):
         self.assertEqual(self.keyboard.taps, [])
 
     def test_automatic_fix_after_a_space(self):
-        fixer = self.fixer(self.spellers)
+        fixer = self.fixer(automatic=True)
         self.type(fixer, "ghbdtn ")
         self.assertEqual(self.session.switches, ["ru"])
         self.assertEqual(self.keyboard.taps[-7:], strokes("us", "ghbdtn "))
 
     def test_automatic_fix_keeps_a_comma_meant_in_the_other_layout(self):
-        fixer = self.fixer(self.spellers)
+        fixer = self.fixer(automatic=True)
         self.type(fixer, "ghbdtn? ")
         self.assertEqual(self.session.switches, ["ru"])
 
     def test_no_automatic_fix_for_a_word_of_the_layout_typed_in(self):
-        fixer = self.fixer(self.spellers)
+        fixer = self.fixer(automatic=True)
         self.type(fixer, "hello dog ")
         self.assertEqual(self.session.switches, [])
 
@@ -155,14 +160,58 @@ class FixerTest(unittest.TestCase):
                              ("ghbdtn ", ("game", True))):
             with self.subTest(text=text):
                 self.session = FakeSession(window=window)
-                fixer = self.fixer(self.spellers)
+                fixer = self.fixer(automatic=True)
                 self.type(fixer, text)
                 self.assertEqual(self.session.switches, [])
 
     def test_no_automatic_fix_in_an_excluded_window(self):
-        fixer = layout_fixer.Fixer(self.session, self.keyboard, self.spellers, excluded=("kitty",))
+        fixer = self.fixer(automatic=True, excluded=frozenset({"kitty"}))
         self.type(fixer, "ghbdtn ")
         self.assertEqual(self.session.switches, [])
+
+    def presses_show(self, fixer, typed, layout, presses):
+        """Each press of the key on the word typed erases what is shown and types the next of presses."""
+        self.type(fixer, typed, layout)
+        for shown in presses:
+            self.keyboard.taps = []
+            erased = len(fixer.strokes.tail())
+            self.press_hotkey(fixer)
+            self.assertEqual(self.keyboard.taps[:erased], [(keys.BACKSPACE, False)] * erased)
+            self.assertEqual(keys.typed(self.session.current, self.keyboard.taps[erased:]), shown)
+
+    def test_a_typo_becomes_each_suggestion_in_turn_then_what_was_typed(self):
+        self.session = FakeSession(layout="ru")
+        fixer = self.fixer(typos=True)
+        self.presses_show(fixer, "так превет, ", "ru", ["преет, ", "привет, ", "превет, ", "преет, "])
+        self.assertEqual(self.session.switches, [])
+
+    def test_a_suggestion_off_the_layout_is_left_out(self):
+        fixer = self.fixer(typos=True)
+        self.presses_show(fixer, "helo", "us", ["hello", "halo", "helo"])
+
+    def test_with_typos_a_word_of_the_other_layout_still_switches(self):
+        fixer = self.fixer(typos=True)
+        self.presses_show(fixer, "ghbdtn ", "us", ["привет ", "ghbdtn "])
+        self.assertEqual(self.session.switches, ["ru", "us"])
+
+    def test_with_typos_a_known_word_or_one_without_suggestions_switches(self):
+        for typed in ("hello", "qwzx"):
+            with self.subTest(typed=typed):
+                self.session = FakeSession()
+                self.presses_show(self.fixer(typos=True), typed, "us", [keys.typed("ru", strokes("us", typed))])
+
+    def test_without_typos_a_typo_only_switches(self):
+        self.presses_show(self.fixer(), "helo", "us", ["рудщ"])
+
+    def test_typing_on_forgets_the_suggestions(self):
+        fixer = self.fixer(typos=True)
+        self.presses_show(fixer, "helo", "us", ["hello"])
+        self.presses_show(fixer, " helo", "us", ["hello"])
+
+    def test_automatic_fix_never_replaces_a_typo(self):
+        fixer = self.fixer(automatic=True, typos=True)
+        self.type(fixer, "helo ")
+        self.assertEqual(self.keyboard.taps, [])
 
     def test_the_selection_is_typed_over_in_the_other_layout(self):
         fixer = self.fixer()
