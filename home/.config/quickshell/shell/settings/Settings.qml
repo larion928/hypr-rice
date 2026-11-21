@@ -5,6 +5,8 @@
 //             ~/.config/hypr/binds-user.lua (KeysModel).
 //   theme     Тема: the theme list; theme:<name>[:<section>] opens one theme's settings (ThemeEditStore):
 //             fonts, colours, wallpapers, panel, icons, cursor, windows, kept in ~/.config/hypr-rice/theme-edits.json.
+//   features  Функции: the rice's features switched on and off by features.py, which keeps them in
+//             ~/.config/hypr-rice/features.json (FeaturesModel); missing packages are installed first.
 // Quick switching is the theme picker's (Alt+Shift+T).
 import QtQuick
 import qs.common
@@ -20,6 +22,7 @@ OverlayPanel {
     readonly property alias themeEdit: themeEdit
     readonly property alias ownThemes: ownThemes
     readonly property alias userFiles: userFiles
+    readonly property alias features: features
 
     // Esc: out of a picker, a dialog, the icon picker, a theme's settings; then the window closes. While a combo
     // is being recorded it only stops the recording.
@@ -34,10 +37,10 @@ OverlayPanel {
             if (!ownThemes.busy) {
                 ownThemes.dialog = "";
             }
-        } else if (themeEdit.installing) {
-            if (themeEdit.installState !== "checking") {
-                themeEdit.installing = null;
-            }
+        } else if (themeEdit.install.item) {
+            themeEdit.install.dismiss();
+        } else if (features.install.item) {
+            features.install.dismiss();
         } else if (themeEdit.iconFor) {
             themeEdit.iconFor = "";
         } else if (themeEdit.editing) {
@@ -94,6 +97,7 @@ OverlayPanel {
     ThemeEditStore { id: themeEdit }
     OwnThemes { id: ownThemes; themeEdit: menu.themeEdit }
     UserFiles { id: userFiles; themeEdit: menu.themeEdit }
+    FeaturesModel { id: features }
 
     Rectangle {
         id: sheet
@@ -119,7 +123,7 @@ OverlayPanel {
             }
             Item { width: 24; height: 1 }
             Repeater {
-                model: [["monitors", "Мониторы"], ["keys", "Клавиши"], ["theme", "Тема"]]
+                model: [["monitors", "Мониторы"], ["keys", "Клавиши"], ["theme", "Тема"], ["features", "Функции"]]
                 TabButton {
                     required property var modelData
                     text: modelData[1]
@@ -148,6 +152,7 @@ OverlayPanel {
                 userFiles: menu.userFiles
                 onSwitched: menu.close()
             }
+            FeaturesPage { anchors.fill: parent; visible: menu.page === "features"; features: menu.features }
         }
 
         // While a combo is being recorded, the wheel and the side buttons of the mouse count as keys.

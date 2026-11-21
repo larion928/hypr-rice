@@ -138,6 +138,67 @@ class Settings(MenuTest):
         self.assertEqual(edits["themes"]["coffee"], {"fonts": {"font": "Iosevka"}})
 
 
+@unittest.skipUnless(resident(), "the per-panel menus have no features page")
+class Features(MenuTest):
+    def test_features_listed_by_group_and_switched(self):
+        value = self.open("settings", "features")
+        self.assertEqual(value("menu.page"), "features")
+        self.sandbox.wait_for("settings", "features.list.length", 4)
+        self.assertEqual(value("features.groups"), ["Анимации", "Система"])
+        value("features.toggle(features.list[0])")
+        self.sandbox.wait_for("settings", "features.list[0].on", False)
+        self.sandbox.wait_for("settings", "features.busy", False)
+        value("features.toggle(features.list[2])")
+        self.sandbox.wait_for("settings", "features.list[2].on", True)
+        switches = [call for call in self.sandbox.recorded() if call.startswith(("features.py on", "features.py off"))]
+        self.assertEqual(switches, ["features.py off animations", "features.py on daily-check"])
+
+    def test_a_refused_switch_shows_why(self):
+        self.open("settings", "features")
+        self.sandbox.wait_for("settings", "features.list.length", 4)
+        self.sandbox.eval("settings", "features.turn('clipboard', 'on')")
+        self.sandbox.wait_for("settings", "features.message",
+                              "«История буфера обмена» не включена: нужны пакеты cliphist wl-clipboard")
+
+    def test_missing_packages_are_installed_before_switching_on(self):
+        value = self.open("settings", "features")
+        self.sandbox.wait_for("settings", "features.list.length", 4)
+        value("features.toggle(features.list[3])")
+        self.assertEqual(value("features.install.item.package"), "cliphist")
+        self.sandbox.key("settings", KEY["Escape"])  # declined: the dialog closes, the feature stays off
+        self.assertIsNone(value("features.install.item"))
+        self.assertTrue(self.sandbox.is_open("settings"))
+        self.assertNotIn("features.py on clipboard", self.sandbox.recorded())
+
+        value("features.toggle(features.list[3])")
+        value("features.install.start('secret')")
+        self.sandbox.wait_for("settings", "features.install.item.package", "wl-clipboard")  # the next one
+        self.sandbox.wait_for("settings", "features.install.phase", "ask")
+        value("features.install.start('secret')")
+        self.sandbox.wait_for("settings", "features.list[3].on", True)
+        calls = self.sandbox.recorded()
+        self.assertEqual([call for call in calls if call.startswith("rice-install-package")],
+                         ["rice-install-package cliphist", "rice-install-package wl-clipboard"])
+        self.assertEqual(calls.count("features.py on clipboard"), 1)
+
+    def test_launcher_entry_asks_for_the_page(self):
+        value = self.open("launcher")
+        self.assertEqual(value("menu.commands.find(c => c.id === 'features').run.slice(1)"), ["features"])
+
+
+@unittest.skipUnless(resident(), "the per-panel theme settings installed packages their own way")
+class ThemePackageInstall(MenuTest):
+    def test_an_installed_theme_shows_in_the_lists(self):
+        value = self.open("settings", "theme:coffee:icons")
+        value("themeEdit.askInstall({ package: 'tela-circle-icon-theme-git', title: 'Tela Circle', source: 'aur' })")
+        value("themeEdit.install.start('secret')")
+        self.sandbox.wait_for("settings", "themeEdit.install.phase", "done")
+        self.assertEqual(value("themeEdit.install.message"), "Установлено. Тема появилась в списке.")
+        # The section asked for the list once when it opened, and again after the install.
+        self.sandbox._wait(lambda: self.sandbox.recorded().count("themegen.py icon-themes") == 2,
+                           "the icon themes were not read again")
+
+
 class ThemePicker(MenuTest):
     def test_moves_and_tabs(self):
         value = self.open("themes")
@@ -259,10 +320,6 @@ class ResidentShell(MenuTest):
                                            "menu === null"), "true")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 SCRIPTS = {"launcher": ("launcher", ""), "settings-panel": ("settings", "monitors"), "theme-picker": ("themes", ""),
            "help-panel": ("help", ""), "power-menu": ("power", ""), "notif-panel": ("notif", ""),
            "network-panel": ("network", ""), "games": ("games", ""), "shots-gallery": ("shots", "")}
@@ -305,8 +362,14 @@ class LauncherScripts(unittest.TestCase):
     def test_settings_page_is_passed(self):
         self.assertIn(f"ipc -p {self.shell} call menus toggle settings theme:claude:colors",
                       self.run_script("settings-panel", "theme:claude:colors"))
+        self.assertIn(f"ipc -p {self.shell} call menus toggle settings features",
+                      self.run_script("settings-panel", "features"))
 
     def test_shell_is_started_when_not_running(self):
         calls = self.run_script("power-menu", down=True)
         self.assertIn(f"-d -n -p {self.shell}", calls)
         self.assertEqual(calls[-1].rstrip(), f"ipc -p {self.shell} call menus toggle power")
+
+
+if __name__ == "__main__":
+    unittest.main()

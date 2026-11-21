@@ -73,6 +73,6 @@ Rectangle {
         CursorSection { themeEdit: editor.themeEdit; userFiles: editor.userFiles; anchors.fill: parent; visible: themeEdit.section === "cursor" }
         FramePicker { userFiles: editor.userFiles; anchors.fill: parent; z: 20; visible: userFiles.frameSource !== "" }
         EnginePicker { userFiles: editor.userFiles; anchors.fill: parent; z: 20; visible: userFiles.engineOpen }
-        InstallDialog { themeEdit: editor.themeEdit; anchors.fill: parent; z: 30; visible: themeEdit.installing !== null }
+        InstallDialog { install: editor.themeEdit.install; anchors.fill: parent; z: 30; visible: install.item !== null }
     }
 }

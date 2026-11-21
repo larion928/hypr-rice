@@ -21,19 +21,22 @@ function all(themes, home) {
           keys: "screenshot скрин снимок весь", run: sh("sleep 0.4; ~/.local/bin/shot full") },
         // Telegram cannot switch themes by itself: the theme's cloud link opens its "apply" preview.
         { id: "telegram", name: "Тема Telegram", desc: "применить тему текущего оформления",
-          glyph: "", keys: "telegram телеграм ayugram аюграм тема",
+          glyph: "\uf2c6", keys: "telegram телеграм ayugram аюграм тема",
           run: sh('t=$(cat "$HOME/.config/hypr/current-theme"); '
                   + 's=$(jq -r ".telegramSlug // empty" "$HOME/.config/hypr/themes/$t/ui.json" 2>/dev/null); '
                   + 'c=$(command -v AyuGram || command -v Telegram); '
                   + '[ -n "$s" ] && [ -n "$c" ] && exec "$c" -- "tg://addtheme?slug=$s"') },
         { id: "games", name: "Игры", desc: "свои игры, .exe, AppImage, Steam · Alt+G", glyph: "\u{f0297}",
           keys: "games игры steam стим proton exe appimage", run: [bin + "games"] },
-        { id: "settings", name: "Настройки", desc: "мониторы, клавиши, тема · Alt+F2", glyph: "\u{f0493}",
+        { id: "settings", name: "Настройки", desc: "мониторы, клавиши, тема, функции · Alt+F2", glyph: "\u{f0493}",
           keys: "settings настройки параметры", run: [settings] },
         { id: "monitors", name: "Мониторы", desc: "разрешение, частота, масштаб, расположение", glyph: "\u{f0379}",
           keys: "monitor display screen монитор экран разрешение частота герцовка масштаб", run: [settings, "monitors"] },
         { id: "hotkeys", name: "Горячие клавиши", desc: "изменить, добавить свои", glyph: "\u{f030c}",
           keys: "keys hotkeys binds клавиши горячие сочетания хоткеи", run: [settings, "keys"] },
+        { id: "features", name: "Настройки: функции", desc: "анимации, звук затвора, жесты, размытие: вкл/выкл",
+          glyph: "\u{f0521}", keys: "features функции анимации звук жесты свайп размытие обои проверка включить выключить",
+          run: [settings, "features"] },
         { id: "network", name: "Сеть", desc: "Wi-Fi, пароли, текущее подключение", glyph: "\u{f0928}",
           keys: "network wifi wi-fi сеть вайфай интернет подключение", run: [bin + "network-panel"] },
         { id: "power-saver", name: "Питание: экономия", desc: "без турбобуста, тише и дольше от батареи", glyph: "\u{f032a}",

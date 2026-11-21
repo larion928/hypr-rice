@@ -90,13 +90,8 @@ Scope {
     property bool picking: false
     // ---- animated wallpapers need mpvpaper (with mpv and ffmpeg): offered the moment one is used
     property string wallpaperNeeds: ""   // the package still missing (themegen.py wallpaper-needs), or ""
-    // ---- installing a package: the window asks for the sudo password; the install itself runs in the background
-    // (rice-install-package), so the window may close. Its log is shown here.
-    property var installing: null      // {package, title, source} whose install the dialog shows
-    property string installState: ""   // ask, checking (the password), running, done, failed
-    property string installMessage: ""
-    property var installLog: []
-    readonly property bool installStarting: installProc.running
+    // ---- installing a missing icon or cursor theme, or mpvpaper
+    readonly property alias install: install
 
     onSectionChanged: {
         askLive();
@@ -206,7 +201,7 @@ Scope {
         return /\.(gif|mp4|webm|mkv|mov|avi|m4v)$/i.test(path);
     }
     function offerAnimated(path) {
-        if (!isAnimated(path) || !wallpaperNeeds || installing) {
+        if (!isAnimated(path) || !wallpaperNeeds || install.item) {
             return;
         }
         askInstall({ package: wallpaperNeeds, title: "mpvpaper — анимированные обои", source: "aur",
@@ -384,43 +379,9 @@ Scope {
         change("windows", windows);
     }
 
-    // ---- installing
+    // ---- installing: an icon or cursor theme from the lists ({package, title, source}), or mpvpaper
     function askInstall(item) {
-        installing = item;
-        installState = "ask";
-        installMessage = "";
-        installLog = [];
-        installLogFile.reload();  // an install of this package may be running already: then its log shows
-    }
-    function startInstall(password) {
-        installProc.password = password;
-        installProc.command = [Files.home + "/.local/bin/rice-install-package", installing.package];
-        installState = "checking";
-        installMessage = "";
-        installProc.running = true;
-    }
-    // The background install's log; its last line is "@@done <status>" once it is over.
-    function readInstallLog(text) {
-        const lines = text.split("\n").filter(line => line);
-        if (!lines.length || !installing) {
-            return;
-        }
-        const done = lines[lines.length - 1].match(/^@@done (\d+)$/);
-        if (!done && installState === "ask") {
-            installState = "running";
-        }
-        if (installState !== "running") {
-            return;
-        }
-        installLog = lines.filter(line => !line.startsWith("@@done")).slice(-14);
-        if (done) {
-            installState = done[1] === "0" ? "done" : "failed";
-            installMessage = done[1] !== "0" ? "Не установилось, подробности выше."
-                                             : installing.done || "Установлено. Тема появилась в списке.";
-            iconThemesProc.running = true;
-            cursorThemesProc.running = true;
-            wallpaperNeedsProc.running = true;
-        }
+        install.ask(Object.assign({ done: "Установлено. Тема появилась в списке." }, item));
     }
 
     // ---- the section's "back to the theme"
@@ -588,38 +549,13 @@ Scope {
         stdout: StdioCollector { onStreamFinished: themeEdit.addWallpaper(this.text.trim()) }
         onExited: themeEdit.picking = false
     }
-    // A package being installed by rice-install-package; the sudo password goes on its stdin, never in its
-    // arguments, and is forgotten here as soon as it is written.
-    Process {
-        id: installProc
-        property string password: ""
-        stdinEnabled: true
-        onStarted: {
-            installProc.write(installProc.password + "\n");
-            installProc.password = "";
+    // Whatever the install was, the lists it may have changed are read again.
+    PackageInstall {
+        id: install
+        onFinished: {
+            iconThemesProc.running = true;
+            cursorThemesProc.running = true;
+            wallpaperNeedsProc.running = true;
         }
-        stdout: SplitParser {
-            onRead: line => themeEdit.installLog = themeEdit.installLog.concat([line]).slice(-14)
-        }
-        onExited: exitCode => {
-            if (exitCode === 0) {
-                themeEdit.installState = "running";
-                themeEdit.installMessage = "Идёт в фоне: окно установки и настройки можно закрыть, по окончании придёт уведомление.";
-                installLogFile.reload();
-            } else if (exitCode === 2) {
-                themeEdit.installState = "ask";
-                themeEdit.installMessage = "Пароль не подошёл. После трёх неверных паролей подряд sudo блокируется на 10 минут.";
-            } else {
-                themeEdit.installState = "failed";
-                themeEdit.installMessage = "Установка не запустилась.";
-            }
-        }
-    }
-    FileView {
-        id: installLogFile
-        path: themeEdit.installing ? (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/rice-install-" + themeEdit.installing.package + ".log" : ""
-        watchChanges: true
-        onFileChanged: reload()
-        onLoaded: themeEdit.readInstallLog(text())
     }
 }

@@ -109,7 +109,7 @@ Item {
                 visible: !cursorRow.installed
                 anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
                 text: "Установить"
-                enabled: !themeEdit.installStarting
+                enabled: !themeEdit.install.starting
                 onClicked: themeEdit.askInstall(cursorRow.modelData)
             }
             Chip {

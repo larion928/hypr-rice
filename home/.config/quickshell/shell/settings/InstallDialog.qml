@@ -1,10 +1,11 @@
 import QtQuick
 import qs.common
 
-// Installing an icon or cursor theme: the password, then the installer's output.
+// Installing a missing package (an icon or cursor theme, mpvpaper, what a feature needs): the password, then the
+// installer's output.
 Rectangle {
     id: dialog
-    required property ThemeEditStore themeEdit
+    required property PackageInstall install
 
     color: Theme.alpha(Theme.bg, 0.92)
     MouseArea { anchors.fill: parent }
@@ -19,44 +20,46 @@ Rectangle {
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
             spacing: 12
             SectionTitle {
-                text: themeEdit.installing ? "Установка «" + themeEdit.installing.title + "»" : ""
+                text: install.item ? "Установка «" + install.item.title + "»" : ""
             }
             Text {
                 width: parent.width
                 wrapMode: Text.WordWrap
-                text: !themeEdit.installing ? ""
-                      : (themeEdit.installing.source === "aur" ? "Из AUR: пакет соберётся на этой машине, это может занять пару минут. "
-                                                               : "Из репозитория Arch. ")
+                text: !install.item ? ""
+                      : (install.item.source === "aur" ? "Из AUR: пакет соберётся на этой машине, это может занять пару минут. "
+                         : install.item.source === "repo" ? "Из репозитория Arch. "
+                         : "Из репозитория Arch, а если его там нет, из AUR (тогда пакет соберётся на этой машине, "
+                           + "это может занять пару минут). ")
                         + "Нужен пароль администратора (sudo): он передаётся установщику напрямую и нигде не сохраняется."
                 font.family: Theme.bodyFont; font.pixelSize: 14
                 color: Theme.fg
             }
             Row {
-                visible: themeEdit.installState === "ask"
+                visible: install.phase === "ask"
                 spacing: 10
                 Field {
                     id: passwordField
                     width: 300
                     echoMode: TextInput.Password
                     placeholder: "пароль sudo"
-                    onAccepted: if (text) { themeEdit.startInstall(text); text = ""; }
+                    onAccepted: if (text) { install.start(text); text = ""; }
                 }
                 Chip {
                     text: "Установить"
                     primary: true
                     enabled: passwordField.text !== ""
-                    onClicked: { themeEdit.startInstall(passwordField.text); passwordField.text = ""; }
+                    onClicked: { install.start(passwordField.text); passwordField.text = ""; }
                 }
-                Chip { text: "Отмена"; onClicked: themeEdit.installing = null }
+                Chip { text: "Отмена"; onClicked: install.item = null }
             }
             Rectangle {
-                visible: themeEdit.installState === "running" || themeEdit.installState === "done" || themeEdit.installState === "failed"
+                visible: install.phase === "running" || install.phase === "done" || install.phase === "failed"
                 width: parent.width; height: 260
                 radius: 8
                 color: Theme.bg
                 Text {
                     anchors { fill: parent; margins: 12 }
-                    text: themeEdit.installLog.join("\n")
+                    text: install.log.join("\n")
                     font.family: Theme.font; font.pixelSize: 12
                     color: Theme.muted
                     wrapMode: Text.WrapAnywhere
@@ -65,27 +68,27 @@ Rectangle {
                 }
             }
             Text {
-                visible: themeEdit.installMessage !== ""
-                text: themeEdit.installMessage
+                visible: install.message !== ""
+                text: install.message
                 font.family: Theme.bodyFont; font.pixelSize: 14; font.bold: true
-                color: themeEdit.installState === "done" ? Theme.good
-                       : themeEdit.installState === "running" ? Theme.accent : Theme.crit
+                color: install.phase === "done" ? Theme.good
+                       : install.phase === "running" ? Theme.accent : Theme.crit
             }
             Text {
-                visible: themeEdit.installState === "checking"
+                visible: install.phase === "checking"
                 text: "Проверяю пароль…"
                 font.family: Theme.bodyFont; font.pixelSize: 14
                 color: Theme.accent
             }
             Chip {
-                visible: themeEdit.installState === "running"
+                visible: install.phase === "running"
                 text: "Скрыть (установка продолжится)"
-                onClicked: themeEdit.installing = null
+                onClicked: install.item = null
             }
             Chip {
-                visible: themeEdit.installState === "done" || themeEdit.installState === "failed"
+                visible: install.phase === "done" || install.phase === "failed"
                 text: "Закрыть"
-                onClicked: themeEdit.installing = null
+                onClicked: install.item = null
             }
         }
     }

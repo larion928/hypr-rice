@@ -23,8 +23,9 @@ offscreen (see the end of this file); everything else is checked by hand on the 
 ## Launcher — Alt+R, `~/.local/bin/launcher`
 
 - Lists desktop applications plus the rice's commands: one per theme ("Тема …"), theme picker, screenshots, Telegram
-  theme, games, settings (all pages, monitors, keys), network, power modes, battery care, notifications, lock,
-  suspend, logout, reboot, poweroff. `[auto]` (commands present, one per theme)
+  theme, games, settings (all pages, monitors, keys, features), network, power modes, battery care, notifications,
+  lock, suspend, logout, reboot, poweroff. `[auto]` (commands present, one per theme, «Настройки: функции» opens
+  the features page)
 - Empty query: most launched first, then alphabetical; dangerous commands and per-theme commands are hidden.
   `[auto]`
 - Search: exact > prefix > word prefix > substring > fuzzy (3+ letters); keywords count 0.7; a query typed in the
@@ -34,12 +35,13 @@ offscreen (see the end of this file); everything else is checked by hand on the 
 - Each launch is counted in `~/.local/state/launcher/usage.json`.
 - Window 680×560 centered; a click outside closes it.
 
-## Settings — Alt+F2, waybar gear, launcher; `settings-panel [monitors|keys|theme|theme:<name>[:<section>]]`
+## Settings — Alt+F2, waybar gear, launcher; `settings-panel [monitors|keys|theme|theme:<name>[:<section>]|features]`
 
 - Opens on the page given (default: monitors); `theme:<name>:<section>` opens that theme's settings on that
-  section. `[auto]`
-- Esc steps back: Wallpaper Engine picker, frame picker, theme dialog, install dialog (not while the password is
-  checked), icon picker, a theme's settings; then closes. `[auto]` (a theme's settings → theme list → closed)
+  section. `[auto]` (also through `settings-panel`)
+- Esc steps back: Wallpaper Engine picker, frame picker, theme dialog, install dialog (a theme's or a feature's; not
+  while the password is checked), icon picker, a theme's settings; then closes. `[auto]` (a theme's settings → theme
+  list → closed; a feature's install dialog → features)
 - Monitors: drag to arrange (snaps to edges, top-left kept at 0×0), resolution, rate, scale, on/off; "Применить"
   applies live with a 15 s "keep?" countdown that reverts; "Оставить" writes `monitors.lua`, keeping any other
   fields and lines the user had there; closing the window while the countdown runs reverts. `[auto]` (parsing,
@@ -55,6 +57,13 @@ offscreen (see the end of this file); everything else is checked by hand on the 
   animations); "Сохранить" writes `~/.config/hypr-rice/theme-edits.json` (only what differs from the theme)
   and re-applies the current theme; package installs ask for the sudo password and run in the background.
   `[auto]` (the edits written, pruning)
+- Features: `features.py list` by group in its order, each with its name, what it does (muted) and a switch; a
+  switch runs `features.py on|off <id>` (which applies it: Hyprland reload, systemd unit) and the list is read again,
+  so the switch shows the result; a refusal shows features.py's message under the list. A feature with missing
+  packages says so; switching it on opens the install dialog for them one at a time (sudo password each), and once
+  the last is installed the feature is switched on. Declined, failed, or hidden while the install runs: it stays off.
+  `[auto]` (the list and groups, on/off calls and the switch following them, a refusal's message, Esc out of the
+  install dialog, two packages installed then the feature switched on)
 
 ## Theme picker — Alt+Shift+T, waybar palette, launcher
 
@@ -117,12 +126,12 @@ offscreen (see the end of this file); everything else is checked by hand on the 
 
 ## Automated checks
 
-`python3 -m unittest discover -s tests/qml` runs `quickshell` offscreen (`QT_QPA_PLATFORM=offscreen`) on a copy
-of the menus (`$RICE_HOME/.config/quickshell`, default the live `~`), in a fake `$HOME` with stub `hyprctl`,
-`histui`, `nmcli`, `games.py`, `themegen.py` and a fixed theme list. Layer-shell windows cannot exist offscreen, so
-the copy has `PanelWindow` replaced by a floating window with the same properties and the `WlrLayershell` lines
-dropped (`tests/qml/harness.py`). Keys are sent with QtTest's `keyClick`, which carries no scan code: letter
-shortcuts by key position (the Russian layout) stay a manual check. The tests skip when `quickshell` is not
-installed. The launcher scripts are run with a fake `quickshell` that records the IPC calls (and the start of
-the shell when it is not running). The same suite passes on the per-panel menus kept in
+`python3 -m unittest discover -s tests/qml` runs `quickshell` offscreen (`QT_QPA_PLATFORM=offscreen`) on a copy of
+the menus (`$RICE_HOME/.config/quickshell`, default the live `~`), in a fake `$HOME` with stub `hyprctl`, `histui`,
+`nmcli`, `games.py`, `themegen.py`, `features.py`, `rice-install-package` and a fixed theme list. Layer-shell
+windows cannot exist offscreen, so the copy has `PanelWindow` replaced by a floating window with the same properties
+and the `WlrLayershell` lines dropped (`tests/qml/harness.py`). Keys are sent with QtTest's `keyClick`, which
+carries no scan code: letter shortcuts by key position (the Russian layout) stay a manual check. The tests skip when
+`quickshell` is not installed. The launcher scripts are run with a fake `quickshell` that records the IPC calls (and
+the start of the shell when it is not running). The same suite passes on the per-panel menus kept in
 `/home/larion/hypr-rice/.claude/menus-before` (`RICE_HOME=...`); the resident-shell tests skip there.

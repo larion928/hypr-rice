@@ -78,7 +78,7 @@ Item {
                 visible: !themeRow.installed
                 anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
                 text: "Установить"
-                enabled: !themeEdit.installStarting
+                enabled: !themeEdit.install.starting
                 onClicked: themeEdit.askInstall(themeRow.modelData)
             }
         }

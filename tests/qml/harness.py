@@ -16,7 +16,7 @@ Offscreen there is no layer shell, so the copy is changed in two ways before it 
     keyClick carries no scan code: letters by key position cannot be tested this way.
 
 Every program the menus run is a stub in front of PATH that records its arguments in calls.log; a few answer
-with the fixtures in fixtures/ (hyprctl, histui, nmcli, games.py, themegen.py, theme-list.py)."""
+with the fixtures in fixtures/ (hyprctl, histui, nmcli, games.py, themegen.py, features.py, theme-list.py)."""
 import json
 import os
 import shutil
@@ -94,6 +94,35 @@ answers = {"icon-themes": {"installed": [], "downloadable": []}, "cursor-themes"
 if sys.argv[1] in answers:
     print(json.dumps(answers[sys.argv[1]]))
 """
+# features.py: the fixture's list with the switches made so far (kept where the real one keeps them) and without
+# the packages ~/.local/bin/rice-install-package installed; `on` is refused, as by the real one, while a package
+# the feature needs is missing.
+FEATURES_PY = """import json, os, sys
+open(os.environ["CALLS"], "a").write("features.py " + " ".join(sys.argv[1:]) + "\\n")
+state_file = os.path.expanduser("~/.config/hypr-rice/features.json")
+state = json.load(open(state_file)) if os.path.exists(state_file) else {}
+features = json.load(open(os.environ["FIXTURES"] + "/features.json"))
+installed = os.environ["RUNTIME"] + "/installed-packages"
+installed = open(installed).read().split() if os.path.exists(installed) else []
+for feature in features:
+    feature["on"] = state.get(feature["id"], feature["on"])
+    feature["missing"] = [package for package in feature["missing"] if package not in installed]
+if sys.argv[1] == "list":
+    print(json.dumps(features, ensure_ascii=False))
+elif sys.argv[1] in ("on", "off"):
+    feature = next(feature for feature in features if feature["id"] == sys.argv[2])
+    if sys.argv[1] == "on" and feature["missing"]:
+        print("«" + feature["name"] + "» не включена: нужны пакеты " + " ".join(feature["missing"]), file=sys.stderr)
+        sys.exit(1)
+    state[feature["id"]] = sys.argv[1] == "on"
+    json.dump(state, open(state_file, "w"))
+"""
+# rice-install-package: "secret" is the right sudo password; the install is over at once, its log says so.
+RICE_INSTALL_PACKAGE = STUB_HEAD + """IFS= read -r password
+[ "$password" = secret ] || exit 2
+echo "$1" >> "$RUNTIME/installed-packages"
+printf 'Ставлю %s\\n@@done 0\\n' "$1" > "$XDG_RUNTIME_DIR/rice-install-$1.log"
+"""
 # The per-panel layout passed a file name to write to; the resident shell reads stdout.
 THEME_LIST_PY = """import os, sys
 text = open(os.environ["RUNTIME"] + "/theme-list.json").read()
@@ -162,7 +191,7 @@ class MenuSandbox:
     def _add_test_target(self, qml, menu_expression):
         """The IPC target "test" in the document with ShellRoot. In the resident shell the settings window's
         stores are reached as menu.mon, menu.keys, ...; in a per-panel settings document they are ids already."""
-        stores = ("mon", "keys", "themeEdit", "ownThemes", "userFiles", "net")
+        stores = ("mon", "keys", "themeEdit", "ownThemes", "userFiles", "features", "net")
         locals_ = "".join(f"const {name} = menu ? menu.{name} : undefined; " for name in stores) if self.resident else ""
         target = f"""
     TestCase {{ id: harnessKeys; when: false; running: false }}
@@ -207,6 +236,11 @@ class MenuSandbox:
         scripts.mkdir()
         (scripts / "games.py").write_text(GAMES_PY)
         (scripts / "themegen.py").write_text(THEMEGEN_PY)
+        (scripts / "features.py").write_text(FEATURES_PY)
+        installer = self.home / ".local/bin/rice-install-package"
+        installer.parent.mkdir(parents=True)
+        installer.write_text(RICE_INSTALL_PACKAGE)
+        installer.chmod(0o755)
         shots = self.home / "Pictures/screenshots"
         shots.mkdir(parents=True)
         for name in ("screenshot_20261006_143300.png", "screenshot_20261007_090500.png"):
@@ -264,9 +298,9 @@ class MenuSandbox:
     def _start(self, key, config, extra_env=None):
         env = self.env()
         env.update(extra_env or {})
-        log = open(self.logs / f"{key}.log", "a")
-        process = subprocess.Popen(["quickshell", "-p", str(config)], env=env, stdout=log, stderr=subprocess.STDOUT,
-                                   start_new_session=True)
+        with open(self.logs / f"{key}.log", "a") as log:
+            process = subprocess.Popen(["quickshell", "-p", str(config)], env=env, stdout=log, stderr=subprocess.STDOUT,
+                                       start_new_session=True)
         self.processes[key] = process
         self._wait(lambda: self._ipc(process, "test", "evaluate", "", "1") == "1", f"{key} did not start")
         return process

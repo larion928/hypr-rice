@@ -1,0 +1,6 @@
+[
+ {"id": "animations", "group": "Анимации", "name": "Анимации окон", "about": "Окна появляются плавно", "on": true, "needs": [], "missing": []},
+ {"id": "shot-animation", "group": "Анимации", "name": "Анимация скриншота", "about": "Эффект темы после снимка", "on": true, "needs": [], "missing": []},
+ {"id": "daily-check", "group": "Система", "name": "Ежедневная проверка системы", "about": "rice doctor раз в день", "on": false, "needs": [], "missing": []},
+ {"id": "clipboard", "group": "Система", "name": "История буфера обмена", "about": "Alt+V — прошлые копирования", "on": false, "needs": ["cliphist", "wl-clipboard"], "missing": ["cliphist", "wl-clipboard"]}
+]

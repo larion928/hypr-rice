@@ -6,7 +6,8 @@ import re
 import sys
 from pathlib import Path
 
-STORES = {"ThemeEditStore": "themeEdit", "KeysModel": "keys", "MonitorsModel": "mon", "OwnThemes": "ownThemes",
+STORES = {
+    "PackageInstall": "install", "ThemeEditStore": "themeEdit", "KeysModel": "keys", "MonitorsModel": "mon", "OwnThemes": "ownThemes",
           "UserFiles": "userFiles", "PanelSection": "panelEditor"}
 # What every QML object has.
 BUILT_IN = {"running", "command", "text", "x", "y", "width", "height", "visible", "write"}

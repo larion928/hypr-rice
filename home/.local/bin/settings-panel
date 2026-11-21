@@ -1,6 +1,7 @@
 #!/bin/bash
-# settings-panel [monitors|keys|theme|theme:<name>[:fonts|colors|wallpapers|waybar|icons|cursor|windows]] — toggle
-# the settings window (menu "settings" of ~/.config/quickshell/shell): monitors, hotkeys and theme.
+# settings-panel [monitors|keys|theme|theme:<name>[:fonts|colors|wallpapers|waybar|icons|cursor|windows]|features]
+# — toggle the settings window (menu "settings" of ~/.config/quickshell/shell): monitors, hotkeys, theme and the
+# rice's features.
 # Alt+F2, the waybar gear, or "Настройки" in the launcher.
 source "$HOME/.config/quickshell/menus.sh"
 menus_call toggle settings "${1:-monitors}"
