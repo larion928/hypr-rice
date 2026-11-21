@@ -17,6 +17,7 @@ local fileManager = "thunar"
 local menu        = "~/.local/bin/launcher"
 -- The default browser (xdg-settings), so it follows whichever one is installed.
 local browser     = [[sh -c 'gtk-launch "$(xdg-settings get default-web-browser)"']]
+local on          = require("features")
 
 -- No binds-user.lua: the defaults. A broken one (edited by hand) gives the defaults too, but says so
 -- on screen: otherwise every changed key and mainMod would be gone without a word.
@@ -148,7 +149,13 @@ bind("files",    key("E"),      hl.dsp.exec_cmd(fileManager), desc("Прилож
 bind("float",    key("V"),      hl.dsp.window.float(),        desc("Окна | Плавающее / в сетке"))
 bind("launcher", key("R"),      hl.dsp.exec_cmd(menu),        desc("Приложения | Лаунчер"))
 bind("games",    key("G"),      hl.dsp.exec_cmd("~/.local/bin/games"), desc("Приложения | Игры"))
-bind("split",    key("P"),      hl.dsp.layout("togglesplit"), desc("Окна | Повернуть разбиение")) -- dwindle only
+-- The scrolling layout has no split to turn; its widths are scrolling.explicit_column_widths.
+if on("scrolling") then
+    bind("column_width", key("P"),         hl.dsp.layout("colresize +conf"), desc("Окна | Ширина колонки: следующая (1/3, 1/2, 2/3, весь экран)"))
+    bind("columns_fit",  key("SHIFT + P"), hl.dsp.layout("fit visible"),     desc("Окна | Уместить видимые колонки на экране"))
+else
+    bind("split", key("P"), hl.dsp.layout("togglesplit"), desc("Окна | Повернуть разбиение"))
+end
 
 -- Move focus with mainMod + arrow keys
 hl.bind(key("left"),  hl.dsp.focus({ direction = "left" }), desc("Окна | Фокус на соседнее окно | " .. M .. "+стрелки"))

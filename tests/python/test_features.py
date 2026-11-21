@@ -115,7 +115,7 @@ class FeaturesCommandTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         listed = json.loads(result.stdout)
         self.assertEqual([item["id"] for item in listed], [item.id for item in features.FEATURES])
-        self.assertEqual(set(listed[0]), {"id", "group", "name", "about", "on", "needs", "missing"})
+        self.assertEqual(set(listed[0]), {"id", "group", "name", "about", "on", "needs", "missing", "experimental"})
 
 
 class MissingPackageTest(unittest.TestCase):
@@ -160,8 +160,11 @@ end
 hl = anything()
 rawset(hl, "config", function(options)
     if options.animations then print("animations " .. tostring(options.animations.enabled)) end
+    if options.general then print("layout " .. options.general.layout) end
 end)
-rawset(hl, "gesture", function() print("gesture") end)
+rawset(hl, "gesture", function(spec) print("gesture " .. spec.fingers .. " " .. spec.action) end)
+rawset(hl, "dsp", setmetatable({ layout = function(message) print("layoutmsg " .. message) end },
+                               { __index = function() return anything() end }))
 rawset(hl, "layer_rule", function(rule)
     if rule.name:find("blur") then print("blur " .. tostring(rule.blur)) end
 end)
@@ -192,15 +195,26 @@ class HyprlandFollowsFeaturesTest(unittest.TestCase):
         self.state.write_text(json.dumps({"animations": True, "gestures": True, "menu-blur": True}, indent=2))
         lines = self.config_lines()
         self.assertIn("animations true", lines)
-        self.assertIn("gesture", lines)
+        self.assertIn("gesture 3 workspace", lines)
         self.assertEqual({line for line in lines if line.startswith("blur")}, {"blur true"})
+        self.assertNotIn("layout scrolling", lines)
+        self.assertIn("layoutmsg togglesplit", lines)
 
     def test_off_as_written(self):
         self.state.write_text('{"animations": false, "gestures": false, "menu-blur": false}')
         lines = self.config_lines()
         self.assertIn("animations false", lines)
-        self.assertNotIn("gesture", lines)
+        self.assertFalse(any(line.startswith("gesture") for line in lines), lines)
         self.assertEqual({line for line in lines if line.startswith("blur")}, {"blur false"})
+
+    def test_scrolling_takes_the_layout_the_keys_and_three_fingers(self):
+        self.state.write_text('{"gestures": true, "scrolling": true}')
+        lines = self.config_lines()
+        self.assertIn("layout scrolling", lines)
+        self.assertEqual([line for line in lines if line.startswith("gesture")],
+                         ["gesture 3 scroll_move", "gesture 4 workspace"])
+        self.assertEqual([line for line in lines if line.startswith("layoutmsg")],
+                         ["layoutmsg colresize +conf", "layoutmsg fit visible"])
 
     def test_a_missing_state_is_reported(self):
         lines = self.config_lines()

@@ -29,7 +29,7 @@ class Feature:
     missing (the settings window offers to install them). forget: the command that erases what the feature
     kept, run when it is switched off (not by `write`, which only makes the session follow the state).
     restarts: another feature's unit that reads this feature's state when it starts, restarted when this one
-    is switched (only if it runs)."""
+    is switched (only if it runs). experimental: still being tried out; the settings window says so."""
     id: str
     group: str
     name: str
@@ -40,6 +40,7 @@ class Feature:
     needs: tuple = ()
     forget: tuple = ()
     restarts: str = ""
+    experimental: bool = False
 
 
 FEATURES = (
@@ -55,7 +56,12 @@ FEATURES = (
     Feature("color-picker", "Скриншоты", "Пипетка",
             "Alt+Shift+C — лупа над экраном, клик копирует цвет точки как #rrggbb"),
     Feature("gestures", "Ввод", "Свайп тремя пальцами",
-            "На тачпаде: три пальца влево или вправо — соседний рабочий стол", hyprland=True),
+            "На тачпаде: три пальца влево или вправо — соседний рабочий стол; с прокруткой окон три пальца "
+            "двигают ленту, а рабочий стол — четыре", hyprland=True),
+    Feature("scrolling", "Окна", "Прокрутка окон",
+            "Окна встают колонками в бесконечную ленту, как в niri; Alt+P — ширина колонки, Alt+Shift+P — "
+            "уместить видимые колонки на экране",
+            default=False, hyprland=True, experimental=True),
     Feature("menu-blur", "Внешний вид", "Размытие под меню",
             "Фон под лаунчером, уведомлениями и другими меню размыт; без него легче видеокарте",
             hyprland=True),
@@ -112,14 +118,16 @@ def listing():
     """Every feature as the settings window shows it."""
     current = state()
     return [{"id": item.id, "group": item.group, "name": item.name, "about": item.about, "on": current[item.id],
-             "needs": list(item.needs), "missing": missing_packages(item)} for item in FEATURES]
+             "needs": list(item.needs), "missing": missing_packages(item), "experimental": item.experimental}
+            for item in FEATURES]
 
 
 def shown():
     """The list as `rice features` prints it."""
     current = state()
     width = max(len(item.id) for item in FEATURES)
-    lines = [f"  {'вкл ' if current[item.id] else 'выкл'}  {item.id:<{width}}  {item.name}" for item in FEATURES]
+    lines = [f"  {'вкл ' if current[item.id] else 'выкл'}  {item.id:<{width}}  {item.name}"
+             + (" (экспериментальная)" if item.experimental else "") for item in FEATURES]
     return "\n".join(lines + ["", "  rice features on|off <id>"])
 
 
@@ -176,8 +184,8 @@ def is_on(feature_id):
 ERRORS = (ValueError, OSError)
 
 COMMANDS = {
-    "list": Command(printing_json(listing), "", "every feature as JSON: id, group, name, about, on, needs, missing",
-                    ERRORS),
+    "list": Command(printing_json(listing), "",
+                    "every feature as JSON: id, group, name, about, on, needs, missing, experimental", ERRORS),
     "show": Command(printing(shown), "", "every feature and whether it is on, for a terminal", ERRORS),
     "on": Command(lambda feature_id: switch(feature_id, True), "<id>",
                   "switches the feature on; refused while a package it needs is missing", ERRORS),

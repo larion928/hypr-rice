@@ -155,6 +155,7 @@ The settings window opens with Alt+F2, the gear on the bar or from the launcher.
 | Mounting USB disks automatically (an icon in the tray; eject from it or in Thunar) | on |
 | Disk notifications | off |
 | Clipboard history (erased when switched off) | off |
+| Scrolling windows, experimental: columns on an endless tape, as in niri; Alt+P is the column width, Alt+Shift+P fits the visible ones; three fingers move the tape, four the workspace | off |
 
 ## Games
 

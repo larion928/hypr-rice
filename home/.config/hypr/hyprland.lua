@@ -16,28 +16,8 @@ local function load_if_present(name)
     end
 end
 
--- The features the user switched on or off (Alt+F2 → Функции): the flat {"id": true|false} that
--- ~/.config/hypr/scripts/features.py writes at every install and update, read again on every reload.
-local function read_features()
-    local file = io.open(os.getenv("HOME") .. "/.config/hypr-rice/features.json", "r")
-    if not file then
-        hl.notification.create({ text = "Нет features.json, функции райса выключены. Вернуть: rice repair",
-                                 timeout = 20000, icon = "error" })
-        return {}
-    end
-    local text = file:read("*a")
-    file:close()
-    local features = {}
-    for id, value in text:gmatch('"([%w-]+)"%s*:%s*(%a+)') do
-        features[id] = value == "true"
-    end
-    return features
-end
-
-local features = read_features()
-local function on(feature)
-    return features[feature] == true
-end
+-- Whether a feature is switched on in Alt+F2 → Функции (features.lua).
+local on = require("features")
 
 ----------------
 --- MONITORS ---
@@ -214,6 +194,11 @@ hl.config({
     },
 })
 
+-- Windows in columns on an endless horizontal tape, as in niri: Hyprland's own layout, no plugin.
+if on("scrolling") then
+    hl.config({ general = { layout = "scrolling" } })
+end
+
 -------------
 --- INPUT ---
 -------------
@@ -235,12 +220,12 @@ hl.config({
     },
 })
 
-if on("gestures") then
-    hl.gesture({
-        fingers   = 3,
-        direction = "horizontal",
-        action    = "workspace",
-    })
+-- With the scrolling layout three fingers move the tape, and the workspace swipe takes four.
+if on("gestures") and on("scrolling") then
+    hl.gesture({ fingers = 3, direction = "horizontal", action = "scroll_move" })
+    hl.gesture({ fingers = 4, direction = "horizontal", action = "workspace" })
+elseif on("gestures") then
+    hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
 end
 
 ------------------------------

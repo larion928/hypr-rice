@@ -12,7 +12,7 @@ import qs.common
 Scope {
     id: features
 
-    property var list: []          // [{id, group, name, about, on, needs, missing}] in display order
+    property var list: []          // [{id, group, name, about, on, needs, missing, experimental}] in display order
     readonly property var groups: [...new Set(list.map(feature => feature.group))]
     property string message: ""    // what features.py said about the last switch: why it was refused
     readonly property bool busy: runner.running || listProc.running  // a switch now would act on an old list

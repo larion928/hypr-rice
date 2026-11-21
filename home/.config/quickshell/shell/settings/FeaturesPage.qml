@@ -56,6 +56,14 @@ Item {
                                     color: Theme.muted
                                 }
                                 Text {
+                                    visible: row.modelData.experimental
+                                    width: parent.width
+                                    wrapMode: Text.WordWrap
+                                    text: "Экспериментальная: ещё обкатывается, возможны шероховатости"
+                                    font.family: Theme.bodyFont; font.pixelSize: 13
+                                    color: Theme.warn
+                                }
+                                Text {
                                     visible: row.modelData.missing.length > 0
                                     width: parent.width
                                     wrapMode: Text.WordWrap
