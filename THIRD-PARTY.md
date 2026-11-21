@@ -28,7 +28,7 @@ If you are the author of one of them and want it credited differently or removed
 
 ## WhiteCat cursor / Курсор WhiteCat
 
-`home/.local/share/icons/WhiteCat` is converted from the osu! skin "white cat" by cyperdark.
+`home/.local/share/icons/WhiteCat` is converted from the osu! skin "white cat cyperdark" by WhiteCat.
 
 ## neoHtop
 
