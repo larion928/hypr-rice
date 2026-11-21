@@ -127,6 +127,31 @@ offscreen (see the end of this file); everything else is checked by hand on the 
   and the clipboard. A second Print while the overlay is up does nothing. `[auto]` (Esc cancels, `full` saves and
   copies)
 
+## Text recognition — Alt+Shift+Print, `shot ocr`
+
+- The screenshot overlay in mode "ocr": a region is selected as for a screenshot; its text, read by tesseract in
+  Russian and English, goes to the clipboard with a notification. The feature off: `shot` says so in a notification.
+
+## Colour picker — Alt+Shift+C, `shot color`, menu "picker"
+
+- Over the frozen screen: a magnifier in the theme's colours follows the pointer; a click copies that physical
+  pixel's colour as #rrggbb to the clipboard with a notification; Esc or a right click cancels.
+
+## Player — waybar custom/player, `player-panel`
+
+- The active MPRIS player (the one that started playing last or was picked in the card; else the first playing,
+  else the first): cover (a note without one), title, artist, program; seek bar when the player can seek;
+  previous, play/pause, next (dimmed when the player cannot); shuffle, loop and volume only when supported; the
+  other players as a list when there are several, a click makes one active. playerctld's mirror is not listed.
+- No player: "Ничего не играет". `[auto]` (the empty state; the sandbox has no session bus)
+- The media keys (`player-panel play-pause|next|previous`) and the bar module (`player-panel bar`) use the same
+  active player; `bar` never starts the shell and shows the icon alone while it is down. `[auto]`
+
+## Administrator password — polkit, always running
+
+- When a program asks polkit for an administrator's rights: the password window in the theme; Esc, a click
+  outside or «Отмена» cancel; a wrong password keeps it open with the error and the field still active.
+
 ## OSD — always running
 
 - Shows volume (PipeWire default sink) and brightness (first backlight) changes for 1.4 s in the theme's

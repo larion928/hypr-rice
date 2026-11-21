@@ -25,6 +25,7 @@ If you are the author of one of them and want it credited differently or removed
 | sakura | wallhaven [jekjq5](https://wallhaven.cc/w/jekjq5), [poj9ve](https://wallhaven.cc/w/poj9ve), [poj51p](https://wallhaven.cc/w/poj51p) |
 | coffee | wallhaven [g7mgx7](https://wallhaven.cc/w/g7mgx7), [4grydl](https://wallhaven.cc/w/4grydl), [451513](https://wallhaven.cc/w/451513), [mdpzq8](https://wallhaven.cc/w/mdpzq8) |
 | ocean | wallhaven [g8599q](https://wallhaven.cc/w/g8599q), [neq2ro](https://wallhaven.cc/w/neq2ro), [45k9e5](https://wallhaven.cc/w/45k9e5) |
+| mr-robot | stock photos, no author or licence given; Mr. Robot and fsociety belong to their owners |
 
 ## WhiteCat cursor / Курсор WhiteCat
 
