@@ -64,6 +64,32 @@ class FeaturesCommandTest(unittest.TestCase):
                                  "systemctl --user disable --now rice-clipboard.service",
                                  "cliphist wipe"])
 
+    def test_switching_drive_notifications_restarts_the_automounter_only(self):
+        self.assertTrue(features.BY_ID["automount"].default)
+        self.assertFalse(features.BY_ID["automount-notify"].default)
+        self.assertEqual(self.features("on", "automount-notify").returncode, 0)
+        self.assertEqual(self.features("is", "automount-notify").returncode, 0)
+        self.assertEqual([call for call in self.sandbox.recorded() if call.startswith("systemctl")],
+                         ["systemctl --user try-restart rice-udiskie.service"])
+
+    def test_the_automounter_starts_with_notifications_only_when_they_are_on(self):
+        self.sandbox.stub("udiskie")
+        automount = LIVE_HOME / ".local/bin/rice-automount"
+        self.assertEqual(self.sandbox.run([automount], WAYLAND_DISPLAY="wayland-test").returncode, 0)
+        self.features("on", "automount-notify")
+        self.assertEqual(self.sandbox.run([automount], WAYLAND_DISPLAY="wayland-test").returncode, 0)
+        self.assertEqual([call for call in self.sandbox.recorded() if call.startswith("udiskie")],
+                         ["udiskie --no-notify", "udiskie --notify"])
+
+    def test_the_automounter_fails_without_a_wayland_display_so_the_service_retries(self):
+        self.sandbox.stub("udiskie")
+        self.assertEqual(self.sandbox.run([LIVE_HOME / ".local/bin/rice-automount"]).returncode, 1)
+        self.assertFalse([call for call in self.sandbox.recorded() if call.startswith("udiskie")])
+
+    def test_write_never_restarts_the_automounter(self):
+        self.assertEqual(self.features("write").returncode, 0)
+        self.assertNotIn("systemctl --user try-restart rice-udiskie.service", self.sandbox.recorded())
+
     def test_write_never_wipes_the_clipboard_history(self):
         self.sandbox.stub("cliphist")
         self.assertEqual(self.features("write").returncode, 0)

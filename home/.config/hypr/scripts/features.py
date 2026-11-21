@@ -27,7 +27,9 @@ class Feature:
     """hyprland: hyprland.lua reads it, so switching it reloads Hyprland. unit: a user unit that runs only
     while the feature is on. needs: packages it cannot work without; it is not switched on while one is
     missing (the settings window offers to install them). forget: the command that erases what the feature
-    kept, run when it is switched off (not by `write`, which only makes the session follow the state)."""
+    kept, run when it is switched off (not by `write`, which only makes the session follow the state).
+    restarts: another feature's unit that reads this feature's state when it starts, restarted when this one
+    is switched (only if it runs)."""
     id: str
     group: str
     name: str
@@ -37,6 +39,7 @@ class Feature:
     unit: str = ""
     needs: tuple = ()
     forget: tuple = ()
+    restarts: str = ""
 
 
 FEATURES = (
@@ -59,6 +62,15 @@ FEATURES = (
     Feature("clipboard", "Ввод", "История буфера обмена",
             "Alt+Shift+V — последние 100 скопированных записей, до 100 МБ; при выключении история стирается",
             default=False, unit="rice-clipboard.service", needs=("cliphist",), forget=("cliphist", "wipe")),
+    # udiskie is in base.txt: a feature on by default has to find its package installed. Under
+    # hyprland-session.target like the clipboard history.
+    Feature("automount", "Устройства", "Автомонтирование USB-дисков",
+            "Флешки и карты памяти подключаются сами; пока диск вставлен, его значок в трее панели "
+            "(Тема → Панель → Трей); извлечь — из значка или в Thunar", unit="rice-udiskie.service", needs=("udiskie",)),
+    Feature("automount-notify", "Устройства", "Уведомления о дисках",
+            "Уведомление, когда диск смонтирован (с кнопкой «Открыть») или отмонтирован; работает вместе с "
+            "автомонтированием",
+            default=False, restarts="rice-udiskie.service"),
 )
 BY_ID = {feature.id: feature for feature in FEATURES}
 
@@ -114,6 +126,9 @@ def switch(feature_id, on):
     current[item.id] = on
     save(current)
     apply([item], current)
+    if item.restarts and subprocess.run(["systemctl", "--user", "try-restart", item.restarts],
+                                        capture_output=True).returncode:
+        print(f"systemctl --user try-restart {item.restarts} не прошёл", file=sys.stderr)
     if not on and item.forget:
         forget(item)
 

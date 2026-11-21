@@ -22,6 +22,7 @@ thunar-volman
 gvfs
 gvfs-mtp
 tumbler
+udiskie
 # --- audio, network, power
 pipewire
 pipewire-audio

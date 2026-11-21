@@ -1,0 +1,14 @@
+# udiskie as rice-udiskie.service runs it (Alt+F2 → Функции → Автомонтирование USB-дисков). Notifications are
+# not set here: rice-automount passes --notify or --no-notify after «Уведомления о дисках».
+program_options:
+  # The icon shows only while a drive is in, in the bar's tray (Alt+F2 → Тема → Панель adds the tray).
+  tray: auto
+  # xdg-open would open the drive in whatever claims folders, a terminal on some machines.
+  file_manager: thunar
+# The computer's own disks are neither mounted nor listed by udiskie's built-in rules (a disk udisks marks as
+# a system one is ignored, its partitions with it); Thunar still shows them.
+notifications:
+  # A drive that comes in is mounted at once: «добавлено» and «удалено» would stand next to «смонтировано» and
+  # «отмонтировано».
+  device_added: false
+  device_removed: false

@@ -48,6 +48,8 @@ PATHS=(
     .config/systemd/user/rice-doctor.service
     .config/systemd/user/rice-doctor.timer
     .config/systemd/user/rice-clipboard.service
+    .config/systemd/user/rice-udiskie.service
+    .config/udiskie/config.yml
     .config/systemd/user/xdg-desktop-portal-hyprland.service.d
     .config/systemd/user/xdg-desktop-portal.service.d
     ".config/Code - OSS/User/settings.json"
@@ -78,6 +80,7 @@ PATHS=(
     .local/bin/rice-install-package
     .local/bin/clipboard-history
     .local/bin/clipboard-store
+    .local/bin/rice-automount
     .claude/statusline.sh
 )
 

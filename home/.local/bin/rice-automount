@@ -1,0 +1,10 @@
+#!/bin/sh
+# rice-automount — what rice-udiskie.service runs. udiskie reads its options only at start, so switching
+# «Уведомления о дисках» (features.py automount-notify) restarts the service.
+# Without a Wayland display udiskie would run the whole session without its icon: the start fails instead
+# and the service retries it (Hyprland starts the target without waiting for its display to reach systemd).
+[ -n "$WAYLAND_DISPLAY" ] || exit 1
+if python3 "$HOME/.config/hypr/scripts/features.py" is automount-notify; then
+    exec udiskie --notify
+fi
+exec udiskie --no-notify
