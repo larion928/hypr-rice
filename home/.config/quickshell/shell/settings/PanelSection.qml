@@ -31,7 +31,7 @@ Item {
         for (const [side] of themeEdit.sides) {
             const pills = panelEditor.pills(side);
             if (!pills.length) {
-                const x = side === "modules-left" ? 16 : side === "modules-right" ? mockBar.width - 16 : mockBar.width / 2;
+                const x = side === "modules-left" ? 16 : side === "modules-right" ? mockBar.width - 16 : mockBar.gapMiddle;
                 list.push({ side: side, index: 0, x: x });
                 continue;
             }
@@ -136,11 +136,20 @@ Item {
         border.width: panelEditor.target ? 2 : 1
         border.color: panelEditor.target ? Theme.accent : Theme.alpha(Theme.accent, 0.4)
 
+        // The free stretch between the left and right groups. An empty centre group is shown and dropped
+        // on there: at the bar's middle a long group on either side would cover it.
+        readonly property real gapStart: leftRow.x + leftRow.width
+        readonly property real gapEnd: rightRow.x
+        readonly property real gapMiddle: (gapStart + gapEnd) / 2
+        readonly property real gapWidth: gapEnd - gapStart
+
         // The empty centre group, as a place to drop on while dragging.
         Rectangle {
             visible: panelEditor.drag !== null && (themeEdit.panel()["modules-center"] || []).length === 0
-            anchors.centerIn: parent
-            width: 110; height: parent.height - 14
+            x: mockBar.gapMiddle - width / 2
+            anchors.verticalCenter: parent.verticalCenter
+            width: Math.max(0, Math.min(110, mockBar.gapWidth - 12)); height: parent.height - 14
+            clip: true
             radius: 8
             color: Theme.alpha(Theme.accent, 0.08)
             border.color: Theme.alpha(Theme.accent, 0.4)
