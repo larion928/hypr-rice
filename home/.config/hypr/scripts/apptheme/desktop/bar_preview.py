@@ -113,7 +113,8 @@ def read_workspaces(options):
     workspaces = hyprctl("workspaces") or []
     active = (hyprctl("activeworkspace") or {}).get("id")
     persistent = options.get("persistent-workspaces", {}).get("*", [])
-    ids = sorted({workspace["id"] for workspace in workspaces if workspace["id"] > 0} | set(persistent))
+    # Hyprland 0.57 gives special workspaces (special:magic) no "id" at all; older ones gave them a negative one.
+    ids = sorted({workspace["id"] for workspace in workspaces if workspace.get("id", 0) > 0} | set(persistent))
     marker = options.get("format-icons", {}).get("active", "●")
     return shown(" ".join(marker if number == active else str(number) for number in ids))
 

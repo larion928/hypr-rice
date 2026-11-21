@@ -167,6 +167,9 @@ empty = bar.from_script("custom/updates", {"return-type": "json"}, "")
 assert empty["state"] == "sometimes" and "обновлен" in empty["note"], empty
 silent = bar.from_script("custom/x", {}, None)
 assert silent["state"] == "sometimes" and "не ответил" in silent["note"], silent
+# Hyprland 0.57 lists a special workspace without an "id".
+bar.hyprctl = lambda what: [{"id": 2}, {"name": "special:magic"}, {"id": 1}] if what == "workspaces" else {"id": 2}
+assert bar.read_workspaces({"format-icons": {"active": "*"}}) == bar.shown("1 *"), bar.read_workspaces({})
 PY
 }
 
