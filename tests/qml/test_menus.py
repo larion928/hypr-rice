@@ -143,7 +143,7 @@ class Features(MenuTest):
     def test_features_listed_by_group_and_switched(self):
         value = self.open("settings", "features")
         self.assertEqual(value("menu.page"), "features")
-        self.sandbox.wait_for("settings", "features.list.length", 4)
+        self.sandbox.wait_for("settings", "features.list.length", 5)
         self.assertEqual(value("features.groups"), ["Анимации", "Система"])
         value("features.toggle(features.list[0])")
         self.sandbox.wait_for("settings", "features.list[0].on", False)
@@ -153,16 +153,35 @@ class Features(MenuTest):
         switches = [call for call in self.sandbox.recorded() if call.startswith(("features.py on", "features.py off"))]
         self.assertEqual(switches, ["features.py off animations", "features.py on daily-check"])
 
+    def test_closed_ports_are_asked_about_before_switching_on(self):
+        value = self.open("settings", "features")
+        self.sandbox.wait_for("settings", "features.list.length", 5)
+        value("features.toggle(features.list[4])")
+        self.assertEqual(value("features.firewall.id"), "phone")
+        value("features.keepPortsClosed()")
+        self.sandbox.wait_for("settings", "features.list[4].on", True)
+        calls = [call for call in self.sandbox.recorded() if call.startswith(("features.py on", "features.py open"))]
+        self.assertEqual(calls, ["features.py on phone"])
+
+    def test_ports_are_opened_then_the_feature_switched_on(self):
+        value = self.open("settings", "features")
+        self.sandbox.wait_for("settings", "features.list.length", 5)
+        value("features.toggle(features.list[4])")
+        value("features.openPorts()")
+        self.sandbox.wait_for("settings", "features.list[4].on", True)
+        calls = [call for call in self.sandbox.recorded() if call.startswith(("features.py on", "features.py open"))]
+        self.assertEqual(calls, ["features.py open-ports phone", "features.py on phone"])
+
     def test_a_refused_switch_shows_why(self):
         self.open("settings", "features")
-        self.sandbox.wait_for("settings", "features.list.length", 4)
+        self.sandbox.wait_for("settings", "features.list.length", 5)
         self.sandbox.eval("settings", "features.turn('clipboard', 'on')")
         self.sandbox.wait_for("settings", "features.message",
                               "«История буфера обмена» не включена: нужны пакеты cliphist wl-clipboard")
 
     def test_missing_packages_are_installed_before_switching_on(self):
         value = self.open("settings", "features")
-        self.sandbox.wait_for("settings", "features.list.length", 4)
+        self.sandbox.wait_for("settings", "features.list.length", 5)
         value("features.toggle(features.list[3])")
         self.assertEqual(value("features.install.item.packages"), ["cliphist", "wl-clipboard"])
         self.sandbox.key("settings", KEY["Escape"])  # declined: the dialog closes, the feature stays off
@@ -183,7 +202,7 @@ class Features(MenuTest):
 
     def test_feature_comes_on_when_its_install_dialog_was_closed(self):
         value = self.open("settings", "features")
-        self.sandbox.wait_for("settings", "features.list.length", 4)
+        self.sandbox.wait_for("settings", "features.list.length", 5)
         value("features.toggle(features.list[3])")
         value("features.install.start('secret')")
         self.sandbox.wait_for("settings", "features.install.phase", "running")
@@ -351,6 +370,23 @@ class Player(MenuTest):
         self.escape_closes("player")
 
 
+@unittest.skipUnless(resident(), "the per-panel menus have no resident shell")
+class Phone(MenuTest):
+    # The sandbox has no session bus and the feature is off: no watcher runs, no phone is known.
+    def test_with_the_feature_off_the_menu_says_so_and_the_bar_is_empty(self):
+        value = self.open("phone")
+        self.assertIn("выключен", value("menu.emptyText()"))
+        self.assertEqual(json.loads(value("Phones.barJson")), {"text": "", "tooltip": "", "class": "none"})
+        self.escape_closes("phone")
+
+    def test_bar_shows_the_charge_of_a_phone_in_reach(self):
+        self.open("phone")
+        phone = ('{ name: "A&B", paired: true, reachable: true, battery: { charge: 50, charging: true } }')
+        bar = json.loads(self.sandbox.eval("phone", "Phones.barState(" + phone + ")"))
+        self.assertEqual(bar, {"text": "\U000f011c 50% \U000f0084", "tooltip": "A&amp;B: заряд 50%, заряжается",
+                               "class": "charging"})
+
+
 class ResidentShell(MenuTest):
     def test_toggle_opens_then_closes(self):
         for menu in MENUS:
@@ -384,7 +420,7 @@ class ResidentShell(MenuTest):
 SCRIPTS = {"launcher": ("launcher", ""), "settings-panel": ("settings", "monitors"), "theme-picker": ("themes", ""),
            "help-panel": ("help", ""), "power-menu": ("power", ""), "notif-panel": ("notif", ""),
            "network-panel": ("network", ""), "games": ("games", ""), "shots-gallery": ("shots", ""),
-           "player-panel": ("player", "")}
+           "player-panel": ("player", ""), "phone-panel": ("phone", "")}
 # A quickshell that records its arguments; `ipc` fails until `-d` (the start) has run once when $DOWN is set.
 FAKE_QUICKSHELL = """#!/bin/sh
 printf '%s\\n' "$*" >> "$CALLS"

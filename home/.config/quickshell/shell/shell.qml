@@ -4,7 +4,7 @@
 // closes; the scripts open and close them over IPC:
 //   quickshell ipc -p ~/.config/quickshell/shell call menus toggle <menu> [argument]
 // open, close and isOpen work the same way. Menus: launcher, settings, themes, help, power, notif, network, games,
-// shots, shot, picker (the colour picker), clipboard, player. Colours and fonts follow the current theme as it changes
+// shots, shot, picker (the colour picker), clipboard, player, phone. Colours and fonts follow the current theme as it changes
 // (common/Theme.qml).
 import QtQuick
 import Quickshell
@@ -25,6 +25,7 @@ import qs.clipboard
 import qs.picker
 import qs.polkit
 import qs.player
+import qs.phone
 import qs.services
 
 ShellRoot {
@@ -33,9 +34,11 @@ ShellRoot {
     readonly property var slots: ({ launcher: launcherSlot, settings: settingsSlot, themes: themesSlot, help: helpSlot,
                                     power: powerSlot, notif: notifSlot, network: networkSlot, games: gamesSlot,
                                     shots: shotsSlot, shot: shotSlot, picker: pickerSlot, clipboard: clipboardSlot,
-                                    player: playerSlot })
+                                    player: playerSlot, phone: phoneSlot })
     // Made at start, not when the card first opens: the media keys and the bar ask it from the first minute.
     readonly property var players: Players
+    // Made at start too: the bar shows the phone's battery while the menu is closed.
+    readonly property var phones: Phones
 
     function slot(name) {
         const found = slots[name];
@@ -66,6 +69,7 @@ ShellRoot {
     MenuSlot { id: pickerSlot; ColorPicker {} }
     MenuSlot { id: clipboardSlot; Clipboard {} }
     MenuSlot { id: playerSlot; Player {} }
+    MenuSlot { id: phoneSlot; Phone {} }
 
     // The session's polkit agent: an app asking for an administrator's rights gets the password window.
     PolkitAgent { id: polkitAgent }

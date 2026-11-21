@@ -1,0 +1,15 @@
+#!/bin/bash
+# phone-panel — the phone menu (KDE Connect, feature "kdeconnect"); what it shows is services/Phones.qml's.
+#   phone-panel        toggle the menu (menu "phone" of ~/.config/quickshell/shell)
+#   phone-panel bar    waybar JSON for custom/phone
+source "$HOME/.config/quickshell/menus.sh"
+
+# The bar shows nothing while the shell is down: no phone is known then.
+IDLE_BAR='{"text": "", "tooltip": "", "class": "none"}'
+
+case "${1:-}" in
+    "") menus_call toggle phone "" ;;
+    # Not shell_call: waybar runs this at its own start, and starting the shell from here races hyprland.lua.
+    bar) quickshell ipc -p "$MENUS_SHELL" call phone bar 2>/dev/null || echo "$IDLE_BAR" ;;
+    *) echo "phone-panel [bar]" >&2; exit 2 ;;
+esac

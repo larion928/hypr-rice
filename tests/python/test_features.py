@@ -115,7 +115,8 @@ class FeaturesCommandTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         listed = json.loads(result.stdout)
         self.assertEqual([item["id"] for item in listed], [item.id for item in features.FEATURES])
-        self.assertEqual(set(listed[0]), {"id", "group", "name", "about", "on", "needs", "missing", "experimental"})
+        self.assertEqual(set(listed[0]), {"id", "group", "name", "about", "on", "needs", "missing", "experimental",
+                                             "closedPorts"})
 
 
 class MissingPackageTest(unittest.TestCase):
@@ -150,6 +151,55 @@ class MissingPackageTest(unittest.TestCase):
         with self.pacman_says_missing([]):
             features.switch("needy", True)
         self.assertTrue(features.state()["needy"])
+
+
+class FirewallPortsTest(unittest.TestCase):
+    """closed_ports reads ufw's own files: ufw.conf for whether it is on, user.rules for what it lets in."""
+    RULE = "### tuple ### allow {} 1714:1764 0.0.0.0/0 any 0.0.0.0/0 in\n"
+
+    def setUp(self):
+        self.sandbox = Sandbox()
+        self.config = self.sandbox.home / "ufw.conf"
+        self.rules = self.sandbox.home / "user.rules"
+        self.config.write_text("ENABLED=yes\n")
+        self.rules.write_text("")
+        for name, path in (("UFW_CONFIG", self.config), ("UFW_RULES", self.rules)):
+            patcher = mock.patch.object(features, name, path)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.item = features.Feature("phone", "g", "Телефон", "", ports=("1714:1764/tcp", "1714:1764/udp"))
+
+    def tearDown(self):
+        self.sandbox.cleanup()
+
+    def test_ports_without_a_rule_are_closed(self):
+        self.rules.write_text(self.RULE.format("tcp"))
+        self.assertEqual(features.closed_ports(self.item), ["1714:1764/udp"])
+
+    def test_a_rule_for_any_protocol_opens_both(self):
+        self.rules.write_text(self.RULE.format("any"))
+        self.assertEqual(features.closed_ports(self.item), [])
+
+    def test_nothing_is_closed_while_ufw_is_off(self):
+        self.config.write_text("ENABLED=no\n")
+        self.assertEqual(features.closed_ports(self.item), [])
+
+    def test_opening_asks_one_password_for_the_closed_ports(self):
+        self.rules.write_text(self.RULE.format("tcp"))
+        with mock.patch.object(features, "BY_ID", {"phone": self.item}), \
+                mock.patch.object(features.subprocess, "run",
+                                  return_value=subprocess.CompletedProcess([], 0, "", "")) as run:
+            features.open_ports("phone")
+        command = run.call_args.args[0]
+        self.assertEqual(command[0], "pkexec")
+        self.assertEqual(command[-1:], ["1714:1764/udp"])
+
+    def test_a_cancelled_password_is_an_error(self):
+        with mock.patch.object(features, "BY_ID", {"phone": self.item}), \
+                mock.patch.object(features.subprocess, "run",
+                                  return_value=subprocess.CompletedProcess([], 126, "", "")):
+            with self.assertRaises(OSError):
+                features.open_ports("phone")
 
 
 # Loads the live hyprland.lua with an `hl` that accepts any call, and prints what the features decide.

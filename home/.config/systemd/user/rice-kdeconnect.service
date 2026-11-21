@@ -1,0 +1,17 @@
+[Unit]
+Description=KDE Connect for the phone menu and the bar (kdeconnectd; feature "kdeconnect")
+# Hyprland 0.57+ starts hyprland-session.target itself, and nothing here runs XDG autostart, which is where
+# KDE Connect starts itself elsewhere. Under uwsm Hyprland leaves the target alone.
+PartOf=hyprland-session.target
+After=hyprland-session.target
+
+[Service]
+Type=dbus
+BusName=org.kde.kdeconnect
+ExecStart=/usr/bin/kdeconnectd
+# A start before Hyprland has handed WAYLAND_DISPLAY to systemd fails and is retried.
+Restart=on-failure
+RestartSec=1
+
+[Install]
+WantedBy=hyprland-session.target

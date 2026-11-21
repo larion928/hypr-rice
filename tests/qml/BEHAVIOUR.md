@@ -62,10 +62,13 @@ offscreen (see the end of this file); everything else is checked by hand on the 
   so the switch shows the result; a refusal shows features.py's message under the list. A feature with missing
   packages says so; switching it on opens the install dialog for all of them (one sudo password), and once they are
   installed the installer switches the feature on, also when the dialog was hidden meanwhile; the list is read again
-  whenever features.json changes. Declined or failed: it stays off.
+  whenever features.json changes. Declined or failed: it stays off. An experimental feature says so in warning
+  colour. A feature whose ports ufw keeps closed (`closedPorts`) asks first: «Открыть порты» (`features.py
+  open-ports <id>`, the password in the polkit window, then on; a cancelled password leaves it off with the
+  reason), «Включить без них», «Отмена» or Esc.
   `[auto]` (the list and groups, on/off calls and the switch following them, a refusal's message, Esc out of the
   install dialog, two packages installed with one password then the feature switched on, the same with the dialog
-  hidden during the install)
+  hidden during the install, the ports question: on without them, open-ports then on)
 
 ## Theme picker — Alt+Shift+T, waybar palette, launcher
 
@@ -146,6 +149,19 @@ offscreen (see the end of this file); everything else is checked by hand on the 
 - No player: "Ничего не играет". `[auto]` (the empty state; the sandbox has no session bus)
 - The media keys (`player-panel play-pause|next|previous`) and the bar module (`player-panel bar`) use the same
   active player; `bar` never starts the shell and shows the icon alone while it is down. `[auto]`
+
+## Phone — waybar custom/phone, `phone-panel` (feature "kdeconnect")
+
+- The phone KDE Connect shows (picked in the menu; else the first paired one in reach; else the first paired):
+  name, in reach or not, charge and charging; when paired and in reach: «Найти телефон» (rings), «Пинг»,
+  «Отправить файлы» (zenity picks them), «Отправить буфер», «Файлы телефона» (sftp mount opened in Thunar, the
+  menu closes; a failure is a notification). Not paired, in reach: «Сопрячь»; the phone's request: the key,
+  «Принять» / «Отклонить»; our request: the key, «Отменить». Paired: «Разорвать сопряжение». Several devices: a
+  list, a click shows that one. A failed action's reason under the buttons.
+- Feature off: the menu says where to switch it on; the bar module is empty (hidden). `[auto]` (the sandbox has no
+  session bus)
+- The bar (`phone-panel bar`): phone glyph, charge, charging glyph; tooltip name and charge; empty when no paired
+  phone is in reach; signalled (12) on every change; never starts the shell. `[auto]` (the bar text from a phone)
 
 ## Administrator password — polkit, always running
 

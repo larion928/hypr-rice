@@ -49,6 +49,7 @@ PATHS=(
     .config/systemd/user/rice-doctor.service
     .config/systemd/user/rice-doctor.timer
     .config/systemd/user/rice-clipboard.service
+    .config/systemd/user/rice-kdeconnect.service
     .config/systemd/user/rice-udiskie.service
     .config/udiskie/config.yml
     .config/systemd/user/xdg-desktop-portal-hyprland.service.d
@@ -68,6 +69,7 @@ PATHS=(
     .local/bin/help-panel
     .local/bin/notif-panel
     .local/bin/player-panel
+    .local/bin/phone-panel
     .local/bin/screen-fx
     .local/bin/mouse-sens
     .local/bin/portal-restart

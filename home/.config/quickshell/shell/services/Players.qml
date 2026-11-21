@@ -8,6 +8,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Mpris
+import "../common/pango.js" as Pango
 
 Singleton {
     id: players
@@ -39,15 +40,10 @@ Singleton {
         }
         const track = player.trackArtist ? player.trackArtist + " — " + player.trackTitle : player.trackTitle;
         return JSON.stringify({
-            text: (player.isPlaying ? musicGlyph : pauseGlyph) + " " + markup(player.trackTitle),
-            tooltip: markup(track) + "\n" + markup(player.identity),
+            text: (player.isPlaying ? musicGlyph : pauseGlyph) + " " + Pango.escape(player.trackTitle),
+            tooltip: Pango.escape(track) + "\n" + Pango.escape(player.identity),
             class: player.isPlaying ? "playing" : "paused"
         });
-    }
-
-    // Waybar reads the text as Pango markup.
-    function markup(text) {
-        return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
     onBarJsonChanged: barRefresh.restart()

@@ -33,7 +33,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 SOURCE_HOME = Path(os.environ.get("RICE_HOME", Path.home()))
 SOURCE = SOURCE_HOME / ".config/quickshell"
 MENUS = ("launcher", "settings", "themes", "help", "power", "notif", "network", "games", "shots", "clipboard",
-         "player")
+         "player", "phone")
 CURRENT_THEME = "claude"
 
 # QML errors worth failing a test for; a missing picture or font is not one, nor PipeWire missing in the fake
@@ -120,6 +120,8 @@ for feature in features:
     feature["missing"] = [package for package in feature["missing"] if package not in installed]
 if sys.argv[1] == "list":
     print(json.dumps(features, ensure_ascii=False))
+elif sys.argv[1] == "open-ports":
+    pass
 elif sys.argv[1] in ("on", "off"):
     feature = next(feature for feature in features if feature["id"] == sys.argv[2])
     if sys.argv[1] == "on" and feature["missing"]:

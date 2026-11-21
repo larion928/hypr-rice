@@ -184,6 +184,14 @@
         "tooltip": true,
         "on-click": "~/.local/bin/player-panel"
     },
+    "custom/phone": {
+        "exec": "~/.local/bin/phone-panel bar",
+        "return-type": "json",
+        "interval": "once",
+        "signal": 12,
+        "tooltip": true,
+        "on-click": "~/.local/bin/phone-panel"
+    },
     "custom/power": {
         "exec": "~/.local/bin/power-mode",
         "return-type": "json",

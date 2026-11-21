@@ -11,6 +11,7 @@ choices for the others.
 """
 import json
 import os
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -20,6 +21,8 @@ from apptheme.files import write
 from command_table import Command, printing, printing_json, run
 
 STATE = Path.home() / ".config/hypr-rice/features.json"
+UFW_CONFIG = Path("/etc/ufw/ufw.conf")
+UFW_RULES = Path("/etc/ufw/user.rules")
 
 
 @dataclass(frozen=True)
@@ -29,7 +32,9 @@ class Feature:
     missing (the settings window offers to install them). forget: the command that erases what the feature
     kept, run when it is switched off (not by `write`, which only makes the session follow the state).
     restarts: another feature's unit that reads this feature's state when it starts, restarted when this one
-    is switched (only if it runs). experimental: still being tried out; the settings window says so."""
+    is switched (only if it runs). experimental: still being tried out; the settings window says so. ports: what
+    it has to receive from the network ("1714:1764/tcp"); while ufw closes one, switching it on offers to open
+    them (open-ports)."""
     id: str
     group: str
     name: str
@@ -41,6 +46,7 @@ class Feature:
     forget: tuple = ()
     restarts: str = ""
     experimental: bool = False
+    ports: tuple = ()
 
 
 FEATURES = (
@@ -83,6 +89,13 @@ FEATURES = (
             "Уведомление, когда диск смонтирован (с кнопкой «Открыть») или отмонтирован; работает вместе с "
             "автомонтированием",
             default=False, restarts="rice-udiskie.service"),
+    # The phone finds the computer on ports 1714-1764 (KDE Connect's ufw profile). zenity is the window that
+    # picks the files to send.
+    Feature("kdeconnect", "Устройства", "Телефон (KDE Connect)",
+            "Батарея телефона на панели (Тема → Панель → Телефон) и меню по клику: найти телефон, отправить файлы и "
+            "буфер обмена, открыть файлы телефона; в Thunar — «Отправить через KDE Connect»",
+            default=False, unit="rice-kdeconnect.service", needs=("kdeconnect", "sshfs", "python-gobject", "zenity"),
+            ports=("1714:1764/tcp", "1714:1764/udp")),
 )
 BY_ID = {feature.id: feature for feature in FEATURES}
 
@@ -118,7 +131,8 @@ def listing():
     """Every feature as the settings window shows it."""
     current = state()
     return [{"id": item.id, "group": item.group, "name": item.name, "about": item.about, "on": current[item.id],
-             "needs": list(item.needs), "missing": missing_packages(item), "experimental": item.experimental}
+             "needs": list(item.needs), "missing": missing_packages(item), "experimental": item.experimental,
+             "closedPorts": closed_ports(item)}
             for item in FEATURES]
 
 
@@ -145,6 +159,47 @@ def switch(feature_id, on):
         print(f"systemctl --user try-restart {item.restarts} не прошёл", file=sys.stderr)
     if not on and item.forget:
         forget(item)
+    if on and closed_ports(item):
+        print(f"ufw не пропускает {' '.join(closed_ports(item))}: открыть — rice features open-ports {item.id}")
+
+
+def ufw_enabled():
+    try:
+        return re.search(r"^ENABLED=yes", UFW_CONFIG.read_text(), re.M) is not None
+    except OSError:
+        return False
+
+
+def closed_ports(item):
+    """The feature's ports that ufw, while it is on, does not let in: an IPv4 allow rule from anywhere for the
+    port and its protocol (or any protocol), as `ufw allow 1714:1764/tcp` writes it. A rule ufw keeps in another
+    form (an app profile) is not recognised: the port counts as closed, and opening it again changes nothing."""
+    if not item.ports or not ufw_enabled():
+        return []
+    try:
+        rules = UFW_RULES.read_text()
+    except OSError:
+        return list(item.ports)
+    allowed = set(re.findall(r"^### tuple ### allow (\w+) (\S+) 0\.0\.0\.0/0 any 0\.0\.0\.0/0 in\b", rules, re.M))
+    closed = []
+    for port in item.ports:
+        number, protocol = port.split("/")
+        if (protocol, number) not in allowed and ("any", number) not in allowed:
+            closed.append(port)
+    return closed
+
+
+def open_ports(feature_id):
+    """ufw allow for each closed port of the feature, under one administrator password (pkexec: the rice's
+    polkit window)."""
+    closed = closed_ports(feature(feature_id))
+    if not closed:
+        return 0
+    script = 'for port; do ufw allow "$port" || exit; done'
+    result = subprocess.run(["pkexec", "/bin/sh", "-c", script, "sh", *closed], capture_output=True, text=True)
+    if result.returncode:
+        raise OSError(f"Порты не открылись: {result.stderr.strip() or 'pkexec код ' + str(result.returncode)}")
+    return 0
 
 
 def forget(item):
@@ -185,11 +240,13 @@ ERRORS = (ValueError, OSError)
 
 COMMANDS = {
     "list": Command(printing_json(listing), "",
-                    "every feature as JSON: id, group, name, about, on, needs, missing, experimental", ERRORS),
+                    "every feature as JSON: id, group, name, about, on, needs, missing, experimental, closedPorts",
+                    ERRORS),
     "show": Command(printing(shown), "", "every feature and whether it is on, for a terminal", ERRORS),
     "on": Command(lambda feature_id: switch(feature_id, True), "<id>",
                   "switches the feature on; refused while a package it needs is missing", ERRORS),
     "off": Command(lambda feature_id: switch(feature_id, False), "<id>", "switches the feature off", ERRORS),
+    "open-ports": Command(open_ports, "<id>", "lets the feature's ports through ufw (asks the password)", ERRORS),
     "is": Command(is_on, "<id>", "exit status 0 when the feature is on, 1 when it is off", ERRORS),
     "write": Command(write_all, "",
                      "writes every feature's state (new ones get their defaults) and makes the session follow it",

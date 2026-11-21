@@ -87,6 +87,7 @@ The bar's modules are clickable:
 | network | Wi-Fi panel: networks, the password typed in place, the current connection and VPN, "forget"; right click: nmtui |
 | sound | pavucontrol |
 | player | the player card (below) |
+| phone | the phone menu (below); shown while a paired phone is in reach |
 | power mode | saver → balanced → performance |
 | battery | right click: battery care (Lenovo IdeaPad) |
 | updates | shows up when there are some; click: `rice upgrade` |
@@ -114,6 +115,7 @@ Every menu opens in the current theme's colours and fonts; pressing its key agai
 | Notifications | bell | history by day, search, do not disturb |
 | Player | "Плеер" module on the bar | cover, track, seek bar, buttons, volume, the source to show when several programs play |
 | Screenshots | camera on the bar | every shot, preview, copy, delete |
+| Phone | "Телефон" module on the bar | KDE Connect: charge, find the phone, ping, send files and the clipboard, the phone's files in Thunar, pairing; switched on in Features |
 
 The media keys control the same player the card shows. When a program needs administrator rights, a
 window in the theme's style asks for the password. Volume and brightness changes show in the theme's window.
@@ -154,6 +156,7 @@ The settings window opens with Alt+F2, the gear on the bar or from the launcher.
 | Daily system check (`rice doctor`, a notification about what it found) | on |
 | Mounting USB disks automatically (an icon in the tray; eject from it or in Thunar) | on |
 | Disk notifications | off |
+| Phone (KDE Connect): the menu and the charge on the bar; when ufw closes ports 1714–1764, the window offers to open them | off |
 | Clipboard history (erased when switched off) | off |
 | Scrolling windows, experimental: columns on an endless tape, as in niri; Alt+P is the column width, Alt+Shift+P fits the visible ones; three fingers move the tape, four the workspace | off |
 
