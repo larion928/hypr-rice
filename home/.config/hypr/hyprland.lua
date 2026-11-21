@@ -1,4 +1,4 @@
--- Hyprland config (Lua, Hyprland 0.56+).
+-- Hyprland config (Lua, Hyprland 0.57+).
 
 -- A file of the machine's or the user's own (not part of the rice repo), when it is there. One that
 -- breaks (a typo in user.lua) is skipped with a notification on screen: an error here would stop

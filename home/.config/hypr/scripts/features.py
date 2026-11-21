@@ -26,7 +26,8 @@ STATE = Path.home() / ".config/hypr-rice/features.json"
 class Feature:
     """hyprland: hyprland.lua reads it, so switching it reloads Hyprland. unit: a user unit that runs only
     while the feature is on. needs: packages it cannot work without; it is not switched on while one is
-    missing (the settings window offers to install them)."""
+    missing (the settings window offers to install them). forget: the command that erases what the feature
+    kept, run when it is switched off (not by `write`, which only makes the session follow the state)."""
     id: str
     group: str
     name: str
@@ -35,6 +36,7 @@ class Feature:
     hyprland: bool = False
     unit: str = ""
     needs: tuple = ()
+    forget: tuple = ()
 
 
 FEATURES = (
@@ -53,6 +55,10 @@ FEATURES = (
             hyprland=True),
     Feature("daily-check", "Система", "Ежедневная проверка системы",
             "rice doctor раз в день; о найденном приходит уведомление", unit="rice-doctor.timer"),
+    # The unit is wanted by hyprland-session.target, which Hyprland 0.57+ starts itself (not under uwsm).
+    Feature("clipboard", "Ввод", "История буфера обмена",
+            "Alt+Shift+V — последние 100 скопированных записей, до 100 МБ; при выключении история стирается",
+            default=False, unit="rice-clipboard.service", needs=("cliphist",), forget=("cliphist", "wipe")),
 )
 BY_ID = {feature.id: feature for feature in FEATURES}
 
@@ -108,6 +114,16 @@ def switch(feature_id, on):
     current[item.id] = on
     save(current)
     apply([item], current)
+    if not on and item.forget:
+        forget(item)
+
+
+def forget(item):
+    """After its unit has stopped, so nothing is kept again; with the program gone there is nothing to erase."""
+    try:
+        subprocess.run(item.forget, capture_output=True)
+    except FileNotFoundError:
+        pass
 
 
 def save(current):

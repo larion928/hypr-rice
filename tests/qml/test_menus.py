@@ -210,6 +210,47 @@ class ThemePackageInstall(MenuTest):
                            "the icon themes were not read again")
 
 
+@unittest.skipUnless(resident(), "the per-panel menus had no clipboard history")
+class Clipboard(MenuTest):
+    HISTORY = "3\tgit status\n2\t[[ binary data 120 KiB png 1920x1080 ]]\n1\tssh larion@host\n"
+
+    def open_history(self, on=True):
+        (self.sandbox.runtime / "clipboard.tsv").write_text(self.HISTORY)
+        (self.sandbox.home / ".config/hypr-rice/features.json").write_text(json.dumps({"clipboard": on}))
+        value = self.open("clipboard")
+        self.sandbox.wait_for("clipboard", "menu.history.entries.length", 3 if on else 0)
+        return value
+
+    def test_entries_newest_first_and_search(self):
+        value = self.open_history()
+        self.assertEqual(value("menu.history.entries.map(e => e.label)"),
+                         ["git status", "картинка 1920×1080, 120 КБ", "ssh larion@host"])
+        value("menu.query = 'SSH'")
+        self.assertEqual(value("menu.results.map(e => e.id)"), ["1"])
+
+    def test_enter_copies_the_entry_and_closes(self):
+        self.open_history()
+        self.sandbox.key("clipboard", KEY["Down"])
+        self.sandbox.key("clipboard", KEY["Return"])
+        self.sandbox.wait_closed("clipboard")
+        self.sandbox._wait(lambda: "cliphist decode 2" in self.sandbox.recorded(), "the entry was not decoded")
+        self.assertTrue(any(call.startswith("wl-copy") for call in self.sandbox.recorded()))
+
+    def test_delete_removes_one_and_clear_needs_a_second_press(self):
+        value = self.open_history()
+        self.sandbox.key("clipboard", KEY["Delete"])
+        self.sandbox.wait_for("clipboard", "menu.history.entries.map(e => e.id).join()", "2,1")
+        value("menu.clear()")
+        self.assertEqual(value("menu.history.entries.length"), 2)  # armed, not wiped
+        value("menu.clear()")
+        self.sandbox.wait_for("clipboard", "menu.history.entries.length", 0)
+
+    def test_switched_off_says_where_to_switch_it_on(self):
+        value = self.open_history(on=False)
+        self.assertNotIn("cliphist list", self.sandbox.recorded())
+        self.assertIn("Функции", value("menu.emptyText"))
+
+
 class ThemePicker(MenuTest):
     def test_moves_and_tabs(self):
         value = self.open("themes")

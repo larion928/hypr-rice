@@ -107,6 +107,13 @@ offscreen (see the end of this file); everything else is checked by hand on the 
   edit (rename, cover, remove); add from a file, Steam or installed programs. Esc closes a dialog, then the menu.
   `[auto]` (filter, Esc out of a dialog)
 
+## Clipboard history — Alt+Shift+V, launcher; `clipboard-history`
+
+- `cliphist list` newest first, a picture as «картинка W×H, N КБ»; typing filters; arrows move; Enter/click copies
+  the entry back (`cliphist decode | wl-copy`) and closes; Delete (at the end of the typed text) removes the entry;
+  «Очистить» wipes the history on a second press. The feature off (Alt+F2 → Функции): nothing is read, the menu
+  says where to switch it on. `[auto]` (labels and filter, Enter, Delete, the second press, off)
+
 ## Screenshot gallery — waybar camera
 
 - `~/Pictures/screenshots`, newest first; click/Enter opens a preview (←→/H L flip); C copies, Enter opens in the

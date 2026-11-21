@@ -53,6 +53,22 @@ class FeaturesCommandTest(unittest.TestCase):
                          ["systemctl --user disable --now rice-doctor.timer",
                           "systemctl --user enable --now rice-doctor.timer"])
 
+    def test_clipboard_history_is_off_by_default_and_wiped_when_switched_off(self):
+        self.assertFalse(features.BY_ID["clipboard"].default)
+        self.sandbox.stub("cliphist")
+        self.sandbox.stub("pacman")  # pacman -T: every package is installed
+        self.assertEqual(self.features("on", "clipboard").returncode, 0)
+        self.assertEqual(self.features("off", "clipboard").returncode, 0)
+        calls = [call for call in self.sandbox.recorded() if call.startswith(("systemctl", "cliphist"))]
+        self.assertEqual(calls, ["systemctl --user enable --now rice-clipboard.service",
+                                 "systemctl --user disable --now rice-clipboard.service",
+                                 "cliphist wipe"])
+
+    def test_write_never_wipes_the_clipboard_history(self):
+        self.sandbox.stub("cliphist")
+        self.assertEqual(self.features("write").returncode, 0)
+        self.assertNotIn("cliphist wipe", self.sandbox.recorded())
+
     def test_hyprland_reloads_only_inside_its_session_and_for_its_features(self):
         self.features("off", "animations")
         self.assertNotIn("hyprctl reload", self.sandbox.recorded())

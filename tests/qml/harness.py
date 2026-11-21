@@ -32,7 +32,7 @@ from pathlib import Path
 FIXTURES = Path(__file__).parent / "fixtures"
 SOURCE_HOME = Path(os.environ.get("RICE_HOME", Path.home()))
 SOURCE = SOURCE_HOME / ".config/quickshell"
-MENUS = ("launcher", "settings", "themes", "help", "power", "notif", "network", "games", "shots")
+MENUS = ("launcher", "settings", "themes", "help", "power", "notif", "network", "games", "shots", "clipboard")
 CURRENT_THEME = "claude"
 
 # QML errors worth failing a test for; a missing picture or font is not one, nor PipeWire missing in the fake
@@ -59,6 +59,16 @@ FloatingWindow {
 # Recorded calls go to $CALLS; the answer, if any, comes from the case below.
 STUB_HEAD = '#!/bin/sh\nprintf "%s\\n" "$(basename "$0") $*" >> "$CALLS"\n'
 ANSWERS = {
+    # cliphist: the history is $RUNTIME/clipboard.tsv (id, tab, preview), newest first.
+    "cliphist": """case "$1" in
+    list) cat "$RUNTIME/clipboard.tsv" 2>/dev/null ;;
+    decode) echo "entry $2" ;;
+    delete)
+        id=$(cut -f1)
+        awk -F'\\t' -v id="$id" '$1 != id' "$RUNTIME/clipboard.tsv" > "$RUNTIME/clipboard.left"
+        mv "$RUNTIME/clipboard.left" "$RUNTIME/clipboard.tsv" ;;
+    wipe) : > "$RUNTIME/clipboard.tsv" ;;
+esac""",
     "hyprctl": """case "$*" in
     "monitors all -j"|"monitors -j") cat "$FIXTURES/monitors.json" ;;
     "binds -j") cat "$FIXTURES/binds.json" ;;
@@ -409,5 +419,5 @@ class MenuSandbox:
 
 
 # Qt key codes the tests send.
-KEY = dict(Escape=0x01000000, Tab=0x01000001, Backtab=0x01000002, Return=0x01000004, Left=0x01000012, Up=0x01000013,
-           Right=0x01000014, Down=0x01000015, PageDown=0x01000017, F1=0x01000030)
+KEY = dict(Escape=0x01000000, Tab=0x01000001, Backtab=0x01000002, Return=0x01000004, Delete=0x01000007,
+           Left=0x01000012, Up=0x01000013, Right=0x01000014, Down=0x01000015, PageDown=0x01000017, F1=0x01000030)

@@ -1,0 +1,29 @@
+#!/bin/bash
+# clipboard-store — what wl-paste --watch runs on every copy (rice-clipboard.service), the copy on stdin: it goes
+# into cliphist's history, which keeps the last 100 entries. Past CLIPBOARD_LIMIT_BYTES in all (100 MB) the oldest
+# entries go until the rest fits; one entry has no size limit, so the newest one stays even when it alone is
+# larger. wl-paste's CLIPBOARD_STATE reaches cliphist, which keeps nothing a password manager marks as sensitive.
+set -u
+limit=${CLIPBOARD_LIMIT_BYTES:-$((100 * 1024 * 1024))}
+db=${CLIPHIST_DB_PATH:-${XDG_CACHE_HOME:-$HOME/.cache}/cliphist/db}
+
+cliphist -max-items 100 -max-store-size 0 store
+# The database file also holds the space of deleted entries until it is compacted, so it is only a hint: the
+# entries are measured one by one (at most 100) only when it is over the limit.
+[ "$(stat -c %s "$db" 2>/dev/null || echo 0)" -gt "$limit" ] || exit 0
+
+total=0
+newest=1
+old=()
+# Newest first: the newest entry always stays; from the first one that does not fit, it and all older go.
+while IFS=$'\t' read -r id _; do
+    total=$((total + $(cliphist decode "$id" | wc -c)))
+    if [ "$newest" -eq 0 ] && [ "$total" -gt "$limit" ]; then
+        old+=("$id")
+    fi
+    newest=0
+done < <(cliphist list)
+if [ ${#old[@]} -gt 0 ]; then
+    printf '%s\n' "${old[@]}" | cliphist delete
+fi
+cliphist compact
