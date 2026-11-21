@@ -67,6 +67,7 @@ When another rice or desktop is found (niri, KDE, GNOME, another Hyprland rice, 
 | `rice upgrade` | update the system and programs, AUR included |
 | `rice proton` | which Proton runs `.exe` files: the latest UMU-Proton (default) or any installed with ProtonPlus |
 | `rice repair` | re-apply the SDDM login screen, GTK theme and services |
+| `rice mouse-test` | move the mouse along a ruler: sensor angle (and the rotation that undoes it), DPI, polling rate |
 | `rice report` | write `~/rice-report.txt` for whoever helps you debug |
 | `rice uninstall` | remove the rice and restore the configs from before it |
 
@@ -107,7 +108,7 @@ Keep your changes in these files, updates leave them alone:
 | `~/.config/hypr/user.lua` | Hyprland: window rules, autostart, env, any Lua. Loaded last, so it can override anything. Apply: `hyprctl reload` |
 | `~/.config/hypr/binds-user.lua` | hotkeys (written by the Alt+F2 window) |
 | `~/.config/hypr/monitors.lua` | monitors (written by the Alt+F2 window) |
-| `~/.config/hypr/devices.lua` | mouse and touchpad (`mouse-sens`) |
+| `~/.config/hypr/devices.lua` | mouse and touchpad (`mouse-sens`, `rice mouse-test`) |
 | `~/.config/fish/user.fish` | fish: aliases, `PATH`, variables |
 | `~/.config/hypr-rice/kitty/user.conf` | kitty: font, opacity, your own keys |
 | `~/.config/hypr-rice/waybar/user.css` | bar styles on top of the theme. Apply: `waybar-start` |

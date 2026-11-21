@@ -10,7 +10,7 @@ LINE = re.compile(r"^hl\.device\(\{(?P<body>.*)\}\)\s*$")
 FIELD = re.compile(r'(\w+)\s*=\s*("(?:[^"\\]|\\.)*"|[^,]+)')
 
 
-def read(path=PATH):
+def read(path):
     """{device name: {setting: value}} of every hl.device line."""
     devices = {}
     for line in lines(path):
@@ -20,7 +20,7 @@ def read(path=PATH):
     return devices
 
 
-def save(name, settings, path=PATH):
+def save(name, settings, path):
     """Sets the given settings of one device, adding its line at the end when it has none."""
     kept = lines(path)
     for index, line in enumerate(kept):

@@ -213,7 +213,7 @@ write_machine_files() {  # this machine's monitors and input devices: written on
             > "$HOME/.config/hypr/monitors.lua"
     fi
     if [ ! -f "$HOME/.config/hypr/devices.lua" ]; then
-        printf '%s\n' "-- Per-device input settings. mouse-sens rewrites the sensitivity lines below," \
+        printf '%s\n' "-- Per-device input settings. mouse-sens and rice mouse-test rewrite the lines below," \
             "-- keep each hl.device() call on a single line." > "$HOME/.config/hypr/devices.lua"
     fi
 }

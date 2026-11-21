@@ -33,18 +33,18 @@ def global_sensitivity():
 
 
 def read_conf_sensitivity(device):
-    return devices_lua.read().get(device, {}).get("sensitivity", global_sensitivity())
+    return devices_lua.read(devices_lua.PATH).get(device, {}).get("sensitivity", global_sensitivity())
 
 
 def apply_live(device, value):
     # hyprctl keyword is not supported by the Lua config manager. The device's other settings go along,
     # so a rotation saved by rice mouse-test stays applied.
-    settings = devices_lua.read().get(device, {}) | {"sensitivity": value}
+    settings = devices_lua.read(devices_lua.PATH).get(device, {}) | {"sensitivity": value}
     hyprctl("eval", devices_lua.device_line(device, settings))
 
 
 def save_conf(device, value):
-    devices_lua.save(device, {"sensitivity": value})
+    devices_lua.save(device, {"sensitivity": value}, devices_lua.PATH)
 
 
 def clamp(v):

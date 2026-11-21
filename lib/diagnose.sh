@@ -65,6 +65,11 @@ cmd_report() {
     ok "отчёт: $out (пришли его тому, кто помогает)"
 }
 
+cmd_mouse_test() {  # the user moves the mouse along a ruler and answers questions: a terminal is needed
+    have_tty || die "rice mouse-test нужен терминал"
+    exec python3 "$HOME/.config/hypr/scripts/mouse_test.py"
+}
+
 cmd_doctor() {  # the doctor is python, in the repo next to lib/ (doctor/)
     PYTHONPATH="$SRC${PYTHONPATH:+:$PYTHONPATH}" exec python3 -m doctor "$@"
 }

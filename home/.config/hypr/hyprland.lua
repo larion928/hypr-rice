@@ -354,7 +354,7 @@ hl.layer_rule({
 --- OTHER FILES ---
 -------------------
 
--- Per-device input settings; rewritten by ~/.local/bin/mouse-sens.
+-- Per-device input settings; written by mouse-sens and rice mouse-test.
 load_if_present("devices.lua")
 require("keybind")
 

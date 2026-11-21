@@ -70,6 +70,7 @@ curl -fsSL https://raw.githubusercontent.com/larion928/hypr-rice/main/install.sh
 | `rice upgrade` | обновить систему и программы, включая AUR |
 | `rice proton` | какая версия Proton запускает `.exe`: последняя UMU-Proton (по умолчанию) или любая из ProtonPlus |
 | `rice repair` | починить: экран входа SDDM, тема GTK, сервисы |
+| `rice mouse-test` | мышь вдоль линейки: угол датчика (и поворот, который его исправит), DPI, частота опроса |
 | `rice report` | собрать отчёт `~/rice-report.txt`, чтобы прислать тому, кто помогает |
 | `rice uninstall` | убрать райс и вернуть настройки, которые были до него |
 
@@ -111,7 +112,7 @@ curl -fsSL https://raw.githubusercontent.com/larion928/hypr-rice/main/install.sh
 | `~/.config/hypr/user.lua` | Hyprland: правила окон, автозапуск, переменные, любой Lua. Грузится последним, поэтому может переопределить что угодно. Применить: `hyprctl reload` |
 | `~/.config/hypr/binds-user.lua` | горячие клавиши (пишет окно Alt+F2) |
 | `~/.config/hypr/monitors.lua` | мониторы (пишет окно Alt+F2) |
-| `~/.config/hypr/devices.lua` | мышь и тачпад (`mouse-sens`) |
+| `~/.config/hypr/devices.lua` | мышь и тачпад (`mouse-sens`, `rice mouse-test`) |
 | `~/.config/fish/user.fish` | fish: алиасы, `PATH`, переменные |
 | `~/.config/hypr-rice/kitty/user.conf` | kitty: шрифт, прозрачность, свои клавиши |
 | `~/.config/hypr-rice/waybar/user.css` | стили панели поверх темы. Применить: `waybar-start` |
