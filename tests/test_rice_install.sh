@@ -260,3 +260,66 @@ test_help_lists_every_command() {
         grep -q "^  rice $cmd " <<<"$help" || fail "в справке нет rice $cmd"
     done
 }
+
+# Side by side with another desktop whose login screen the user kept: the choice is remembered, and
+# neither an update nor a repair turns that login screen off for SDDM.
+test_coexist_keeps_other_login_screen() {
+    load_rice
+    local unit="$HOME/root/usr/lib/systemd/system/gdm.service"
+    mkdir -p "$(dirname "$unit")" "$(dirname "$DISPLAY_MANAGER_UNIT")" "$HOME/.config/waybar" "$HOME/.config/hypr"
+    touch "$unit"
+    ln -s "$unit" "$DISPLAY_MANAGER_UNIT"
+    echo foreign > "$HOME/.config/waybar/config"
+    systemctl() { echo "systemctl $*" >> "$HOME/calls"; }
+    RICE_MODE=coexist RICE_ASSUME=n
+    inspect_existing_desktop >/dev/null 2>&1
+    record_install
+    grep -qx 'use_sddm=0' "$HOME/.config/hypr-rice/install.conf" \
+        || fail "отказ от SDDM не записан: $(cat "$HOME/.config/hypr-rice/install.conf")"
+
+    # A fresh rice, as `rice update` and `rice repair` start; their other steps are not this test's.
+    unset RICE_MODE
+    RICE_ASSUME=y MODE=replace USE_SDDM=1
+    install_missing_packages() { :; }
+    rerun_installed_hooks() { :; }
+    apply_rice() { setup_sddm; record_install; }
+    pac() { :; }
+    aur_install() { :; }
+    mark_rice_packages_explicit() { :; }
+    pkg_repo_enabled() { :; }
+    setup_system() { setup_sddm; }
+    setup_maintenance() { :; }
+    apply_theme() { :; }
+    cmd_apply_update >/dev/null 2>&1
+    MODE=replace USE_SDDM=1
+    cmd_repair >/dev/null 2>&1
+    ! grep -q 'sddm' "$HOME/calls" 2>/dev/null || fail "экран входа gdm заменён: $(cat "$HOME/calls")"
+    [ ! -e "$SDDM_CONF_D/99-hypr-rice.conf" ] || fail "записана тема SDDM"
+    grep -qx 'use_sddm=0' "$HOME/.config/hypr-rice/install.conf" || fail "обновление забыло отказ от SDDM"
+}
+
+# Installs from before the choice was written down: the login screen they left in place is the answer.
+test_coexist_choice_read_from_old_install() {
+    load_rice
+    local unit="$HOME/root/usr/lib/systemd/system/gdm.service"
+    mkdir -p "$(dirname "$unit")" "$(dirname "$DISPLAY_MANAGER_UNIT")" "$HOME/.config/hypr-rice"
+    echo mode=coexist > "$HOME/.config/hypr-rice/install.conf"
+    load_install_mode
+    [ "$MODE/$USE_SDDM" = coexist/1 ] || fail "без экрана входа: $MODE/$USE_SDDM"
+    touch "$unit"
+    ln -s "$unit" "$DISPLAY_MANAGER_UNIT"
+    load_install_mode
+    [ "$MODE/$USE_SDDM" = coexist/0 ] || fail "при gdm: $MODE/$USE_SDDM"
+    echo mode=replace > "$HOME/.config/hypr-rice/install.conf"
+    load_install_mode
+    [ "$MODE/$USE_SDDM" = replace/1 ] || fail "замена: $MODE/$USE_SDDM"
+}
+
+# A machine without a display manager has no login screen to turn off.
+test_sddm_without_display_manager() {
+    load_rice
+    systemctl() { echo "systemctl $*" >> "$HOME/calls"; }
+    sudo_write() { :; }
+    setup_sddm >/dev/null 2>&1
+    ! grep -q 'disable' "$HOME/calls" || fail "выключался несуществующий экран входа: $(cat "$HOME/calls")"
+}

@@ -36,8 +36,7 @@ cmd_update() {
 cmd_apply_update() {
     need_sudo
     load_apps
-    MODE=$(install_setting mode)
-    MODE=${MODE:-replace}
+    load_install_mode
 
     step "Новые пакеты райса"
     install_missing_packages

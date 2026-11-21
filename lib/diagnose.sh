@@ -11,6 +11,7 @@ cmd_repair() {
     pkg_repo_enabled || setup_pkg_repo
     aur_install "${aur[@]}" || true
     mark_rice_packages_explicit
+    load_install_mode
     setup_system
     setup_maintenance
     apply_theme "$(current_theme)"

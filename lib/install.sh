@@ -4,7 +4,7 @@ STAMP=$(date +%Y%m%d-%H%M%S)
 BACKUP="$HOME/.rice-backup-$STAMP"
 
 # What inspect_existing_desktop decided, read by the steps after it (copy_rice_files, setup_sddm,
-# record_install, finish).
+# record_install, finish). An update and a repair read MODE and USE_SDDM back (load_install_mode).
 MODE=replace        # replace | coexist: what happens to another desktop's configs
 DO_BACKUP=0         # 1 on a first install over another desktop: what the rice replaces goes to $BACKUP
 USE_SDDM=1          # 0: coexist mode keeps the other desktop's login screen
@@ -71,8 +71,8 @@ inspect_existing_desktop() {
     if [ -f "$MARKER" ]; then
         info "hypr-rice уже установлен ($(cat "$MARKER")). Файлы райса обновятся, остальное не тронется."
         ask "Продолжить?" y || die "отменено"
-        MODE=${MODE:-$(install_setting mode)}
-        MODE=${MODE:-replace}
+        load_install_mode
+        MODE=${RICE_MODE:-$MODE}
         return
     fi
     for d in "${RICE_DIRS[@]}"; do
@@ -103,14 +103,32 @@ install_setting() {  # install_setting KEY: a value from install.conf, empty whe
     sed -n "s/^$1=//p" "$HOME/.config/hypr-rice/install.conf" 2>/dev/null || true
 }
 
-# Remembers the install: the version, the mode, and the backup that uninstall puts back.
+# MODE and USE_SDDM as the first install decided them: a reinstall, an update and a repair must leave
+# alone the other desktop's login screen the user chose to keep.
+load_install_mode() {
+    MODE=$(install_setting mode)
+    MODE=${MODE:-replace}
+    USE_SDDM=$(install_setting use_sddm)
+    [ -n "$USE_SDDM" ] && return
+    # Installs from before use_sddm was written: side by side, a login screen left in place was the answer.
+    USE_SDDM=1
+    if [ "$MODE" = coexist ]; then
+        case "$(display_manager)" in
+            ""|sddm) ;;
+            *) USE_SDDM=0 ;;
+        esac
+    fi
+}
+
+# Remembers the install: the version, the mode and the login screen choice, and the backup that
+# uninstall puts back.
 record_install() {
     local backup
     backup=$(install_setting backup)
     [ "$DO_BACKUP" = 1 ] && backup=$BACKUP
     echo "$(git -C "$SRC" log -1 --format='%h %cs' 2>/dev/null || echo local) $STAMP" > "$MARKER"
     mkdir -p "$HOME/.config/hypr-rice"
-    printf '%s\n' "mode=$MODE" ${backup:+"backup=$backup"} > "$HOME/.config/hypr-rice/install.conf"
+    printf '%s\n' "mode=$MODE" "use_sddm=$USE_SDDM" ${backup:+"backup=$backup"} > "$HOME/.config/hypr-rice/install.conf"
     [ -f "$TRUST" ] || install -m644 "$SRC/system/allowed_signers" "$TRUST"
 }
 
@@ -127,7 +145,7 @@ choose_mode() {  # replace | coexist | cancel
 
 coexist_dm_question() {
     local cur
-    cur=$(basename "$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null)" .service 2>/dev/null || true)
+    cur=$(display_manager)
     if [ -n "$cur" ] && [ "$cur" != sddm ]; then
         ask "Сейчас экран входа — $cur. Поставить вместо него SDDM hypr-rice (с темой райса)?" n \
             || USE_SDDM=0

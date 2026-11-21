@@ -34,6 +34,7 @@ load_rice() {
     MIRRORLIST="$root/etc/pacman.d/mirrorlist"
     SDDM_CONF="$root/etc/sddm.conf"
     SDDM_CONF_D="$root/etc/sddm.conf.d"
+    DISPLAY_MANAGER_UNIT="$root/etc/systemd/system/display-manager.service"
     THEME_ROOT="$root/usr/local/bin/hypr-theme-root"
     SUDOERS_RULE="$root/etc/sudoers.d/hypr-theme"
     TMPFILES_D="$root/etc/tmpfiles.d"

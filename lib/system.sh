@@ -3,6 +3,13 @@
 
 SDDM_CONF=/etc/sddm.conf
 SDDM_CONF_D=/etc/sddm.conf.d
+DISPLAY_MANAGER_UNIT=/etc/systemd/system/display-manager.service
+
+display_manager() {  # the login screen enabled now (sddm, gdm, ...), whichever it is; empty when none is
+    # readlink -f of a missing link prints the link's own path, which is no login screen.
+    [ -e "$DISPLAY_MANAGER_UNIT" ] || return 0
+    basename "$(readlink -f "$DISPLAY_MANAGER_UNIT")" .service
+}
 
 setup_sddm() {
     local cur
@@ -10,11 +17,10 @@ setup_sddm() {
         info "экран входа оставлен свой; Hyprland появится в его списке сеансов"
         return 0
     fi
-    # Whatever display manager owns display-manager.service now, not just a known list.
-    cur=$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null || true)
-    if [ -n "$cur" ] && [ "$(basename "$cur")" != sddm.service ]; then
-        sudo systemctl disable "$(basename "$cur")" >/dev/null 2>&1 || true
-        info "выключен экран входа $(basename "$cur" .service)"
+    cur=$(display_manager)
+    if [ -n "$cur" ] && [ "$cur" != sddm ]; then
+        sudo systemctl disable "$cur.service" >/dev/null 2>&1 || true
+        info "выключен экран входа $cur"
     fi
     sudo systemctl enable --force sddm.service >/dev/null 2>&1 || warn "не включился sddm"
 
