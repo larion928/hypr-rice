@@ -2,12 +2,14 @@
 """TUI for adjusting Hyprland mouse sensitivity live + persisting to devices.lua."""
 import curses
 import json
-import re
 import subprocess
+import sys
 from pathlib import Path
 
-# Required from hyprland.lua; one hl.device({...}) call per line.
-CONF = Path.home() / ".config/hypr/devices.lua"
+sys.path.insert(0, str(Path.home() / ".config/hypr/scripts"))
+import devices_lua  # noqa: E402
+import mice  # noqa: E402
+
 STEP = 0.05
 
 
@@ -16,18 +18,10 @@ def hyprctl(*args):
 
 
 def get_mice():
-    out = hyprctl("devices", "-j").stdout
-    data = json.loads(out)
-    mice = [m["name"] for m in data.get("mice", []) if "keyboard" not in m["name"]]
-    return mice
-
-
-def device_line_re(device):
-    return re.compile(
-        r'^hl\.device\(\{\s*name\s*=\s*"' + re.escape(device)
-        + r'"\s*,\s*sensitivity\s*=\s*(-?[\d.]+)\s*\}\)\s*$',
-        re.MULTILINE,
-    )
+    """Hyprland's pointers that are real devices: no virtual ones (ydotoold), no media-key nodes."""
+    listed = [mouse["name"] for mouse in json.loads(hyprctl("devices", "-j").stdout).get("mice", [])]
+    real = [pointer.name for pointer in mice.pointers()]
+    return [name for name in listed if any(mice.same_device(name, pointer) for pointer in real)]
 
 
 def global_sensitivity():
@@ -39,29 +33,18 @@ def global_sensitivity():
 
 
 def read_conf_sensitivity(device):
-    text = CONF.read_text() if CONF.exists() else ""
-    m = device_line_re(device).search(text)
-    return float(m.group(1)) if m else global_sensitivity()
-
-
-def device_line(device, value):
-    return f'hl.device({{ name = "{device}", sensitivity = {value:.2f} }})'
+    return devices_lua.read().get(device, {}).get("sensitivity", global_sensitivity())
 
 
 def apply_live(device, value):
-    # hyprctl keyword is not supported by the Lua config manager.
-    hyprctl("eval", device_line(device, value))
+    # hyprctl keyword is not supported by the Lua config manager. The device's other settings go along,
+    # so a rotation saved by rice mouse-test stays applied.
+    settings = devices_lua.read().get(device, {}) | {"sensitivity": value}
+    hyprctl("eval", devices_lua.device_line(device, settings))
 
 
 def save_conf(device, value):
-    text = CONF.read_text() if CONF.exists() else ""
-    line = device_line(device, value)
-    pat = device_line_re(device)
-    if pat.search(text):
-        text = pat.sub(lambda _: line, text)
-    else:
-        text = text.rstrip("\n") + ("\n" if text else "") + line + "\n"
-    CONF.write_text(text)
+    devices_lua.save(device, {"sensitivity": value})
 
 
 def clamp(v):
@@ -71,21 +54,21 @@ def clamp(v):
 def main(stdscr):
     curses.curs_set(0)
     stdscr.nodelay(False)
-    mice = get_mice()
-    if not mice:
+    devices = get_mice()
+    if not devices:
         stdscr.addstr(0, 0, "No mice found via hyprctl devices.")
         stdscr.getch()
         return
 
     idx = 0
-    value = read_conf_sensitivity(mice[idx])
+    value = read_conf_sensitivity(devices[idx])
     saved_msg = ""
 
     while True:
         stdscr.clear()
         stdscr.addstr(0, 0, "Hyprland Mouse Sensitivity", curses.A_BOLD)
         stdscr.addstr(1, 0, "Tab: switch device | Up/Down or +/-: adjust | s: save | q: quit")
-        stdscr.addstr(3, 0, f"Device: {mice[idx]}")
+        stdscr.addstr(3, 0, f"Device: {devices[idx]}")
         bar_width = 40
         pos = int((value + 1.0) / 2.0 * bar_width)
         bar = "[" + "#" * pos + "-" * (bar_width - pos) + "]"
@@ -98,17 +81,17 @@ def main(stdscr):
         saved_msg = ""
         if key in (curses.KEY_UP, ord("+"), ord("=")):
             value = clamp(value + STEP)
-            apply_live(mice[idx], value)
+            apply_live(devices[idx], value)
         elif key in (curses.KEY_DOWN, ord("-")):
             value = clamp(value - STEP)
-            apply_live(mice[idx], value)
+            apply_live(devices[idx], value)
         elif key == ord("\t"):
-            idx = (idx + 1) % len(mice)
-            value = read_conf_sensitivity(mice[idx])
-            apply_live(mice[idx], value)
+            idx = (idx + 1) % len(devices)
+            value = read_conf_sensitivity(devices[idx])
+            apply_live(devices[idx], value)
         elif key == ord("s"):
-            save_conf(mice[idx], value)
-            saved_msg = f"Saved to {CONF}"
+            save_conf(devices[idx], value)
+            saved_msg = f"Saved to {devices_lua.PATH}"
         elif key == ord("q"):
             break
 
