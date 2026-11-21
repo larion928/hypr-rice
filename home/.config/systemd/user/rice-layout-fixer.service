@@ -1,0 +1,15 @@
+[Unit]
+Description=Text typed in the wrong layout, typed again (features "layout-fix" and "layout-auto")
+# Hyprland 0.57+ starts hyprland-session.target itself; the fixer needs its hyprctl and Wayland display. Under
+# uwsm Hyprland leaves the target alone.
+PartOf=hyprland-session.target
+After=hyprland-session.target
+
+[Service]
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/layout_fixer.py
+# Without the input group it stops with the reason in the journal: the restarts end at systemd's start limit.
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=hyprland-session.target

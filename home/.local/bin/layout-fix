@@ -1,0 +1,9 @@
+#!/bin/bash
+# layout-fix word|selection — the last word, or the selected text, typed again in the other layout (us ↔ ru):
+# asks rice-layout-fixer.service (~/.config/hypr/scripts/layout_fixer.py), which knows what was typed.
+case "${1:-}" in
+    word) signal=USR1 ;;
+    selection) signal=USR2 ;;
+    *) echo "layout-fix word|selection" >&2; exit 2 ;;
+esac
+systemctl --user kill --kill-whom=main --signal="$signal" rice-layout-fixer.service

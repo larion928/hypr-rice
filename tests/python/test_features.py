@@ -1,5 +1,7 @@
 """features.py, the registry of the rice's features, and the Hyprland config that follows its state."""
+import grp
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -116,7 +118,7 @@ class FeaturesCommandTest(unittest.TestCase):
         listed = json.loads(result.stdout)
         self.assertEqual([item["id"] for item in listed], [item.id for item in features.FEATURES])
         self.assertEqual(set(listed[0]), {"id", "group", "name", "about", "on", "needs", "missing", "experimental",
-                                             "closedPorts"})
+                                             "closedPorts", "missingGroups"})
 
 
 class MissingPackageTest(unittest.TestCase):
@@ -153,8 +155,9 @@ class MissingPackageTest(unittest.TestCase):
         self.assertTrue(features.state()["needy"])
 
 
-class FirewallPortsTest(unittest.TestCase):
-    """closed_ports reads ufw's own files: ufw.conf for whether it is on, user.rules for what it lets in."""
+class GrantTest(unittest.TestCase):
+    """closed_ports reads ufw's own files (ufw.conf: whether it is on, user.rules: what it lets in);
+    missing_groups reads /etc/group; grant asks for both under one password."""
     RULE = "### tuple ### allow {} 1714:1764 0.0.0.0/0 any 0.0.0.0/0 in\n"
 
     def setUp(self):
@@ -184,22 +187,35 @@ class FirewallPortsTest(unittest.TestCase):
         self.config.write_text("ENABLED=no\n")
         self.assertEqual(features.closed_ports(self.item), [])
 
-    def test_opening_asks_one_password_for_the_closed_ports(self):
+    def test_granting_asks_one_password_for_the_closed_ports_and_missing_groups(self):
         self.rules.write_text(self.RULE.format("tcp"))
-        with mock.patch.object(features, "BY_ID", {"phone": self.item}), \
+        item = features.Feature("phone", "g", "Телефон", "", ports=self.item.ports, groups=("no-such-group-here",))
+        with mock.patch.object(features, "BY_ID", {"phone": item}), \
                 mock.patch.object(features.subprocess, "run",
                                   return_value=subprocess.CompletedProcess([], 0, "", "")) as run:
-            features.open_ports("phone")
+            features.grant("phone")
         command = run.call_args.args[0]
         self.assertEqual(command[0], "pkexec")
-        self.assertEqual(command[-1:], ["1714:1764/udp"])
+        self.assertEqual(command[-2:], ["port:1714:1764/udp", "group:no-such-group-here"])
+
+    def test_nothing_to_grant_asks_nothing(self):
+        self.rules.write_text(self.RULE.format("any"))
+        with mock.patch.object(features, "BY_ID", {"phone": self.item}), \
+                mock.patch.object(features.subprocess, "run") as run:
+            features.grant("phone")
+        run.assert_not_called()
 
     def test_a_cancelled_password_is_an_error(self):
         with mock.patch.object(features, "BY_ID", {"phone": self.item}), \
                 mock.patch.object(features.subprocess, "run",
                                   return_value=subprocess.CompletedProcess([], 126, "", "")):
             with self.assertRaises(OSError):
-                features.open_ports("phone")
+                features.grant("phone")
+
+    def test_a_group_the_user_is_in_is_not_missing(self):
+        own_group = grp.getgrgid(os.getgid()).gr_name
+        item = features.Feature("x", "g", "X", "", groups=(own_group, "no-such-group-here"))
+        self.assertEqual(features.missing_groups(item), ["no-such-group-here"])
 
 
 # Loads the live hyprland.lua with an `hl` that accepts any call, and prints what the features decide.
@@ -213,7 +229,8 @@ rawset(hl, "config", function(options)
     if options.general then print("layout " .. options.general.layout) end
 end)
 rawset(hl, "gesture", function(spec) print("gesture " .. spec.fingers .. " " .. spec.action) end)
-rawset(hl, "dsp", setmetatable({ layout = function(message) print("layoutmsg " .. message) end },
+rawset(hl, "dsp", setmetatable({ layout = function(message) print("layoutmsg " .. message) end,
+                                 exec_cmd = function(command) print("exec " .. command) end },
                                { __index = function() return anything() end }))
 rawset(hl, "layer_rule", function(rule)
     if rule.name:find("blur") then print("blur " .. tostring(rule.blur)) end
@@ -265,6 +282,12 @@ class HyprlandFollowsFeaturesTest(unittest.TestCase):
                          ["gesture 3 scroll_move", "gesture 4 workspace"])
         self.assertEqual([line for line in lines if line.startswith("layoutmsg")],
                          ["layoutmsg colresize +conf", "layoutmsg fit visible"])
+
+    def test_the_layout_fix_keys_exist_only_with_the_feature(self):
+        self.state.write_text('{"layout-fix": true}')
+        self.assertIn("exec ~/.local/bin/layout-fix word", self.config_lines())
+        self.state.write_text('{"layout-fix": false}')
+        self.assertFalse(any("layout-fix" in line for line in self.config_lines()))
 
     def test_a_missing_state_is_reported(self):
         lines = self.config_lines()

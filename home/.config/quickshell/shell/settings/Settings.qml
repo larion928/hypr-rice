@@ -41,8 +41,8 @@ OverlayPanel {
             themeEdit.install.dismiss();
         } else if (features.install.item) {
             features.install.dismiss();
-        } else if (features.firewall && !features.openingPorts) {
-            features.firewall = null;
+        } else if (features.asking && !features.granting) {
+            features.asking = null;
         } else if (themeEdit.iconFor) {
             themeEdit.iconFor = "";
         } else if (themeEdit.editing) {

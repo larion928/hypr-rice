@@ -63,12 +63,14 @@ offscreen (see the end of this file); everything else is checked by hand on the 
   packages says so; switching it on opens the install dialog for all of them (one sudo password), and once they are
   installed the installer switches the feature on, also when the dialog was hidden meanwhile; the list is read again
   whenever features.json changes. Declined or failed: it stays off. An experimental feature says so in warning
-  colour. A feature whose ports ufw keeps closed (`closedPorts`) asks first: «Открыть порты» (`features.py
-  open-ports <id>`, the password in the polkit window, then on; a cancelled password leaves it off with the
-  reason), «Включить без них», «Отмена» or Esc.
+  colour. A feature that needs what the system does not allow yet — ports ufw keeps closed (`closedPorts`), a
+  group the user is not in (`missingGroups`, input for the layout fixer, with the warning that any program could
+  read the keys then and that it works after logging in again) — asks first: «Разрешить» (`features.py grant
+  <id>`, one password in the polkit window, then on; a cancelled password leaves it off with the reason),
+  «Включить без этого», «Отмена» or Esc.
   `[auto]` (the list and groups, on/off calls and the switch following them, a refusal's message, Esc out of the
   install dialog, two packages installed with one password then the feature switched on, the same with the dialog
-  hidden during the install, the ports question: on without them, open-ports then on)
+  hidden during the install, the access question: on without it, grant then on)
 
 ## Theme picker — Alt+Shift+T, waybar palette, launcher
 

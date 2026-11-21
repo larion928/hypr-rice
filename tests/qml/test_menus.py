@@ -153,24 +153,24 @@ class Features(MenuTest):
         switches = [call for call in self.sandbox.recorded() if call.startswith(("features.py on", "features.py off"))]
         self.assertEqual(switches, ["features.py off animations", "features.py on daily-check"])
 
-    def test_closed_ports_are_asked_about_before_switching_on(self):
+    def test_what_the_system_must_allow_is_asked_about_before_switching_on(self):
         value = self.open("settings", "features")
         self.sandbox.wait_for("settings", "features.list.length", 5)
         value("features.toggle(features.list[4])")
-        self.assertEqual(value("features.firewall.id"), "phone")
-        value("features.keepPortsClosed()")
+        self.assertEqual(value("features.asking.id"), "phone")
+        value("features.switchOnWithout()")
         self.sandbox.wait_for("settings", "features.list[4].on", True)
-        calls = [call for call in self.sandbox.recorded() if call.startswith(("features.py on", "features.py open"))]
+        calls = [call for call in self.sandbox.recorded() if call.startswith(("features.py on", "features.py grant"))]
         self.assertEqual(calls, ["features.py on phone"])
 
-    def test_ports_are_opened_then_the_feature_switched_on(self):
+    def test_it_is_allowed_then_the_feature_switched_on(self):
         value = self.open("settings", "features")
         self.sandbox.wait_for("settings", "features.list.length", 5)
         value("features.toggle(features.list[4])")
-        value("features.openPorts()")
+        value("features.grant()")
         self.sandbox.wait_for("settings", "features.list[4].on", True)
-        calls = [call for call in self.sandbox.recorded() if call.startswith(("features.py on", "features.py open"))]
-        self.assertEqual(calls, ["features.py open-ports phone", "features.py on phone"])
+        calls = [call for call in self.sandbox.recorded() if call.startswith(("features.py on", "features.py grant"))]
+        self.assertEqual(calls, ["features.py grant phone", "features.py on phone"])
 
     def test_a_refused_switch_shows_why(self):
         self.open("settings", "features")

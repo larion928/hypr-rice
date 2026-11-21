@@ -120,7 +120,7 @@ for feature in features:
     feature["missing"] = [package for package in feature["missing"] if package not in installed]
 if sys.argv[1] == "list":
     print(json.dumps(features, ensure_ascii=False))
-elif sys.argv[1] == "open-ports":
+elif sys.argv[1] == "grant":
     pass
 elif sys.argv[1] in ("on", "off"):
     feature = next(feature for feature in features if feature["id"] == sys.argv[2])

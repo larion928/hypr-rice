@@ -8,48 +8,49 @@ import qs.common
 // switch shows what features.py made of it, and again whenever features.json changes (an install switching a feature
 // on in the background). A feature whose packages are missing is switched on only once they are installed: all of
 // them with one sudo password, and the installer switches it on itself, even if the dialog was closed meanwhile
-// (PackageInstall). A feature that needs ports ufw keeps closed asks first whether to open them (`firewall`).
+// (PackageInstall). A feature that needs what the system does not allow yet (ports ufw keeps closed, a group the
+// user is not in) asks first whether to allow it (`asking`, AccessDialog).
 Scope {
     id: features
 
-    // [{id, group, name, about, on, needs, missing, experimental, closedPorts}] in display order
+    // [{id, group, name, about, on, needs, missing, experimental, closedPorts, missingGroups}] in display order
     property var list: []
     readonly property var groups: [...new Set(list.map(feature => feature.group))]
     property string message: ""    // what features.py said about the last switch: why it was refused
     readonly property bool busy: runner.running || listProc.running  // a switch now would act on an old list
     readonly property alias install: install
-    property var firewall: null             // the feature asking to open its ports, while the dialog is up
-    readonly property bool openingPorts: portsRunner.running
+    property var asking: null               // the feature asking for ports or groups, while the dialog is up
+    readonly property bool granting: grantRunner.running
 
     function toggle(feature) {
         if (feature.on) {
             turn(feature.id, "off");
-        } else if (feature.closedPorts.length) {
-            firewall = feature;
+        } else if (feature.closedPorts.length || feature.missingGroups.length) {
+            asking = feature;
         } else {
             switchOn(feature);
         }
     }
 
-    // The firewall dialog's answer: open the ports (the password goes to the polkit window), then switch the
-    // feature on; or switch it on with them closed. Ports that did not open (the password window was cancelled)
-    // leave the feature off and say why.
-    function openPorts() {
+    // The access dialog's answer: allow it (the password goes to the polkit window), then switch the feature on;
+    // or switch it on without. What was not allowed (the password window was cancelled) leaves the feature off
+    // and says why.
+    function grant() {
         message = "";
-        portsRunner.start(["open-ports", firewall.id], (lines, status) => {
-            const feature = firewall;
-            firewall = null;
+        grantRunner.start(["grant", asking.id], (lines, status) => {
+            const feature = asking;
+            asking = null;
             if (status === 0) {
                 switchOn(feature);
             } else {
-                message = lines.join(" ") || "features.py open-ports " + feature.id + ": код " + status;
+                message = lines.join(" ") || "features.py grant " + feature.id + ": код " + status;
             }
         });
     }
 
-    function keepPortsClosed() {
-        const feature = firewall;
-        firewall = null;
+    function switchOnWithout() {
+        const feature = asking;
+        asking = null;
         switchOn(feature);
     }
 
@@ -81,7 +82,7 @@ Scope {
     }
 
     ScriptRunner { id: runner; script: Features.script }
-    ScriptRunner { id: portsRunner; script: Features.script }
+    ScriptRunner { id: grantRunner; script: Features.script }
     Process {
         id: listProc
         command: ["python3", Features.script, "list"]

@@ -9,8 +9,10 @@ feature with a systemd unit has that unit enabled or disabled here. `write`, run
 update and repair, adds the features a new version brought with their defaults and keeps the user's
 choices for the others.
 """
+import grp
 import json
 import os
+import pwd
 import re
 import subprocess
 import sys
@@ -33,8 +35,9 @@ class Feature:
     kept, run when it is switched off (not by `write`, which only makes the session follow the state).
     restarts: another feature's unit that reads this feature's state when it starts, restarted when this one
     is switched (only if it runs). experimental: still being tried out; the settings window says so. ports: what
-    it has to receive from the network ("1714:1764/tcp"); while ufw closes one, switching it on offers to open
-    them (open-ports)."""
+    it has to receive from the network ("1714:1764/tcp"); groups: the system groups the user must be in ("input"
+    to read the keyboard). While ufw closes a port or the user is not in a group, switching it on offers to allow
+    them under one password (grant)."""
     id: str
     group: str
     name: str
@@ -47,6 +50,7 @@ class Feature:
     restarts: str = ""
     experimental: bool = False
     ports: tuple = ()
+    groups: tuple = ()
 
 
 FEATURES = (
@@ -96,6 +100,17 @@ FEATURES = (
             "буфер обмена, открыть файлы телефона; в Thunar — «Отправить через KDE Connect»",
             default=False, unit="rice-kdeconnect.service", needs=("kdeconnect", "sshfs", "python-gobject", "zenity"),
             ports=("1714:1764/tcp", "1714:1764/udp")),
+    # Reads the keyboards (/dev/input) and types through its own virtual one (/dev/uinput): both need the input
+    # group, with which any program of the user could read the keys too, so it is asked for, never assumed.
+    Feature("layout-fix", "Ввод", "Исправление раскладки",
+            "Alt+Shift+Пробел — последнее слово перепечатывается в другой раскладке, ещё раз — обратно; "
+            "Alt+Ctrl+Пробел — выделенный текст. Нажатия не записываются: в памяти только текущее слово",
+            default=False, hyprland=True, unit="rice-layout-fixer.service", groups=("input",)),
+    Feature("layout-auto", "Ввод", "Автоисправление раскладки",
+            "Слово, набранное не в той раскладке, исправляется само после пробела, если в другой раскладке это "
+            "слово (словари русский и английский); отменить — Alt+Shift+Пробел. Не срабатывает в полноэкранных "
+            "окнах; работает вместе с исправлением раскладки",
+            default=False, needs=("hunspell", "hunspell-ru", "hunspell-en_us"), restarts="rice-layout-fixer.service"),
 )
 BY_ID = {feature.id: feature for feature in FEATURES}
 
@@ -132,7 +147,7 @@ def listing():
     current = state()
     return [{"id": item.id, "group": item.group, "name": item.name, "about": item.about, "on": current[item.id],
              "needs": list(item.needs), "missing": missing_packages(item), "experimental": item.experimental,
-             "closedPorts": closed_ports(item)}
+             "closedPorts": closed_ports(item), "missingGroups": missing_groups(item)}
             for item in FEATURES]
 
 
@@ -160,7 +175,10 @@ def switch(feature_id, on):
     if not on and item.forget:
         forget(item)
     if on and closed_ports(item):
-        print(f"ufw не пропускает {' '.join(closed_ports(item))}: открыть — rice features open-ports {item.id}")
+        print(f"ufw не пропускает {' '.join(closed_ports(item))}: открыть — rice features grant {item.id}")
+    if on and missing_groups(item):
+        groups = " ".join(missing_groups(item))
+        print(f"нужна группа {groups}: добавить — rice features grant {item.id}, затем перезайти")
 
 
 def ufw_enabled():
@@ -189,16 +207,43 @@ def closed_ports(item):
     return closed
 
 
-def open_ports(feature_id):
-    """ufw allow for each closed port of the feature, under one administrator password (pkexec: the rice's
-    polkit window)."""
-    closed = closed_ports(feature(feature_id))
-    if not closed:
+def missing_groups(item):
+    """The feature's groups the user is not in, as /etc/group says: right after joining one this is empty,
+    though the session gets it only at the next login."""
+    user = pwd.getpwuid(os.getuid())
+    missing = []
+    for name in item.groups:
+        try:
+            group = grp.getgrnam(name)
+        except KeyError:
+            missing.append(name)
+            continue
+        if user.pw_name not in group.gr_mem and user.pw_gid != group.gr_gid:
+            missing.append(name)
+    return missing
+
+
+GRANT_SCRIPT = """user=$1; shift
+for item; do
+    case $item in
+        port:*) ufw allow "${item#port:}" || exit ;;
+        group:*) gpasswd -a "$user" "${item#group:}" || exit ;;
+    esac
+done"""
+
+
+def grant(feature_id):
+    """What the system has to allow the feature, under one administrator password (pkexec: the rice's polkit
+    window): ufw allow for each closed port, gpasswd -a for each missing group."""
+    item = feature(feature_id)
+    asked = [f"port:{port}" for port in closed_ports(item)] + [f"group:{name}" for name in missing_groups(item)]
+    if not asked:
         return 0
-    script = 'for port; do ufw allow "$port" || exit; done'
-    result = subprocess.run(["pkexec", "/bin/sh", "-c", script, "sh", *closed], capture_output=True, text=True)
+    user = pwd.getpwuid(os.getuid()).pw_name
+    result = subprocess.run(["pkexec", "/bin/sh", "-c", GRANT_SCRIPT, "sh", user, *asked],
+                            capture_output=True, text=True)
     if result.returncode:
-        raise OSError(f"Порты не открылись: {result.stderr.strip() or 'pkexec код ' + str(result.returncode)}")
+        raise OSError(f"Не разрешено: {result.stderr.strip() or 'pkexec код ' + str(result.returncode)}")
     return 0
 
 
@@ -240,13 +285,15 @@ ERRORS = (ValueError, OSError)
 
 COMMANDS = {
     "list": Command(printing_json(listing), "",
-                    "every feature as JSON: id, group, name, about, on, needs, missing, experimental, closedPorts",
+                    "every feature as JSON: id, group, name, about, on, needs, missing, experimental, closedPorts, "
+                    "missingGroups",
                     ERRORS),
     "show": Command(printing(shown), "", "every feature and whether it is on, for a terminal", ERRORS),
     "on": Command(lambda feature_id: switch(feature_id, True), "<id>",
                   "switches the feature on; refused while a package it needs is missing", ERRORS),
     "off": Command(lambda feature_id: switch(feature_id, False), "<id>", "switches the feature off", ERRORS),
-    "open-ports": Command(open_ports, "<id>", "lets the feature's ports through ufw (asks the password)", ERRORS),
+    "grant": Command(grant, "<id>", "opens the feature's ports in ufw and adds the user to its groups (asks the "
+                     "password)", ERRORS),
     "is": Command(is_on, "<id>", "exit status 0 when the feature is on, 1 when it is off", ERRORS),
     "write": Command(write_all, "",
                      "writes every feature's state (new ones get their defaults) and makes the session follow it",

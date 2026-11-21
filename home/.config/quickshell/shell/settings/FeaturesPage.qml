@@ -97,5 +97,5 @@ Item {
     }
 
     InstallDialog { install: page.features.install; anchors.fill: parent; z: 30; visible: install.item !== null }
-    FirewallDialog { features: page.features; anchors.fill: parent; z: 30; visible: features.firewall !== null }
+    AccessDialog { features: page.features; anchors.fill: parent; z: 30; visible: features.asking !== null }
 }

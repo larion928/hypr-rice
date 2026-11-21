@@ -137,6 +137,11 @@ bind("screenshot_full", "SHIFT + Print", hl.dsp.exec_cmd("~/.local/bin/shot full
 -- Features (Alt+F2 → Функции); switched off, the key says so in a notification.
 bind("ocr",          key("SHIFT + Print"), hl.dsp.exec_cmd("~/.local/bin/shot ocr"),   desc("Скриншоты | Распознать текст в области (в буфер)"))
 bind("color_picker", key("SHIFT + C"),     hl.dsp.exec_cmd("~/.local/bin/shot color"), desc("Скриншоты | Пипетка: цвет с экрана (#rrggbb в буфер)"))
+-- Only while the fixer runs: without it the keys would do nothing.
+if on("layout-fix") then
+    bind("layout_fix",           key("SHIFT + space"), hl.dsp.exec_cmd("~/.local/bin/layout-fix word"),      desc("Ввод | Последнее слово в другой раскладке (ещё раз — обратно)"))
+    bind("layout_fix_selection", key("CTRL + space"),  hl.dsp.exec_cmd("~/.local/bin/layout-fix selection"), desc("Ввод | Выделенный текст в другой раскладке"))
+end
 
 -------------
 --- BASIC ---
