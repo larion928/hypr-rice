@@ -207,6 +207,15 @@ if big=$(find "$REPO" -path "$REPO/.git" -prune -o -type f -size +50M -print | g
     exit 1
 fi
 
+# home/ is rebuilt from PATHS: a file of the rice that went missing from it was never listed there, or was
+# deleted on this machine. A removal meant for everyone is staged first (git rm), and is not asked about.
+if lost=$(git -C "$REPO" ls-files --deleted -- home | grep .); then
+    echo "СТОП: из репозитория пропали бы файлы райса:" >&2
+    echo "$lost" >&2
+    echo "Новый файл — впиши его в PATHS в sync.sh; убираешь из райса нарочно — git rm, затем sync.sh снова." >&2
+    exit 1
+fi
+
 cd "$REPO"
 git add -A
 if git diff --cached --quiet; then
