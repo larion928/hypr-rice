@@ -386,6 +386,13 @@ class Phone(MenuTest):
         self.assertEqual(bar, {"text": "\U000f011c 50% \U000f0084", "tooltip": "A&amp;B: заряд 50%, заряжается",
                                "class": "charging"})
 
+    def test_bar_keeps_the_glyph_to_click_while_no_phone_is_paired(self):
+        self.open("phone")
+        phone = '{ name: "A", paired: false, reachable: true, battery: null }'
+        bar = json.loads(self.sandbox.eval("phone", "Phones.barState(" + phone + ")"))
+        self.assertEqual(bar, {"text": "\U000f011c", "tooltip": "A: не сопряжён — клик, чтобы сопрячь",
+                               "class": "none"})
+
 
 class ResidentShell(MenuTest):
     def test_toggle_opens_then_closes(self):

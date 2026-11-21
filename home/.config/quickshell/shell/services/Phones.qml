@@ -28,7 +28,8 @@ Singleton {
     readonly property var current: devices.find(device => device.id === pickedId)
                                     ?? paired.find(device => device.reachable) ?? paired[0] ?? devices[0] ?? null
     property string message: ""             // why the last action failed
-    readonly property string barJson: barState(enabled ? current : null)
+    readonly property string barJson: enabled ? barState(current)
+                                              : JSON.stringify({ text: "", tooltip: "", class: "none" })
 
     function pick(device) {
         pickedId = device.id;
@@ -64,9 +65,16 @@ Singleton {
         }
     }
 
+    // The glyph alone while no paired phone is in reach: a click still opens the menu, where it gets paired.
     function barState(device) {
-        if (!device || !device.paired || !device.reachable) {
-            return JSON.stringify({ text: "", tooltip: "", class: "none" });
+        if (!device) {
+            return idleBar("Телефон не найден: откройте KDE Connect на телефоне в той же сети");
+        }
+        if (!device.paired) {
+            return idleBar(Pango.escape(device.name) + ": не сопряжён — клик, чтобы сопрячь");
+        }
+        if (!device.reachable) {
+            return idleBar(Pango.escape(device.name) + ": не на связи");
         }
         const battery = device.battery;
         const charge = battery ? " " + battery.charge + "%" : "";
@@ -79,6 +87,10 @@ Singleton {
     }
 
     // Set here, not bound: the restart below assigns it too, and an assignment would drop a binding.
+    function idleBar(tooltip) {
+        return JSON.stringify({ text: phoneGlyph, tooltip: tooltip, class: "none" });
+    }
+
     onEnabledChanged: {
         watcher.running = enabled;
         if (!enabled) {

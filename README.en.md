@@ -87,7 +87,7 @@ The bar's modules are clickable:
 | network | Wi-Fi panel: networks, the password typed in place, the current connection and VPN, "forget"; right click: nmtui |
 | sound | pavucontrol |
 | player | the player card (below) |
-| phone | the phone menu (below); shown while a paired phone is in reach |
+| phone | the phone menu (below); the charge while a paired phone is in reach |
 | power mode | saver → balanced → performance |
 | battery | right click: battery care (Lenovo IdeaPad) |
 | updates | shows up when there are some; click: `rice upgrade` |

@@ -160,8 +160,10 @@ offscreen (see the end of this file); everything else is checked by hand on the 
   list, a click shows that one. A failed action's reason under the buttons.
 - Feature off: the menu says where to switch it on; the bar module is empty (hidden). `[auto]` (the sandbox has no
   session bus)
-- The bar (`phone-panel bar`): phone glyph, charge, charging glyph; tooltip name and charge; empty when no paired
-  phone is in reach; signalled (12) on every change; never starts the shell. `[auto]` (the bar text from a phone)
+- The bar (`phone-panel bar`): phone glyph, charge, charging glyph; tooltip name and charge. No paired phone in
+  reach: the glyph alone (tooltip: not found / not paired, click to pair / out of reach), so the menu can still be
+  opened to pair; empty only with the feature off or the shell down. Signalled (12) on every change; never starts
+  the shell. `[auto]` (the bar text from a phone, the glyph alone for an unpaired one)
 
 ## Administrator password — polkit, always running
 
