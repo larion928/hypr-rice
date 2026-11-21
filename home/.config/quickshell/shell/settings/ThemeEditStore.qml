@@ -204,8 +204,9 @@ Scope {
         if (!isAnimated(path) || !wallpaperNeeds || install.item) {
             return;
         }
-        askInstall({ package: wallpaperNeeds, title: "mpvpaper — анимированные обои", source: "aur",
-                     done: "Установлено. Нажми «Поставить сейчас» на анимированных обоях, и они заиграют." });
+        install.ask({ packages: [wallpaperNeeds], title: "mpvpaper — анимированные обои", source: "aur",
+                      done: "Установлено. Нажми «Поставить сейчас» на анимированных обоях, и они заиграют.",
+                      notice: "Alt+F2 → Тема → Обои: «Поставить сейчас» на анимированных обоях" });
     }
     // This theme's folder for wallpapers the user adds to it.
     function ownWallpaperDir() {
@@ -379,9 +380,10 @@ Scope {
         change("windows", windows);
     }
 
-    // ---- installing: an icon or cursor theme from the lists ({package, title, source}), or mpvpaper
-    function askInstall(item) {
-        install.ask(Object.assign({ done: "Установлено. Тема появилась в списке." }, item));
+    // ---- installing: an icon or cursor theme from the lists ({package, title, source}); notice says where it shows
+    function askInstall(row, notice) {
+        install.ask({ packages: [row.package], title: row.title, source: row.source,
+                      done: "Установлено. Тема появилась в списке.", notice: notice });
     }
 
     // ---- the section's "back to the theme"

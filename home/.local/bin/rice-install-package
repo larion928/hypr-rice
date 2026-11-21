@@ -1,53 +1,100 @@
 #!/bin/bash
-# rice-install-package PACKAGE — install a package from the repos or the AUR without a terminal, for
-# windows that ask for the sudo password themselves (the theme settings install icon themes with it).
+# rice-install-package [--notice TEXT] [--switch-on FEATURE] PACKAGE... — install packages from the repos or
+# the AUR without a terminal, for windows that ask for the sudo password themselves (the theme settings
+# install icon and cursor themes and mpvpaper with it, the features tab what a feature needs). One password
+# covers all the packages.
 # The password comes as the first line on stdin, never as an argument (arguments are visible to every
 # user in the process list). It is checked at once (status 2 when wrong); then the install goes on in
 # the background, on its own, so the window may close: its output is in
-# $XDG_RUNTIME_DIR/rice-install-PACKAGE.log, which ends with "@@done <status>", and a notification
-# says how it went. The password is kept only in a 0600 file inside a 0700 folder in $XDG_RUNTIME_DIR
-# (in RAM) until the install ends; every sudo call, yay's too, goes through a wrapper that hands it to
-# sudo -S.
-#   rice-install-package PACKAGE            check the password from stdin, start the install, exit 0
-#   rice-install-package --run PACKAGE DIR  the install itself (started by the line above)
+# $XDG_RUNTIME_DIR/rice-install-<the packages joined by +>.log, which ends with "@@done <status>"
+# (0 installed, 1 not installed, 2 installed but the feature did not switch on), and a notification
+# says how it went: --notice is its text on success, where to find what was installed. --switch-on
+# switches the feature on once its packages are in (features.py on), here rather than in the window, so
+# it comes on even when the window was closed meanwhile.
+# The password is kept only in a 0600 file inside a 0700 folder in $XDG_RUNTIME_DIR (in RAM) until the
+# install ends; every sudo call, yay's too, goes through a wrapper that hands it to sudo -S.
+#   rice-install-package [--notice TEXT] [--switch-on FEATURE] PACKAGE...   check the password, start, exit 0
+#   rice-install-package --run DIR NOTICE FEATURE PACKAGE...                 the install itself (started by the line above)
 set -u
 
 # The folder with the password goes however this ends; SIGKILL cannot be caught, so a folder left by
 # a killed run is removed by the next one (see below) or at the next login, $XDG_RUNTIME_DIR being RAM.
 forget_password() { rm -rf "$private"; }
 
-if [ "${1:-}" = --run ]; then
-    package=$2 private=$3
-    trap forget_password EXIT
-    trap 'exit 1' INT TERM HUP
-    if pacman -Si "$package" >/dev/null 2>&1; then
-        echo "Ставлю $package из репозитория…"
-        "$private/sudo" pacman -S --needed --noconfirm "$package" 2>&1
-    else
-        echo "Собираю $package из AUR…"
+log_file() { echo "${XDG_RUNTIME_DIR:-/tmp}/rice-install-$(IFS=+; echo "${packages[*]}").log"; }
+
+# The repo packages go in one pacman call, the rest are built from the AUR in one yay call.
+install_packages() {
+    local package repo=() aur=()
+    for package in "${packages[@]}"; do
+        if pacman -Si "$package" >/dev/null 2>&1; then
+            repo+=("$package")
+        else
+            aur+=("$package")
+        fi
+    done
+    if [ ${#repo[@]} -gt 0 ]; then
+        echo "Ставлю из репозитория: ${repo[*]}…"
+        "$private/sudo" pacman -S --needed --noconfirm "${repo[@]}" 2>&1 || return
+    fi
+    if [ ${#aur[@]} -gt 0 ]; then
+        echo "Собираю из AUR: ${aur[*]}…"
         # Icon themes are pictures: makepkg's strip and debug steps only cost time, and they look at
         # every file (hundreds of thousands in a big theme, half an hour on Tela Circle).
         sed -E '/^OPTIONS=/{s/\<strip\>/!strip/;s/\<debug\>/!debug/}' /etc/makepkg.conf > "$private/makepkg.conf"
         yay -S --needed --noconfirm --answerdiff None --answerclean None --sudo "$private/sudo" \
-            --mflags "--config $private/makepkg.conf" "$package" 2>&1
+            --mflags "--config $private/makepkg.conf" "${aur[@]}" 2>&1
     fi
-    # "@@done" below means everything is over, the password gone too.
+}
+
+# The log's last line and the notification; "@@done" means everything is over, the password gone too.
+report() {
+    local names refusal
+    names=$(printf '%s, ' "${packages[@]}")
+    names=${names%, }
+    if ! pacman -Q "${packages[@]}" >/dev/null 2>&1; then
+        echo "Не установилось."
+        notify-send -a hypr-rice -u critical "Не установилось: $names" "Подробности: $(log_file)" 2>/dev/null
+        echo "@@done 1"
+        return
+    fi
+    echo "Готово: $names."
+    if [ -n "$feature" ] && ! refusal=$(python3 "$HOME/.config/hypr/scripts/features.py" on "$feature" 2>&1); then
+        echo "$refusal"
+        notify-send -a hypr-rice -u critical "Установлено: $names" "$refusal" 2>/dev/null
+        echo "@@done 2"
+        return
+    fi
+    notify-send -a hypr-rice "Установлено: $names" "$notice" 2>/dev/null
+    echo "@@done 0"
+}
+
+if [ "${1:-}" = --run ]; then
+    private=$2 notice=$3 feature=$4
+    shift 4
+    packages=("$@")
+    trap forget_password EXIT
+    trap 'exit 1' INT TERM HUP
+    install_packages
     forget_password
     trap - EXIT
-    if pacman -Q "$package" >/dev/null 2>&1; then
-        echo "Готово: $package установлен."
-        notify-send -a hypr-rice "Установлено: $package" "Появилась в настройках: Alt+F2 → Тема → Значки или Курсор" 2>/dev/null
-        echo "@@done 0"
-    else
-        echo "Не установилось."
-        notify-send -a hypr-rice -u critical "Не установилось: $package" \
-            "Подробности: ${XDG_RUNTIME_DIR:-/tmp}/rice-install-$package.log" 2>/dev/null
-        echo "@@done 1"
-    fi
+    report
     exit 0
 fi
 
-package=${1:?usage: rice-install-package PACKAGE}
+notice="" feature=""
+while [ $# -gt 0 ]; do
+    case $1 in
+        --notice) notice=$2; shift 2 ;;
+        --switch-on) feature=$2; shift 2 ;;
+        *) break ;;
+    esac
+done
+if [ $# -eq 0 ]; then
+    echo "usage: rice-install-package [--notice TEXT] [--switch-on FEATURE] PACKAGE..." >&2
+    exit 1
+fi
+packages=("$@")
 IFS= read -r password
 # Folders a killed run left behind, unless an install is going on now.
 pgrep -f "rice-install-package --run" >/dev/null || rm -rf "${XDG_RUNTIME_DIR:-/tmp}"/rice-sudo.*
@@ -70,7 +117,6 @@ if ! "$private/sudo" -v 2>/dev/null; then
 fi
 # From here the background part owns $private and removes it when it ends.
 trap - EXIT
-log="${XDG_RUNTIME_DIR:-/tmp}/rice-install-$package.log"
-setsid -f "$0" --run "$package" "$private" > "$log" 2>&1 < /dev/null
+setsid -f "$0" --run "$private" "$notice" "$feature" "${packages[@]}" > "$(log_file)" 2>&1 < /dev/null
 echo "Установка идёт в фоне."
 exit 0

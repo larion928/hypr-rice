@@ -164,22 +164,32 @@ class Features(MenuTest):
         value = self.open("settings", "features")
         self.sandbox.wait_for("settings", "features.list.length", 4)
         value("features.toggle(features.list[3])")
-        self.assertEqual(value("features.install.item.package"), "cliphist")
+        self.assertEqual(value("features.install.item.packages"), ["cliphist", "wl-clipboard"])
         self.sandbox.key("settings", KEY["Escape"])  # declined: the dialog closes, the feature stays off
         self.assertIsNone(value("features.install.item"))
         self.assertTrue(self.sandbox.is_open("settings"))
         self.assertNotIn("features.py on clipboard", self.sandbox.recorded())
 
         value("features.toggle(features.list[3])")
-        value("features.install.start('secret')")
-        self.sandbox.wait_for("settings", "features.install.item.package", "wl-clipboard")  # the next one
-        self.sandbox.wait_for("settings", "features.install.phase", "ask")
-        value("features.install.start('secret')")
+        value("features.install.start('secret')")  # one password for both packages
+        self.sandbox.wait_for("settings", "features.install.phase", "done")
+        self.assertEqual(value("features.install.message"), "Установлено, «История буфера обмена» включена.")
         self.sandbox.wait_for("settings", "features.list[3].on", True)
         calls = self.sandbox.recorded()
         self.assertEqual([call for call in calls if call.startswith("rice-install-package")],
-                         ["rice-install-package cliphist", "rice-install-package wl-clipboard"])
+                         ["rice-install-package --notice «История буфера обмена» включена. "
+                          "--switch-on clipboard cliphist wl-clipboard"])
         self.assertEqual(calls.count("features.py on clipboard"), 1)
+
+    def test_feature_comes_on_when_its_install_dialog_was_closed(self):
+        value = self.open("settings", "features")
+        self.sandbox.wait_for("settings", "features.list.length", 4)
+        value("features.toggle(features.list[3])")
+        value("features.install.start('secret')")
+        self.sandbox.wait_for("settings", "features.install.phase", "running")
+        self.sandbox.key("settings", KEY["Escape"])  # the install goes on in the background
+        self.assertIsNone(value("features.install.item"))
+        self.sandbox.wait_for("settings", "features.list[3].on", True)
 
     def test_launcher_entry_asks_for_the_page(self):
         value = self.open("launcher")
@@ -190,7 +200,8 @@ class Features(MenuTest):
 class ThemePackageInstall(MenuTest):
     def test_an_installed_theme_shows_in_the_lists(self):
         value = self.open("settings", "theme:coffee:icons")
-        value("themeEdit.askInstall({ package: 'tela-circle-icon-theme-git', title: 'Tela Circle', source: 'aur' })")
+        value("themeEdit.askInstall({ package: 'tela-circle-icon-theme-git', title: 'Tela Circle', source: 'aur' }, "
+              "'Alt+F2 → Тема → Значки')")
         value("themeEdit.install.start('secret')")
         self.sandbox.wait_for("settings", "themeEdit.install.phase", "done")
         self.assertEqual(value("themeEdit.install.message"), "Установлено. Тема появилась в списке.")

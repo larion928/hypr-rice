@@ -5,8 +5,10 @@ import qs.common
 
 // The rice's features as the «Функции» tab shows them (features.py list), and switching one on or off
 // (features.py on|off <id>, which applies the change itself). The list is read again after every switch, so a
-// switch shows what features.py made of it. A feature whose packages are missing is switched on only once they
-// are installed: one package at a time, each asking for the sudo password (PackageInstall).
+// switch shows what features.py made of it, and again whenever features.json changes (an install switching a feature
+// on in the background). A feature whose packages are missing is switched on only once they are installed: all of
+// them with one sudo password, and the installer switches it on itself, even if the dialog was closed meanwhile
+// (PackageInstall).
 Scope {
     id: features
 
@@ -14,17 +16,15 @@ Scope {
     readonly property var groups: [...new Set(list.map(feature => feature.group))]
     property string message: ""    // what features.py said about the last switch: why it was refused
     readonly property bool busy: runner.running || listProc.running  // a switch now would act on an old list
-    // The feature whose package has just been installed: switched on (or its next package offered) once the list
-    // read after the install has it.
-    property string resume: ""
     readonly property alias install: install
 
     function toggle(feature) {
         if (feature.on) {
             turn(feature.id, "off");
         } else if (feature.missing.length) {
-            install.ask({ package: feature.missing[0], title: feature.missing[0] + " — " + feature.name,
-                          feature: feature.id, done: "Установлено, «" + feature.name + "» включается." });
+            install.ask({ packages: feature.missing, title: feature.missing.join(", ") + " — " + feature.name,
+                          feature: feature.id, done: "Установлено, «" + feature.name + "» включена.",
+                          notice: "«" + feature.name + "» включена." });
         } else {
             turn(feature.id, "on");
         }
@@ -44,12 +44,6 @@ Scope {
             list = JSON.parse(text);
         } catch (error) {
             message = "Список функций не прочитался (features.py list)";
-            return;
-        }
-        const waiting = list.find(feature => feature.id === resume);
-        resume = "";
-        if (waiting && !waiting.on) {
-            toggle(waiting);
         }
     }
 
@@ -60,13 +54,15 @@ Scope {
         running: true
         stdout: StdioCollector { onStreamFinished: features.read(this.text) }
     }
+    // The installed packages are no longer missing.
     PackageInstall {
         id: install
-        onFinished: ok => {
-            if (ok) {
-                features.resume = install.item.feature;
-                listProc.running = true;
-            }
+        onFinished: listProc.running = true
+    }
+    Connections {
+        target: Features
+        function onStateChanged() {
+            listProc.running = true;
         }
     }
 }

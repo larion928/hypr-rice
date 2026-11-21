@@ -117,11 +117,24 @@ elif sys.argv[1] in ("on", "off"):
     state[feature["id"]] = sys.argv[1] == "on"
     json.dump(state, open(state_file, "w"))
 """
-# rice-install-package: "secret" is the right sudo password; the install is over at once, its log says so.
+# rice-install-package: "secret" is the right sudo password; the install goes on in the background for a moment, then
+# switches the --switch-on feature on (through features.py, like the real one) and ends its log.
 RICE_INSTALL_PACKAGE = STUB_HEAD + """IFS= read -r password
 [ "$password" = secret ] || exit 2
-echo "$1" >> "$RUNTIME/installed-packages"
-printf 'Ставлю %s\\n@@done 0\\n' "$1" > "$XDG_RUNTIME_DIR/rice-install-$1.log"
+shift 2  # --notice TEXT
+feature=""
+if [ "$1" = --switch-on ]; then
+    feature=$2
+    shift 2
+fi
+log="$XDG_RUNTIME_DIR/rice-install-$(IFS=+; echo "$*").log"
+echo "Ставлю $*" > "$log"
+(
+    sleep 0.5
+    printf '%s\\n' "$@" >> "$RUNTIME/installed-packages"
+    [ -z "$feature" ] || python3 "$HOME/.config/hypr/scripts/features.py" on "$feature"
+    echo "@@done 0" >> "$log"
+) > /dev/null 2>&1 &
 """
 # The per-panel layout passed a file name to write to; the resident shell reads stdout.
 THEME_LIST_PY = """import os, sys

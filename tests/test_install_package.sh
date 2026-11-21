@@ -1,9 +1,10 @@
 # ~/.local/bin/rice-install-package: the settings window's package install with the sudo password.
 
 # rice-install-package takes the sudo password on stdin: a wrong one ends with status 2, a right one
-# starts the install in the background (repo package through pacman, AUR one through yay with the sudo
-# wrapper), whose log ends with "@@done 0"; the password is in no command's arguments, and nothing of
-# it is left behind once the install is over.
+# starts the install of all the packages in the background (the repo ones through one pacman call, the
+# AUR ones through one yay call with the sudo wrapper), whose log ends with "@@done 0"; the
+# notification says what --notice says, --switch-on switches the feature on; the password is in no
+# command's arguments, and nothing of it is left behind once the install is over.
 test_install_package_password() {
     local bin="$HOME/bin" calls="$HOME/calls"
     mkdir -p "$bin" "$HOME/run"
@@ -28,13 +29,17 @@ EOF
     [ "$status" -eq 2 ] || fail "неверный пароль дал код $status"
     [ -z "$(ls -A "$HOME/run")" ] || fail "после неверного пароля остались файлы: $(ls "$HOME/run")"
 
-    echo right | "$tool" repo-pkg >/dev/null || fail "установка из репозитория не запустилась"
-    install_finished repo-pkg
+    mkdir -p "$HOME/.config/hypr/scripts"
+    printf 'import os, sys\nopen(os.environ["CALLS"], "a").write("features.py " + " ".join(sys.argv[1:]) + "\\n")\n' \
+        > "$HOME/.config/hypr/scripts/features.py"
+    echo right | "$tool" --notice "Где искать" --switch-on clipboard repo-pkg aur-pkg >/dev/null \
+        || fail "установка не запустилась"
+    install_finished "repo-pkg+aur-pkg"
+    [ "$(grep -c '^sudo -S -p  -v$' "$calls")" -eq 2 ] || fail "пароль проверен не один раз на установку: $(cat "$calls")"
     grep -q "^sudo -S -p  pacman -S --needed --noconfirm repo-pkg$" "$calls" || fail "pacman вызван не через sudo -S: $(cat "$calls")"
-    echo right | "$tool" aur-pkg >/dev/null || fail "установка из AUR не запустилась"
-    install_finished aur-pkg
     grep -q "^yay -S .*--sudo $HOME/run/rice-sudo\.[^ ]*/sudo --mflags --config .*makepkg.conf aur-pkg$" "$calls" || fail "yay вызван без обёртки sudo: $(grep yay "$calls")"
-    grep -q "^notify-send .*Установлено: aur-pkg" "$calls" || fail "нет уведомления об установке"
+    grep -q "^features.py on clipboard$" "$calls" || fail "функция не включена после установки"
+    grep -q "^notify-send -a hypr-rice Установлено: repo-pkg, aur-pkg Где искать$" "$calls" || fail "не то уведомление: $(grep notify "$calls")"
     ! grep -q "right\|wrong" "$calls" || fail "пароль попал в аргументы команд"
     [ -z "$(ls -d "$HOME"/run/rice-sudo.* 2>/dev/null)" ] || fail "остались файлы с паролем"
 }

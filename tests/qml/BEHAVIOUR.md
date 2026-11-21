@@ -60,10 +60,12 @@ offscreen (see the end of this file); everything else is checked by hand on the 
 - Features: `features.py list` by group in its order, each with its name, what it does (muted) and a switch; a
   switch runs `features.py on|off <id>` (which applies it: Hyprland reload, systemd unit) and the list is read again,
   so the switch shows the result; a refusal shows features.py's message under the list. A feature with missing
-  packages says so; switching it on opens the install dialog for them one at a time (sudo password each), and once
-  the last is installed the feature is switched on. Declined, failed, or hidden while the install runs: it stays off.
+  packages says so; switching it on opens the install dialog for all of them (one sudo password), and once they are
+  installed the installer switches the feature on, also when the dialog was hidden meanwhile; the list is read again
+  whenever features.json changes. Declined or failed: it stays off.
   `[auto]` (the list and groups, on/off calls and the switch following them, a refusal's message, Esc out of the
-  install dialog, two packages installed then the feature switched on)
+  install dialog, two packages installed with one password then the feature switched on, the same with the dialog
+  hidden during the install)
 
 ## Theme picker — Alt+Shift+T, waybar palette, launcher
 

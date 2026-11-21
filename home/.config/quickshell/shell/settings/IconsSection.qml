@@ -79,7 +79,7 @@ Item {
                 anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
                 text: "Установить"
                 enabled: !themeEdit.install.starting
-                onClicked: themeEdit.askInstall(themeRow.modelData)
+                onClicked: themeEdit.askInstall(themeRow.modelData, "Alt+F2 → Тема → Значки")
             }
         }
     }

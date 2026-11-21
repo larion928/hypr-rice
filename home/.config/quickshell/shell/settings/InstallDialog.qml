@@ -1,7 +1,7 @@
 import QtQuick
 import qs.common
 
-// Installing a missing package (an icon or cursor theme, mpvpaper, what a feature needs): the password, then the
+// Installing missing packages (an icon or cursor theme, mpvpaper, what a feature needs): the password, then the
 // installer's output.
 Rectangle {
     id: dialog

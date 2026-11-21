@@ -110,7 +110,7 @@ Item {
                 anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
                 text: "Установить"
                 enabled: !themeEdit.install.starting
-                onClicked: themeEdit.askInstall(cursorRow.modelData)
+                onClicked: themeEdit.askInstall(cursorRow.modelData, "Alt+F2 → Тема → Курсор")
             }
             Chip {
                 visible: cursorRow.installed && !!cursorRow.modelData.removable
