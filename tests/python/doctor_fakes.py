@@ -71,6 +71,7 @@ class Machine:
         kernel's modules: what is left to find is what a test sets up."""
         (self.root / "usr/lib/modules" / os.uname().release).mkdir(parents=True, exist_ok=True)
         self.runner.on("getent ahosts").on("curl").on("systemctl --user is-active")
+        self.runner.on("wpctl inspect @DEFAULT_AUDIO_SINK@", 'id 38\n  * node.description = "Test sink"\n')
         self.runner.on("timedatectl show", "NTP=yes\nNTPSynchronized=yes\n")
         return self
 

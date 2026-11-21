@@ -8,7 +8,7 @@ from unittest import mock
 
 from doctor_fakes import NOW, Machine, keys
 
-from doctor.checks import boot, crashes, disk, kernel, laptop, pacman, rice, services, system
+from doctor.checks import boot, crashes, devices, disk, kernel, laptop, pacman, rice, services, system
 from doctor.model import CureFailed, Severity
 from doctor.state import State
 
@@ -258,6 +258,87 @@ class SystemTest(CheckTest):
     def test_no_swap(self):
         self.machine.write("/proc/swaps", "Filename Type Size Used Priority\n")
         self.assertEqual(keys(system.swap(self.machine.context())), ["system:no-swap"])
+
+
+class DevicesTest(CheckTest):
+    MOUSE_BUTTONS = "1f0000 0 0 0 0"
+
+    def mouse(self, event, name, bus=0x03):
+        device = f"/sys/class/input/{event}/device"
+        self.machine.write(f"{device}/name", name + "\n")
+        self.machine.write(f"{device}/id/bustype", f"{bus:04x}\n")
+        self.machine.write(f"{device}/capabilities/rel", "3\n")
+        self.machine.write(f"{device}/capabilities/abs", "0\n")
+        self.machine.write(f"{device}/capabilities/key", self.MOUSE_BUTTONS + "\n")
+
+    def devices_lua(self, *names):
+        self.machine.write_home(".config/hypr/devices.lua", "".join(
+            f'hl.device({{ name = "{name}", sensitivity = -0.45 }})\n' for name in names))
+
+    def test_a_mouse_without_its_line_while_an_absent_mouse_has_one(self):
+        self.mouse("event6", "CX Wireless mouse -1k dongle Mouse")
+        self.devices_lua("vxe-r1se+-mouse")
+        found = devices.mouse(self.machine.context())
+        self.assertEqual(keys(found), ["devices:mouse-unconfigured:cx-wireless-mouse--1k-dongle-mouse"])
+        self.assertIn("vxe-r1se+-mouse", found[0].text)
+        self.assertIsNone(found[0].cure)
+
+    def test_no_word_when_the_plugged_mouse_has_its_line_or_no_mouse_has_one(self):
+        self.mouse("event6", "CX Wireless mouse -1k dongle Mouse")
+        self.mouse("event13", "SYNA0001:00 06CB:CE2D Mouse", bus=0x18)
+        self.assertEqual(devices.mouse(self.machine.context()), [])
+        self.devices_lua("vxe-r1se+-mouse", "cx-wireless-mouse--1k-dongle-mouse")
+        self.assertEqual(devices.mouse(self.machine.context()), [])
+
+    def keyboards(self, layout, options="grp:win_space_toggle", configured="us,ru"):
+        main = {"name": "at-translated-set-2-keyboard", "layout": layout, "options": options, "main": True}
+        other = {"name": "me6s-headset", "layout": "us", "options": "", "main": False}
+        self.runner.on("hyprctl devices -j", json.dumps({"keyboards": [other, main]}))
+        self.runner.on("hyprctl getoption input:kb_layout -j", json.dumps({"option": "input:kb_layout",
+                                                                         "str": configured, "set": True}))
+        return self.machine.context(env={"PATH": "", "HYPRLAND_INSTANCE_SIGNATURE": "test"})
+
+    def test_keyboard_layouts_differ_from_the_config(self):
+        self.assertEqual(keys(devices.keyboard(self.keyboards("us"))), ["devices:keyboard-layouts"])
+
+    def test_keyboard_layouts_set_for_that_keyboard_in_devices_lua_count(self):
+        self.machine.write_home(".config/hypr/devices.lua",
+                                'hl.device({ name = "at-translated-set-2-keyboard", kb_layout = "us,de" })\n')
+        self.assertEqual(keys(devices.keyboard(self.keyboards("us,de"))), ["devices:keyboard"])
+
+    def test_several_layouts_without_a_switch_option_is_said(self):
+        found = devices.keyboard(self.keyboards("us,ru", options=""))
+        self.assertEqual(found[0].severity, Severity.INFO)
+        self.assertIn("переключение не задано", found[0].text)
+
+    def test_keyboard_is_not_checked_without_hyprland(self):
+        self.keyboards("us")
+        self.assertEqual(devices.keyboard(self.machine.context()), [])
+
+    def test_no_default_sink_is_a_problem(self):
+        self.runner.on("systemctl --user is-active")
+        self.runner.on("wpctl inspect @DEFAULT_AUDIO_SINK@", code=1, err="Object not found\n")
+        self.assertEqual(keys(devices.sound_output(self.machine.context())), ["devices:no-sound-output"])
+
+    def test_the_default_sink_is_named(self):
+        self.runner.on("systemctl --user is-active")
+        self.runner.on("wpctl inspect @DEFAULT_AUDIO_SINK@",
+                       'id 38, type PipeWire:Interface:Node\n  * node.description = "ME6S Стерео"\n')
+        self.assertEqual(devices.sound_output(self.machine.context())[0].text, "звук выводится на: ME6S Стерео")
+
+    def test_sound_is_left_to_the_system_check_when_pipewire_is_down(self):
+        self.runner.on("systemctl --user is-active", code=3)
+        self.assertEqual(devices.sound_output(self.machine.context()), [])
+
+    def test_wireless_device_charge_and_not_the_laptop_battery(self):
+        self.runner.on("upower -e", "/org/freedesktop/UPower/devices/battery_BAT0\n"
+                                    "/org/freedesktop/UPower/devices/mouse_dev_AA\n")
+        self.runner.on("upower -i /org/freedesktop/UPower/devices/battery_BAT0",
+                       "  model:   L16M2PB2\n  battery\n    percentage:   80%\n")
+        self.runner.on("upower -i /org/freedesktop/UPower/devices/mouse_dev_AA",
+                       "  model:   MX Master 3\n  mouse\n    percentage:   40%\n")
+        found = devices.wireless_batteries(self.machine.context())
+        self.assertEqual([finding.text for finding in found], ["мышь MX Master 3: заряд 40%"])
 
 
 class LaptopTest(CheckTest):

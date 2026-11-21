@@ -304,7 +304,7 @@ class ReportTest(DoctorTest):
                 doctor_main.parse(argv)
 
     def test_examine_returns_a_section_per_check(self):
-        self.assertEqual(len(examine(self.machine.context())), 10)
+        self.assertEqual(len(examine(self.machine.context())), 11)
 
 
 if __name__ == "__main__":
