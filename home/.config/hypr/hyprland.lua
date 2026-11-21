@@ -16,6 +16,29 @@ local function load_if_present(name)
     end
 end
 
+-- The features the user switched on or off (Alt+F2 → Функции): the flat {"id": true|false} that
+-- ~/.config/hypr/scripts/features.py writes at every install and update, read again on every reload.
+local function read_features()
+    local file = io.open(os.getenv("HOME") .. "/.config/hypr-rice/features.json", "r")
+    if not file then
+        hl.notification.create({ text = "Нет features.json, функции райса выключены. Вернуть: rice repair",
+                                 timeout = 20000, icon = "error" })
+        return {}
+    end
+    local text = file:read("*a")
+    file:close()
+    local features = {}
+    for id, value in text:gmatch('"([%w-]+)"%s*:%s*(%a+)') do
+        features[id] = value == "true"
+    end
+    return features
+end
+
+local features = read_features()
+local function on(feature)
+    return features[feature] == true
+end
+
 ----------------
 --- MONITORS ---
 ----------------
@@ -84,8 +107,10 @@ end
 -- Sent only when it changes: the events below come on every workspace switch, and each send starts a process.
 local wallpaper_paused = nil
 
+-- Switched off, the wallpaper never pauses; one paused when it was switched off resumes on the next event,
+-- and until then fullscreen windows still hide it.
 local function update_wallpaper_pause(closing)
-    local hidden = wallpaper_hidden(closing)
+    local hidden = on("wallpaper-pause") and wallpaper_hidden(closing)
     if hidden ~= wallpaper_paused then
         wallpaper_paused = hidden
         hl.exec_cmd("~/.local/bin/wallpaper-pause " .. (hidden and "yes" or "no"))
@@ -136,7 +161,7 @@ hl.env("XDG_SESSION_DESKTOP", "Hyprland")
 
 hl.config({
     animations = {
-        enabled = true,
+        enabled = on("animations"),
     },
 })
 
@@ -208,11 +233,13 @@ hl.config({
     },
 })
 
-hl.gesture({
-    fingers   = 3,
-    direction = "horizontal",
-    action    = "workspace",
-})
+if on("gestures") then
+    hl.gesture({
+        fingers   = 3,
+        direction = "horizontal",
+        action    = "workspace",
+    })
+end
 
 ------------------------------
 --- WINDOWS AND WORKSPACES ---
@@ -270,7 +297,7 @@ hl.layer_rule({
     name  = "notif-panel-blur",
     match = { namespace = "^notif-panel$" },
 
-    blur         = true,
+    blur         = on("menu-blur"),
     ignore_alpha = 0.3,
 })
 
@@ -278,7 +305,7 @@ hl.layer_rule({
     name  = "theme-picker-blur",
     match = { namespace = "^theme-picker$" },
 
-    blur    = true,
+    blur    = on("menu-blur"),
     no_anim = true,
 })
 
@@ -286,7 +313,7 @@ hl.layer_rule({
     name  = "launcher-blur",
     match = { namespace = "^launcher$" },
 
-    blur         = true,
+    blur         = on("menu-blur"),
     ignore_alpha = 0.3,
 })
 
@@ -294,7 +321,7 @@ hl.layer_rule({
     name  = "power-menu-blur",
     match = { namespace = "^power-menu$" },
 
-    blur    = true,
+    blur    = on("menu-blur"),
     no_anim = true,
 })
 
@@ -302,7 +329,7 @@ hl.layer_rule({
     name  = "network-panel-blur",
     match = { namespace = "^network-panel$" },
 
-    blur    = true,
+    blur    = on("menu-blur"),
     no_anim = true,
 })
 
@@ -310,7 +337,7 @@ hl.layer_rule({
     name  = "help-panel-blur",
     match = { namespace = "^help-panel$" },
 
-    blur    = true,
+    blur    = on("menu-blur"),
     no_anim = true,
 })
 
@@ -318,7 +345,7 @@ hl.layer_rule({
     name  = "shots-gallery-blur",
     match = { namespace = "^shots-gallery$" },
 
-    blur    = true,
+    blur    = on("menu-blur"),
     no_anim = true,
 })
 

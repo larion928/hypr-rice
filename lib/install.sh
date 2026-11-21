@@ -158,6 +158,7 @@ apply_rice() {
     step "Файлы райса"
     copy_rice_files
     update_release_files
+    setup_features
 
     step "Системные настройки"
     setup_system

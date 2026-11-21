@@ -117,13 +117,13 @@ set_interface() {  # set_interface KEY VALUE: a GNOME interface setting (portals
 CACHE_TRIM=/usr/local/bin/rice-cache-trim
 CACHE_TRIM_HOOK=/etc/pacman.d/hooks/rice-cache-trim.hook
 
-setup_maintenance() {  # package caches kept under 200 MB, weekly TRIM for SSDs, the daily rice doctor
+# The daily rice doctor is a feature the user may switch off: its timer is setup_features'.
+setup_maintenance() {  # package caches kept under 200 MB, weekly TRIM for SSDs
     sudo install -m755 "$SRC/system/rice-cache-trim" "$CACHE_TRIM"
     sudo install -Dm644 "$SRC/system/rice-cache-trim.hook" "$CACHE_TRIM_HOOK"
     systemctl --user enable cache-trim.timer >/dev/null 2>&1 || warn "не включился cache-trim.timer"
-    systemctl --user enable rice-doctor.timer >/dev/null 2>&1 || warn "не включился rice-doctor.timer"
     sudo systemctl enable fstrim.timer >/dev/null 2>&1 || warn "не включился fstrim.timer"
-    ok "кэш пакетов не больше 200 МБ, TRIM для SSD раз в неделю, проверка системы раз в день"
+    ok "кэш пакетов не больше 200 МБ, TRIM для SSD раз в неделю"
 }
 
 # The mirror of setup_system, setup_maintenance and setup_pkg_repo, for uninstall. SDDM itself, its

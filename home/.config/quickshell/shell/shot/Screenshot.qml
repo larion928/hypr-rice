@@ -3,6 +3,8 @@
 // "region" or "full", optionally ":<theme>" to draw with another theme's screenshot.qml.
 // The frozen frame, mouse/keyboard handling and saving live here; every theme provides
 // themes/<name>/screenshot.qml that only draws the selection and the capture animation.
+// The capture animation and the shutter sound are features (Alt+F2 → Функции): without the animation the
+// overlay closes as soon as the shot is saved.
 //
 // Theme contract: the root Item gets `ctx` (the QtObject inside each window below) and should
 //   - draw dimming/selection from ctx.sel (or ctx.hover while nothing is selected),
@@ -80,7 +82,9 @@ Scope {
         selScreen = screenName;
         sel = rect;
         phase = "saving";
-        Quickshell.execDetached(["sh", "-c", `[ -f "$1" ] && exec pw-play "$1"`, "sh", themeDir + "/shutter.wav"]);
+        if (Features.on("shutter-sound")) {
+            Quickshell.execDetached(["sh", "-c", `[ -f "$1" ] && exec pw-play "$1"`, "sh", themeDir + "/shutter.wav"]);
+        }
         const screen = Quickshell.screens.find(s => s.name === screenName);
         cropProc.command = ["python3", Quickshell.shellDir + "/shot/crop.py", `${run}/${screenName}.png`,
                             rect.x, rect.y, rect.width, rect.height, screen.width, screen.height, outFile].map(String);
@@ -90,7 +94,9 @@ Scope {
     Process {
         id: cropProc
         onExited: code => {
-            if (code === 0) {
+            if (code === 0 && !Features.on("shot-animation")) {
+                overlay.close();
+            } else if (code === 0) {
                 overlay.phase = "capture";
                 quitGuard.start();
             } else {

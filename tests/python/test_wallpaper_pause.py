@@ -79,6 +79,7 @@ def lua_table(value):
 class FullscreenEventsTest(unittest.TestCase):
     def setUp(self):
         self.sandbox = Sandbox()
+        (self.sandbox.home / ".config/hypr-rice/features.json").write_text('{"wallpaper-pause": true}')
 
     def tearDown(self):
         self.sandbox.cleanup()
@@ -98,6 +99,10 @@ class FullscreenEventsTest(unittest.TestCase):
             elif event and "wallpaper-pause" in line:
                 commands[event].append(line.split()[-1])
         return list(commands.values())
+
+    def test_switched_off_it_never_pauses(self):
+        (self.sandbox.home / ".config/hypr-rice/features.json").write_text('{"wallpaper-pause": false}')
+        self.assertEqual(self.commands_after([("window.fullscreen", [(2, None)], None)]), [["no"]])
 
     def test_fullscreen_on_a_hidden_workspace_keeps_it_playing(self):
         # A fullscreen window on workspace 10 while workspace 2 is shown: the monitor shows no fullscreen.

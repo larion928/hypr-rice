@@ -256,7 +256,7 @@ test_install_sh_branches() {
 test_help_lists_every_command() {
     local cmd help
     help=$("$REPO/rice" help)
-    for cmd in install apps remove update upgrade proton games repair report doctor uninstall; do
+    for cmd in install apps remove update upgrade proton games repair report doctor features uninstall; do
         grep -q "^  rice $cmd " <<<"$help" || fail "в справке нет rice $cmd"
     done
 }
@@ -289,6 +289,7 @@ test_coexist_keeps_other_login_screen() {
     pkg_repo_enabled() { :; }
     setup_system() { setup_sddm; }
     setup_maintenance() { :; }
+    setup_features() { :; }
     apply_theme() { :; }
     cmd_apply_update >/dev/null 2>&1
     MODE=replace USE_SDDM=1

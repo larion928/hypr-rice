@@ -9,7 +9,8 @@
 #   rice upgrade      update the system, the hypr-rice repo and AUR programs
 #   rice proton       pick the Proton version that runs .exe files
 #   rice games        game optimisations, each on or off: GameMode, NTSync, tearing, linux-zen
-#   rice repair       re-apply SDDM, GTK theme and services
+#   rice repair       re-apply SDDM, GTK theme, services and features
+#   rice features     the rice's features, on or off; rice features on|off <id> switches one
 #   rice report       write ~/rice-report.txt for whoever helps you debug
 #   rice doctor       check the system and the rice; --fix [-y] cures, --full slow checks too (rice doctor -h)
 #   rice uninstall    remove the rice and put the last backup back
@@ -39,7 +40,7 @@ done
 # stays on screen until Enter. Each action is a rice of its own, so its errors (die) end only it.
 menu() {
     local choice
-    have_tty || die "меню нужен терминал; команды: rice install|apps|remove|update|upgrade|proton|games|repair|report|doctor|uninstall"
+    have_tty || die "меню нужен терминал; команды: rice install|apps|remove|update|upgrade|proton|games|repair|report|doctor|features|uninstall"
     # Here, not in choose_one's $(...): a failed download is then neither repeated nor announced each round.
     fetch_gum || true
     while choice=$(choose_one "hypr-rice — что сделать?" \
@@ -80,6 +81,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
         install|apps|remove|update|upgrade|proton|games|repair|report|uninstall) run "$1" ;;
         apply-update) run apply_update ;;  # run by `rice update` from the freshly fetched script
         doctor) shift; cmd_doctor "$@" ;;
+        features) shift; cmd_features "$@" ;;
         ""|menu) menu ;;
         -h|--help|help) sed -n '2,/^# Environment/{/^# Environment/!s/^# \{0,1\}//p}' "$0" ;;
         *) die "неизвестная команда: $1 (rice help)" ;;

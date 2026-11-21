@@ -1,4 +1,4 @@
-# When something is wrong: rice repair puts the rice's packages and settings back, rice report writes
+# When something is wrong: rice repair puts the rice's packages, settings and features back, rice report writes
 # what a helper needs to know; rice doctor (python, doctor/) checks and cures.
 
 cmd_repair() {
@@ -14,6 +14,7 @@ cmd_repair() {
     load_install_mode
     setup_system
     setup_maintenance
+    setup_features
     apply_theme "$(current_theme)"
     finish
 }
