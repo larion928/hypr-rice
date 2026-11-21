@@ -47,6 +47,7 @@ PATHS=(
     .config/systemd/user/cache-trim.timer
     .config/systemd/user/rice-doctor.service
     .config/systemd/user/rice-doctor.timer
+    .config/systemd/user/rice-clipboard.service
     .config/systemd/user/xdg-desktop-portal-hyprland.service.d
     .config/systemd/user/xdg-desktop-portal.service.d
     ".config/Code - OSS/User/settings.json"
@@ -75,6 +76,8 @@ PATHS=(
     .local/bin/wallpaper
     .local/bin/wallpaper-pause
     .local/bin/rice-install-package
+    .local/bin/clipboard-history
+    .local/bin/clipboard-store
     .claude/statusline.sh
 )
 

@@ -1,0 +1,60 @@
+#!/bin/bash
+# clipboard-store — what wl-paste --watch runs on every copy (rice-clipboard.service), the copy on stdin: it goes
+# into cliphist's history, which keeps the last 100 entries. Past CLIPBOARD_LIMIT_BYTES in all (100 MB) the oldest
+# entries go until the rest fits; one entry has no size limit (cliphist 0.7.0 has none), so the newest one stays
+# even when it alone is larger.
+# cliphist tells an entry's size only by reading it back and has no way to shrink its database file, so the sizes
+# are counted here as the copies pass and kept in ~/.cache/hypr-rice/clipboard-sizes, one "id size" per line.
+set -u
+limit=${CLIPBOARD_LIMIT_BYTES:-$((100 * 1024 * 1024))}
+sizes=${XDG_CACHE_HOME:-$HOME/.cache}/hypr-rice/clipboard-sizes
+store=(cliphist -max-items 100 store)
+
+# wl-paste's CLIPBOARD_STATE: cliphist keeps nothing of a password manager's sensitive copy and drops its newest
+# entry on "clear"; neither adds an entry to count, so the copy is not even read here.
+case ${CLIPBOARD_STATE:-} in
+    sensitive|clear) exec "${store[@]}" ;;
+esac
+
+newest_before=$(cliphist list 2>/dev/null | head -n1 | cut -f1)  # an empty history has no database yet
+# The copy goes to cliphist and, through fd 3, to wc; the substitution ends once both have.
+copied=$({ tee /dev/fd/3 | "${store[@]}"; } 3>&1 >/dev/null | wc -c)
+entries=$(cliphist list | cut -f1)
+
+declare -A size_of
+if [ -f "$sizes" ]; then
+    while read -r id bytes; do
+        size_of[$id]=$bytes
+    done < "$sizes"
+fi
+# No new entry when the copy was empty; a copy the history already had comes back as a new entry.
+newest=$(head -n1 <<< "$entries")
+if [ -n "$newest" ] && [ "$newest" != "$newest_before" ]; then
+    size_of[$newest]=$copied
+fi
+
+# Newest first: the newest entry always stays; from the first one that does not fit, it and all older go.
+total=0
+kept=()
+old=()
+for id in $entries; do
+    if [ -z "${size_of[$id]:-}" ]; then
+        size_of[$id]=$(cliphist decode "$id" | wc -c)  # stored before the sizes were kept here
+    fi
+    total=$((total + size_of[$id]))
+    if [ ${#kept[@]} -gt 0 ] && [ "$total" -gt "$limit" ]; then
+        old+=("$id")
+    else
+        kept+=("$id")
+    fi
+done
+if [ ${#old[@]} -gt 0 ]; then
+    printf '%s\n' "${old[@]}" | cliphist delete
+fi
+
+# Only the entries still in the history: those deleted in the menu or pushed out by the 100 go from here too.
+mkdir -p "${sizes%/*}"
+for id in "${kept[@]}"; do
+    echo "$id ${size_of[$id]}"
+done > "$sizes.new"
+mv "$sizes.new" "$sizes"
