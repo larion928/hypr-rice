@@ -1,0 +1,4 @@
+[
+ {"id": "g1", "name": "Portal 2", "kind": "steam", "target": "620", "present": true, "cover": "", "icon": ""},
+ {"id": "g2", "name": "osu!", "kind": "app", "target": "osu.desktop", "present": false, "cover": "", "icon": ""}
+]

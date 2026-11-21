@@ -1,5 +1,4 @@
--- Hyprland config (Lua, Hyprland 0.55+). Migrated from hyprland.conf;
--- the old hyprlang files are kept in hyprlang-backup/.
+-- Hyprland config (Lua, Hyprland 0.56+).
 
 -- A file of the machine's or the user's own (not part of the rice repo), when it is there. One that
 -- breaks (a typo in user.lua) is skipped with a notification on screen: an error here would stop
@@ -42,8 +41,8 @@ hl.on("hyprland.start", function()
     -- portals): started here, stopped at shutdown.
     -- Another desktop's notification daemon that holds the bus is closed by histuid.service itself.
     hl.exec_cmd("systemctl --user start histuid.service portal-restart.timer")
-    -- Volume/brightness OSD, follows the current theme on its own.
-    hl.exec_cmd("OSD_BACKLIGHT=$(ls -d /sys/class/backlight/* 2>/dev/null | head -n1) quickshell -d -p ~/.config/quickshell/osd")
+    -- The menus and the volume/brightness OSD (~/.config/quickshell/shell); they follow the current theme.
+    hl.exec_cmd("quickshell -d -n -p ~/.config/quickshell/shell")
     hl.exec_cmd("awww-daemon")
     -- The theme's wallpaper as written by changetheme (also covers a theme set offline).
     hl.exec_cmd("sleep 1; [ -f ~/.config/hypr/current-wallpaper ] && ~/.local/bin/wallpaper \"$(cat ~/.config/hypr/current-wallpaper)\"")

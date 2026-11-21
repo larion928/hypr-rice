@@ -1,8 +1,5 @@
 #!/bin/bash
-# shots-gallery — toggle the themed gallery of ~/Pictures/screenshots (~/.config/quickshell/shots).
-source "$HOME/.config/quickshell/panel.sh"
-if panel_is_open shots; then close_panel shots; exit 0; fi
-
-export SHOTS_DIR="$HOME/Pictures/screenshots"
-mkdir -p "$SHOTS_DIR"
-open_panel shots
+# shots-gallery — toggle the gallery of ~/Pictures/screenshots, the waybar camera icon
+# Menu "shots" of ~/.config/quickshell/shell.
+source "$HOME/.config/quickshell/menus.sh"
+menus_call toggle shots ""

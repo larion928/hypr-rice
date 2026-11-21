@@ -1,0 +1,767 @@
+[
+ {
+  "name": "claude",
+  "dir": "@HOME@/.config/hypr/themes/claude",
+  "current": true,
+  "user": false,
+  "thumb": "@HOME@/.cache/theme-thumbs/01295bdba2f783eb.jpg",
+  "pal": {
+   "name": "claude",
+   "label": "Claude",
+   "font": "JetBrainsMono Nerd Font",
+   "display": "Source Serif 4",
+   "colors": {
+    "bg": "#1f1e1d",
+    "bg2": "#2a2927",
+    "fg": "#ece9e0",
+    "accent": "#d97757",
+    "accent2": "#e8a383",
+    "accent3": "#b0583c",
+    "muted": "#8a857b",
+    "warn": "#d4a85a",
+    "crit": "#d0574e",
+    "good": "#8fa876"
+   }
+  },
+  "ui": {
+   "title": "Уведомления",
+   "headerIcon": "assets/spark.svg",
+   "radius": 16,
+   "cardRadius": 12,
+   "titleFont": "display",
+   "bodyFont": "Adwaita Sans",
+   "slideMs": 320,
+   "osdStyle": "pill",
+   "folders": "paleorange",
+   "powerStyle": "cards",
+   "telegramSlug": "Id2rQODSNQg7jSQ4"
+  },
+  "edits": {
+   "waybar": {
+    "modules-center": [],
+    "modules-left": [
+     "hyprland/workspaces",
+     "hyprland/window",
+     "custom/claude"
+    ],
+    "modules-right": [
+     "hyprland/language",
+     "pulseaudio",
+     "cpu",
+     "memory",
+     "custom/power",
+     "custom/battery",
+     "network",
+     "custom/updates",
+     "clock",
+     "custom/histui",
+     "custom/shots",
+     "custom/exit"
+    ],
+    "position": "top"
+   }
+  },
+  "own": {
+   "fonts": {
+    "font": "JetBrainsMono Nerd Font",
+    "display": "Source Serif 4",
+    "body": "Adwaita Sans"
+   },
+   "colors": {
+    "bg": "#1f1e1d",
+    "bg2": "#2a2927",
+    "fg": "#ece9e0",
+    "accent": "#d97757",
+    "accent2": "#e8a383",
+    "accent3": "#b0583c",
+    "muted": "#8a857b",
+    "warn": "#d4a85a",
+    "crit": "#d0574e",
+    "good": "#8fa876"
+   },
+   "folders": "paleorange"
+  },
+  "wallpapers": [
+   {
+    "path": "@HOME@/.config/hypr/themes/claude/brecht-corbeel-W56tWqJ0Azo-unsplash.jpg",
+    "thumb": "@HOME@/.cache/theme-thumbs/01295bdba2f783eb.jpg",
+    "added": false,
+    "on": true
+   },
+   {
+    "path": "@HOME@/.config/hypr/themes/claude/brecht-corbeel-dXQd1BtfAUY-unsplash.jpg",
+    "thumb": "@HOME@/.cache/theme-thumbs/3e1632f9854dd27a.jpg",
+    "added": false,
+    "on": true
+   }
+  ],
+  "waybar": {
+   "current": {
+    "modules-left": [
+     "hyprland/workspaces",
+     "hyprland/window",
+     "custom/claude"
+    ],
+    "modules-center": [],
+    "modules-right": [
+     "hyprland/language",
+     "pulseaudio",
+     "cpu",
+     "memory",
+     "custom/power",
+     "custom/battery",
+     "network",
+     "custom/updates",
+     "clock",
+     "custom/histui",
+     "custom/shots",
+     "custom/exit"
+    ],
+    "position": "top"
+   },
+   "withoutOwn": {
+    "modules-left": [
+     "hyprland/workspaces",
+     "hyprland/window"
+    ],
+    "modules-center": [],
+    "modules-right": [
+     "hyprland/language",
+     "pulseaudio",
+     "cpu",
+     "memory",
+     "custom/power",
+     "custom/battery",
+     "network",
+     "custom/updates",
+     "clock",
+     "custom/histui",
+     "custom/shots",
+     "custom/exit"
+    ],
+    "position": "top"
+   },
+   "themesOwn": {
+    "modules-left": [
+     "hyprland/workspaces",
+     "hyprland/window",
+     "custom/claude"
+    ],
+    "modules-center": [],
+    "modules-right": [
+     "hyprland/language",
+     "pulseaudio",
+     "cpu",
+     "memory",
+     "temperature",
+     "custom/power",
+     "custom/battery",
+     "network",
+     "custom/updates",
+     "clock",
+     "custom/histui",
+     "custom/shots",
+     "custom/settings",
+     "custom/help",
+     "custom/theme",
+     "custom/exit"
+    ],
+    "position": "top"
+   },
+   "available": [
+    "backlight",
+    "battery",
+    "bluetooth",
+    "clock",
+    "cpu",
+    "custom/battery",
+    "custom/claude",
+    "custom/exit",
+    "custom/help",
+    "custom/histui",
+    "custom/power",
+    "custom/settings",
+    "custom/shots",
+    "custom/theme",
+    "custom/updates",
+    "disk",
+    "hyprland/language",
+    "hyprland/window",
+    "hyprland/workspaces",
+    "idle_inhibitor",
+    "memory",
+    "mpris",
+    "network",
+    "power-profiles-daemon",
+    "pulseaudio",
+    "temperature",
+    "tray"
+   ],
+   "preview": {
+    "backlight": "󰃠 80%",
+    "battery": "  58%",
+    "bluetooth": "󰂯",
+    "clock": "13:37",
+    "cpu": " 12%",
+    "custom/battery": "󰁹 58%",
+    "custom/claude": "✻ 42%",
+    "custom/exit": "",
+    "custom/help": "",
+    "custom/histui": "󰂚",
+    "custom/power": "󰾅",
+    "custom/settings": "󰒓",
+    "custom/shots": "",
+    "custom/theme": "󰏘",
+    "custom/updates": "󰏗 3",
+    "disk": "󰋊 40%",
+    "hyprland/language": "ru",
+    "hyprland/window": "Заголовок окна",
+    "hyprland/workspaces": "1 2 3 4",
+    "idle_inhibitor": "󰅶",
+    "memory": "󰍛 41%",
+    "mpris": "󰎈 Песня",
+    "network": "󰖩",
+    "power-profiles-daemon": "󰾅",
+    "pulseaudio": " 70%",
+    "temperature": " 48°C",
+    "tray": "󰀻 󰍹"
+   },
+   "iconEditable": [
+    "backlight",
+    "battery",
+    "bluetooth",
+    "cpu",
+    "custom/exit",
+    "custom/help",
+    "custom/histui",
+    "custom/settings",
+    "custom/shots",
+    "custom/theme",
+    "disk",
+    "memory",
+    "network",
+    "pulseaudio",
+    "temperature"
+   ]
+  },
+  "windows": {
+   "gaps_in": 6,
+   "gaps_out": 12,
+   "border_size": 2,
+   "rounding": 10,
+   "blur": true,
+   "blur_size": 5,
+   "active_opacity": 1.0,
+   "inactive_opacity": 1.0
+  }
+ },
+ {
+  "name": "coffee",
+  "dir": "@HOME@/.config/hypr/themes/coffee",
+  "current": false,
+  "user": false,
+  "thumb": "@HOME@/.cache/theme-thumbs/7ff34af0bd71dc97.jpg",
+  "pal": {
+   "name": "coffee",
+   "label": "Coffee",
+   "font": "JetBrainsMono Nerd Font",
+   "display": "IBM Plex Mono",
+   "colors": {
+    "bg": "#1d1612",
+    "bg2": "#2a201a",
+    "fg": "#ebdbb2",
+    "accent": "#d8a657",
+    "accent2": "#e9c48f",
+    "accent3": "#a9643c",
+    "muted": "#928374",
+    "warn": "#fabd2f",
+    "crit": "#ea6962",
+    "good": "#a9b665"
+   }
+  },
+  "ui": {
+   "title": "уведомления",
+   "headerGlyph": "☕",
+   "radius": 8,
+   "cardRadius": 6,
+   "titleFont": "display",
+   "bodyFont": "IBM Plex Mono",
+   "slideMs": 240,
+   "osdStyle": "retro",
+   "folders": "palebrown",
+   "powerStyle": "cards",
+   "batteryAnim": "once",
+   "batteryStep": 0.12,
+   "telegramSlug": "XZVkEuhEFFAF3TCF"
+  },
+  "edits": {
+   "wallpapers": {
+    "off": [
+     "@HOME@/.config/hypr/themes/coffee/04-wallhaven-mdpzq8.png"
+    ]
+   },
+   "waybar": {
+    "modules-center": [],
+    "modules-left": [
+     "hyprland/workspaces",
+     "hyprland/window"
+    ],
+    "modules-right": [
+     "hyprland/language",
+     "pulseaudio",
+     "cpu",
+     "memory",
+     "temperature",
+     "custom/power",
+     "custom/battery",
+     "network",
+     "custom/updates",
+     "clock",
+     "custom/histui",
+     "custom/shots",
+     "custom/exit"
+    ],
+    "position": "top"
+   },
+   "icons": {
+    "custom/shots": "",
+    "memory": ""
+   },
+   "windows": {
+    "inactive_opacity": 0.9
+   }
+  },
+  "own": {
+   "fonts": {
+    "font": "JetBrainsMono Nerd Font",
+    "display": "IBM Plex Mono",
+    "body": "IBM Plex Mono"
+   },
+   "colors": {
+    "bg": "#1d1612",
+    "bg2": "#2a201a",
+    "fg": "#ebdbb2",
+    "accent": "#d8a657",
+    "accent2": "#e9c48f",
+    "accent3": "#a9643c",
+    "muted": "#928374",
+    "warn": "#fabd2f",
+    "crit": "#ea6962",
+    "good": "#a9b665"
+   },
+   "folders": "palebrown"
+  },
+  "wallpapers": [
+   {
+    "path": "@HOME@/.config/hypr/themes/coffee/01-wallhaven-g7mgx7.png",
+    "thumb": "@HOME@/.cache/theme-thumbs/7ff34af0bd71dc97.jpg",
+    "added": false,
+    "on": true
+   },
+   {
+    "path": "@HOME@/.config/hypr/themes/coffee/02-wallhaven-4grydl.png",
+    "thumb": "@HOME@/.cache/theme-thumbs/c97808def5ddbde1.jpg",
+    "added": false,
+    "on": true
+   }
+  ],
+  "waybar": {
+   "current": {
+    "modules-left": [
+     "hyprland/workspaces",
+     "hyprland/window"
+    ],
+    "modules-center": [],
+    "modules-right": [
+     "hyprland/language",
+     "pulseaudio",
+     "cpu",
+     "memory",
+     "temperature",
+     "custom/power",
+     "custom/battery",
+     "network",
+     "custom/updates",
+     "clock",
+     "custom/histui",
+     "custom/shots",
+     "custom/exit"
+    ],
+    "position": "top"
+   },
+   "withoutOwn": {
+    "modules-left": [
+     "hyprland/workspaces",
+     "hyprland/window"
+    ],
+    "modules-center": [],
+    "modules-right": [
+     "hyprland/language",
+     "pulseaudio",
+     "cpu",
+     "memory",
+     "custom/power",
+     "custom/battery",
+     "network",
+     "custom/updates",
+     "clock",
+     "custom/histui",
+     "custom/shots",
+     "custom/exit"
+    ],
+    "position": "top"
+   },
+   "themesOwn": {
+    "modules-left": [
+     "hyprland/workspaces",
+     "hyprland/window"
+    ],
+    "modules-center": [],
+    "modules-right": [
+     "hyprland/language",
+     "pulseaudio",
+     "cpu",
+     "memory",
+     "temperature",
+     "custom/power",
+     "custom/battery",
+     "network",
+     "custom/updates",
+     "clock",
+     "custom/histui",
+     "custom/shots",
+     "custom/settings",
+     "custom/help",
+     "custom/theme",
+     "custom/exit"
+    ],
+    "position": "top"
+   },
+   "available": [
+    "backlight",
+    "battery",
+    "bluetooth",
+    "clock",
+    "cpu",
+    "custom/battery",
+    "custom/exit",
+    "custom/help",
+    "custom/histui",
+    "custom/power",
+    "custom/settings",
+    "custom/shots",
+    "custom/theme",
+    "custom/updates",
+    "disk",
+    "hyprland/language",
+    "hyprland/window",
+    "hyprland/workspaces",
+    "idle_inhibitor",
+    "memory",
+    "mpris",
+    "network",
+    "power-profiles-daemon",
+    "pulseaudio",
+    "temperature",
+    "tray"
+   ],
+   "preview": {
+    "backlight": "󰃠 80%",
+    "battery": "  58%",
+    "bluetooth": "󰂯",
+    "clock": "13:37",
+    "cpu": "󱂟 12%",
+    "custom/battery": "󰁹 58%",
+    "custom/exit": "󰤄",
+    "custom/help": "󱓷",
+    "custom/histui": "󰂚",
+    "custom/power": "󰾅",
+    "custom/settings": "󱌙",
+    "custom/shots": "",
+    "custom/theme": "󰅶",
+    "custom/updates": "󰏗 3",
+    "disk": "󰋊 40%",
+    "hyprland/language": "ru",
+    "hyprland/window": "Заголовок окна",
+    "hyprland/workspaces": "1 2 3 4",
+    "idle_inhibitor": "󰅶",
+    "memory": " 41%",
+    "mpris": "󰎈 Песня",
+    "network": "󰖩",
+    "power-profiles-daemon": "󰾅",
+    "pulseaudio": "󰝚 70%",
+    "temperature": " 48°C",
+    "tray": "󰀻 󰍹"
+   },
+   "iconEditable": [
+    "backlight",
+    "battery",
+    "bluetooth",
+    "cpu",
+    "custom/exit",
+    "custom/help",
+    "custom/histui",
+    "custom/settings",
+    "custom/shots",
+    "custom/theme",
+    "disk",
+    "memory",
+    "network",
+    "pulseaudio",
+    "temperature"
+   ]
+  },
+  "windows": {
+   "gaps_in": 5,
+   "gaps_out": 10,
+   "border_size": 3,
+   "rounding": 6,
+   "blur": true,
+   "blur_size": 4,
+   "active_opacity": 1.0,
+   "inactive_opacity": 1.0
+  }
+ },
+ {
+  "name": "hacker",
+  "dir": "@HOME@/.config/hypr/themes/hacker",
+  "current": false,
+  "user": false,
+  "thumb": "@HOME@/.cache/theme-thumbs/dfab0cd5d30d60b5.jpg",
+  "pal": {
+   "name": "hacker",
+   "label": "Hacker",
+   "font": "JetBrainsMono Nerd Font",
+   "display": "JetBrainsMono Nerd Font",
+   "colors": {
+    "bg": "#000000",
+    "bg2": "#0a0f0a",
+    "fg": "#a8f0b0",
+    "accent": "#2bd94a",
+    "accent2": "#57f57a",
+    "accent3": "#17993a",
+    "muted": "#4a7a52",
+    "warn": "#d9c229",
+    "crit": "#ff3b3b",
+    "good": "#2bd94a"
+   },
+   "code": {
+    "bg": "#0b0d0b",
+    "bg2": "#131713",
+    "fg": "#c9d4ca",
+    "muted": "#6b776c",
+    "accent": "#3ddc64",
+    "accent2": "#8fc79a",
+    "accent3": "#5f9f6f",
+    "good": "#b5cf8a",
+    "warn": "#d1b45a",
+    "crit": "#e06c6c"
+   }
+  },
+  "ui": {
+   "title": "~/notifications",
+   "headerGlyph": ">_",
+   "radius": 0,
+   "cardRadius": 0,
+   "titleFont": "font",
+   "bodyFont": "font",
+   "slideMs": 140,
+   "osdStyle": "ascii",
+   "folders": "grey",
+   "powerStyle": "terminal",
+   "telegramSlug": "ov1MRklbw0ceWSqI",
+   "glow": true,
+   "batteryStep": 0.16
+  },
+  "edits": {},
+  "own": {
+   "fonts": {
+    "font": "JetBrainsMono Nerd Font",
+    "display": "JetBrainsMono Nerd Font",
+    "body": "JetBrainsMono Nerd Font"
+   },
+   "colors": {
+    "bg": "#000000",
+    "bg2": "#0a0f0a",
+    "fg": "#a8f0b0",
+    "accent": "#2bd94a",
+    "accent2": "#57f57a",
+    "accent3": "#17993a",
+    "muted": "#4a7a52",
+    "warn": "#d9c229",
+    "crit": "#ff3b3b",
+    "good": "#2bd94a"
+   },
+   "folders": "grey"
+  },
+  "wallpapers": [
+   {
+    "path": "@HOME@/.config/hypr/themes/hacker/wallhaven-213wqy_1920x1080.png",
+    "thumb": "@HOME@/.cache/theme-thumbs/dfab0cd5d30d60b5.jpg",
+    "added": false,
+    "on": true
+   },
+   {
+    "path": "@HOME@/.config/hypr/themes/hacker/wallhaven-k82v5q_1920x1080.png",
+    "thumb": "@HOME@/.cache/theme-thumbs/bda2b4864ce26750.jpg",
+    "added": false,
+    "on": true
+   }
+  ],
+  "waybar": {
+   "current": {
+    "modules-left": [
+     "hyprland/workspaces",
+     "hyprland/window"
+    ],
+    "modules-center": [],
+    "modules-right": [
+     "hyprland/language",
+     "pulseaudio",
+     "cpu",
+     "memory",
+     "custom/power",
+     "custom/battery",
+     "network",
+     "custom/updates",
+     "clock",
+     "custom/histui",
+     "custom/shots",
+     "custom/exit"
+    ],
+    "position": "top"
+   },
+   "withoutOwn": {
+    "modules-left": [
+     "hyprland/workspaces",
+     "hyprland/window"
+    ],
+    "modules-center": [],
+    "modules-right": [
+     "hyprland/language",
+     "pulseaudio",
+     "cpu",
+     "memory",
+     "custom/power",
+     "custom/battery",
+     "network",
+     "custom/updates",
+     "clock",
+     "custom/histui",
+     "custom/shots",
+     "custom/exit"
+    ],
+    "position": "top"
+   },
+   "themesOwn": {
+    "modules-left": [
+     "hyprland/workspaces",
+     "hyprland/window"
+    ],
+    "modules-center": [],
+    "modules-right": [
+     "hyprland/language",
+     "pulseaudio",
+     "cpu",
+     "memory",
+     "temperature",
+     "custom/power",
+     "custom/battery",
+     "network",
+     "custom/updates",
+     "clock",
+     "custom/histui",
+     "custom/shots",
+     "custom/settings",
+     "custom/help",
+     "custom/theme",
+     "custom/exit"
+    ],
+    "position": "top"
+   },
+   "available": [
+    "backlight",
+    "battery",
+    "bluetooth",
+    "clock",
+    "cpu",
+    "custom/battery",
+    "custom/exit",
+    "custom/help",
+    "custom/histui",
+    "custom/power",
+    "custom/settings",
+    "custom/shots",
+    "custom/theme",
+    "custom/updates",
+    "disk",
+    "hyprland/language",
+    "hyprland/window",
+    "hyprland/workspaces",
+    "idle_inhibitor",
+    "memory",
+    "mpris",
+    "network",
+    "power-profiles-daemon",
+    "pulseaudio",
+    "temperature",
+    "tray"
+   ],
+   "preview": {
+    "backlight": "󰃠 80%",
+    "battery": "  58%",
+    "bluetooth": "󰂯",
+    "clock": "13:37",
+    "cpu": "󰅩 12%",
+    "custom/battery": "󰁹 58%",
+    "custom/exit": "󰦝",
+    "custom/help": "󰢩",
+    "custom/histui": "󰂚",
+    "custom/power": "󰾅",
+    "custom/settings": "󱆃",
+    "custom/shots": "󰘨",
+    "custom/theme": "󰆍",
+    "custom/updates": "󰏗 3",
+    "disk": "󰋊 40%",
+    "hyprland/language": "ru",
+    "hyprland/window": "Заголовок окна",
+    "hyprland/workspaces": "1 2 3 4",
+    "idle_inhibitor": "󰅶",
+    "memory": "󰒋 41%",
+    "mpris": "󰎈 Песня",
+    "network": "󰖩",
+    "power-profiles-daemon": "󰾅",
+    "pulseaudio": " 70%",
+    "temperature": " 48°C",
+    "tray": "󰀻 󰍹"
+   },
+   "iconEditable": [
+    "backlight",
+    "battery",
+    "bluetooth",
+    "cpu",
+    "custom/exit",
+    "custom/help",
+    "custom/histui",
+    "custom/settings",
+    "custom/shots",
+    "custom/theme",
+    "disk",
+    "memory",
+    "network",
+    "pulseaudio",
+    "temperature"
+   ]
+  },
+  "windows": {
+   "gaps_in": 4,
+   "gaps_out": 8,
+   "border_size": 2,
+   "rounding": 0,
+   "blur": true,
+   "blur_size": 5,
+   "active_opacity": 1.0,
+   "inactive_opacity": 1.0
+  }
+ }
+]

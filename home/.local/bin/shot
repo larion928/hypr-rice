@@ -1,6 +1,6 @@
 #!/bin/bash
-# shot — themed screenshot. Freezes every output with grim, then a Quickshell overlay
-# (~/.config/quickshell/shot) lets you pick a region in the current theme's style.
+# shot — themed screenshot. Freezes every output with grim, then the overlay (menu "shot" of
+# ~/.config/quickshell/shell) lets you pick a region in the current theme's style.
 #   shot          select a region (click a window to take just that window)
 #   shot full     whole focused monitor
 # The result goes to ~/Pictures/screenshots/ and to the clipboard.
@@ -9,11 +9,10 @@ set -u
 MODE=${1:-region}
 OUTDIR="$HOME/Pictures/screenshots"
 RUN="${XDG_RUNTIME_DIR:-/tmp}/shot"
-THEME=${SHOT_THEME:-$(cat "$HOME/.config/hypr/current-theme" 2>/dev/null || echo claude)}
 
 # One overlay at a time; checked before grim so a second press never captures the overlay.
-source "$HOME/.config/quickshell/panel.sh"
-if panel_is_open shot; then exit 0; fi
+source "$HOME/.config/quickshell/menus.sh"
+[ "$(menus_call isOpen shot)" = true ] && exit 0
 
 mkdir -p "$OUTDIR"
 rm -rf "$RUN"
@@ -29,11 +28,5 @@ for out in $(jq -r '.[].name' "$RUN/monitors.json"); do
 done
 wait
 
-export SHOT_MODE="$MODE"
-export SHOT_RUN="$RUN"
-export RICE_THEME_DIR="$HOME/.config/hypr/themes/$THEME"
-export SHOT_FOCUSED=$(jq -r '.[] | select(.focused) | .name' "$RUN/monitors.json")
-export SHOT_OUT="$OUTDIR/screenshot_$(date +%Y%m%d_%H%M%S).png"
-export SHOT_CROP="$HOME/.config/quickshell/shot/crop.py"
-
-exec quickshell -n -p "$HOME/.config/quickshell/shot"
+# SHOT_THEME=<theme> draws the overlay with that theme's screenshot.qml (for trying one out).
+menus_call open shot "$MODE${SHOT_THEME:+:$SHOT_THEME}"

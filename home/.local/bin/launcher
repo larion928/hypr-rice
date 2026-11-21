@@ -1,10 +1,5 @@
 #!/bin/bash
-# launcher — toggle the themed app launcher (~/.config/quickshell/launcher), bound to Alt+R.
-source "$HOME/.config/quickshell/panel.sh"
-if panel_is_open launcher; then close_panel launcher; exit 0; fi
-
-usage="$HOME/.local/state/launcher/usage.json"
-[ -f "$usage" ] || { mkdir -p "$(dirname "$usage")"; echo "{}" > "$usage"; }
-# Theme names/labels for the "тема …" commands.
-export LAUNCHER_THEMES=$(for d in "$HOME"/.config/hypr/themes/*/palette.json; do jq -c '{name, label}' "$d"; done | jq -sc .)
-open_panel launcher
+# launcher — toggle the themed app launcher, bound to Alt+R
+# Menu "launcher" of ~/.config/quickshell/shell.
+source "$HOME/.config/quickshell/menus.sh"
+menus_call toggle launcher ""

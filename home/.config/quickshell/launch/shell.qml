@@ -7,13 +7,10 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Hyprland
 import Quickshell.Wayland
-import "common"
-import "common/color.js" as Color
+import qs.common
 
 ShellRoot {
     id: root
-
-    Theme { id: theme }
 
     property var launch: ({ title: "", percent: 0, stage: "", detail: "", status: "running", started: 0 })
     readonly property bool failed: launch.status === "failed"
@@ -62,9 +59,9 @@ ShellRoot {
 
         Rectangle {
             anchors.fill: parent
-            radius: Math.min(theme.ui.radius ?? 14, 22)
-            color: Color.withAlpha(theme.c.bg, 0.94)
-            border.color: Color.withAlpha(root.failed ? theme.c.crit : theme.c.accent, 0.5)
+            radius: Theme.radius(22)
+            color: Theme.alpha(Theme.bg, 0.94)
+            border.color: Theme.alpha(root.failed ? Theme.crit : Theme.accent, 0.5)
 
             Column {
                 anchors { fill: parent; margins: 18 }
@@ -76,24 +73,24 @@ ShellRoot {
                         anchors { left: parent.left; right: percentText.left; rightMargin: 12; verticalCenter: parent.verticalCenter }
                         elide: Text.ElideRight
                         text: root.launch.title
-                        font.family: theme.titleFont; font.pixelSize: 16; font.italic: !!theme.ui.italicTitle
-                        color: theme.c.fg || "white"
+                        font.family: Theme.titleFont; font.pixelSize: 16; font.italic: Theme.italicTitle
+                        color: Theme.fg
                     }
                     Text {
                         id: percentText
                         anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                         text: Math.round(root.percent) + "%"
-                        font.family: theme.font; font.pixelSize: 16; font.bold: true
-                        color: root.failed ? (theme.c.crit || "red") : (theme.c.accent || "white")
+                        font.family: Theme.font; font.pixelSize: 16; font.bold: true
+                        color: root.failed ? Theme.crit : Theme.accent
                     }
                 }
 
                 Rectangle {
                     width: parent.width; height: 8; radius: 4
-                    color: Color.withAlpha(theme.c.muted, 0.3)
+                    color: Theme.alpha(Theme.muted, 0.3)
                     Rectangle {
                         width: parent.width * root.percent / 100; height: parent.height; radius: 4
-                        color: root.failed ? (theme.c.crit || "red") : (theme.c.accent || "white")
+                        color: root.failed ? Theme.crit : Theme.accent
                         Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
                     }
                 }
@@ -102,8 +99,8 @@ ShellRoot {
                     width: parent.width
                     elide: Text.ElideRight
                     text: [root.launch.stage, root.launch.detail, root.elapsed()].filter(part => part).join(" · ")
-                    font.family: theme.bodyFont; font.pixelSize: 13
-                    color: root.failed ? (theme.c.crit || "red") : (theme.c.muted || "grey")
+                    font.family: Theme.bodyFont; font.pixelSize: 13
+                    color: root.failed ? Theme.crit : Theme.muted
                 }
             }
         }

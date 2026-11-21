@@ -1,6 +1,5 @@
 #!/bin/bash
-# notif-panel — toggle the themed notification history panel (~/.config/quickshell/notif).
-# History, deletion and Do-Not-Disturb are histui's; the panel only shows them.
-source "$HOME/.config/quickshell/panel.sh"
-if panel_is_open notif; then close_panel notif; exit 0; fi
-open_panel notif
+# notif-panel — toggle the notification history (histui's), the waybar bell
+# Menu "notif" of ~/.config/quickshell/shell.
+source "$HOME/.config/quickshell/menus.sh"
+menus_call toggle notif ""

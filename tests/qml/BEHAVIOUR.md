@@ -1,0 +1,128 @@
+# What the menus do
+
+The behaviour the Quickshell menus keep across rewrites. `[auto]` marks what `tests/qml/test_menus.py` checks
+offscreen (see the end of this file); everything else is checked by hand on the desktop.
+
+## Every menu
+
+- Opens on the monitor that has keyboard focus at the moment it is opened, not on the first monitor.
+- A second press of its key, waybar button or launcher entry closes it (toggle). `[auto]`: through the shell's
+  IPC and through each launcher script.
+- Closes on Esc, except where Esc first steps back inside the menu (listed per menu). `[auto]`
+- Closes on a click outside its card (full-screen menus: on the dimmed area; the launcher and the notification
+  panel: anywhere outside them).
+- Fades in when it opens and out when it closes; nothing is left on screen or in memory once it is closed.
+- Takes colours, fonts, radii, title style (italic, upper case), header icon or glyph from the current theme
+  (`~/.config/hypr/palette.json`, `ui.json`, and the theme's folder for pictures). `[auto]`
+- Follows a theme switch: a menu open during `changetheme` redraws in the new theme. `[auto]` (palette and ui
+  rewritten while the menu is open).
+- Letter shortcuts work by key position, so they work on the Russian layout too (H is "р").
+- Closing a menu while it runs something (a file dialog, a hotkey capture, a test of monitor settings) undoes or
+  finishes that thing: the capture gives Hyprland its binds back, untested monitor settings are reverted.
+
+## Launcher — Alt+R, `~/.local/bin/launcher`
+
+- Lists desktop applications plus the rice's commands: one per theme ("Тема …"), theme picker, screenshots, Telegram
+  theme, games, settings (all pages, monitors, keys), network, power modes, battery care, notifications, lock,
+  suspend, logout, reboot, poweroff. `[auto]` (commands present, one per theme)
+- Empty query: most launched first, then alphabetical; dangerous commands and per-theme commands are hidden.
+  `[auto]`
+- Search: exact > prefix > word prefix > substring > fuzzy (3+ letters); keywords count 0.7; a query typed in the
+  wrong layout (ru/us) still matches at 0.9; frequent use adds to the score; at most 60 results. `[auto]`
+- Down/Tab/Ctrl+J next, Up/Shift+Tab/Ctrl+K previous, Enter runs; logout/reboot/poweroff need a second Enter
+  ("Нажми Enter ещё раз"). `[auto]` (arming)
+- Each launch is counted in `~/.local/state/launcher/usage.json`.
+- Window 680×560 centered; a click outside closes it.
+
+## Settings — Alt+F2, waybar gear, launcher; `settings-panel [monitors|keys|theme|theme:<name>[:<section>]]`
+
+- Opens on the page given (default: monitors); `theme:<name>:<section>` opens that theme's settings on that
+  section. `[auto]`
+- Esc steps back: Wallpaper Engine picker, frame picker, theme dialog, install dialog (not while the password is
+  checked), icon picker, a theme's settings; then closes. `[auto]` (a theme's settings → theme list → closed)
+- Monitors: drag to arrange (snaps to edges, top-left kept at 0×0), resolution, rate, scale, on/off; "Применить"
+  applies live with a 15 s "keep?" countdown that reverts; "Оставить" writes `monitors.lua`, keeping any other
+  fields and lines the user had there; closing the window while the countdown runs reverts. `[auto]` (parsing,
+  snapping, the written file)
+- Keys: main modifier Alt/Super (binds on their defaults move along), change/disable/reset a bind with a
+  captured combo (passthrough submap while capturing, 15 s timeout, Esc cancels, mouse middle/side buttons count),
+  conflict warning with "Всё равно назначить", program shortcuts (hyprctl globalshortcuts), own binds; "Сохранить"
+  writes `binds-user.lua` and reloads Hyprland. `[auto]` (combo parsing and labels, conflicts, the written file)
+- Theme: the theme list (8 to a tab), import, restore removed, per theme: edit, copy, export, factory reset,
+  delete; a theme's settings: fonts, colours (+ Papirus folder colour), wallpapers (add, on/off, remove, frame
+  from GIF/video, Wallpaper Engine), panel layout (drag, icons, top/bottom, for all themes), icon theme and
+  battery drawing, cursor (+ size, add/remove from file), windows (gaps, border, rounding, opacity, blur,
+  animations); "Сохранить" writes `~/.config/hypr-rice/theme-edits.json` (only what differs from the theme)
+  and re-applies the current theme; package installs ask for the sudo password and run in the background.
+  `[auto]` (the edits written, pruning)
+
+## Theme picker — Alt+Shift+T, waybar palette, launcher
+
+- Every theme as a card in its own colours and fonts, the current one selected; 8 to a tab (dots for tabs).
+  `[auto]`
+- ←→/H L/Tab move by one, ↑↓/K J by a row (wrapping), PgUp/PgDn turn tabs, 1–8 picks on the tab, Enter or a
+  click applies (`changetheme`, not for the current theme) and closes; wheel moves. `[auto]` (moves, tabs)
+
+## Help — Alt+F1, waybar "?"
+
+- Hotkey cards from `hyprctl binds` descriptions "group | text [| keys]", known groups first in a fixed order, then
+  the static cards (bar, terminal, Code - OSS, own settings files). `[auto]`
+- The main modifier's name from the binds registry. Esc, F1 or Q closes. `[auto]` (Esc, F1)
+
+## Power — Alt+M, waybar power
+
+- Lock, logout, suspend, reboot, poweroff; logout/reboot/poweroff need a second press within 3.5 s. `[auto]`
+- Letters L E S R P pick directly; ←→↑↓, H J K, Tab move; Enter/Space activate. `[auto]` (arrows, Enter, arming)
+- Look per theme: cards, or a terminal-style list (ui.json `powerStyle: terminal`). `[auto]` (both load)
+
+## Notifications — waybar bell, launcher
+
+- histui's history, newest first, grouped by day (Сегодня, Вчера, date); search; unread count; click expands and
+  marks read; copy and delete on hover; mark all read; Do Not Disturb; "Очистить всё" needs a second press.
+  `[auto]` (grouping, plain text from markup)
+- Refreshes every 4 s without losing the scroll position or an open card; actions run in order.
+- Slides in from the right; Esc in the search clears it first.
+
+## Network — waybar network, launcher
+
+- Wi-Fi on/off, current connection with IP, other connected devices, nearby networks (best signal per SSID, saved
+  first), password asked in place (8+ characters, sent to nmcli on stdin), forget, rescan, "Все настройки сети…".
+  `[auto]` (nmcli field parsing, the list)
+- Refreshes every 5 s without losing a typed password.
+
+## Games — Alt+G, launcher
+
+- The library from `games.py list` as cards with covers; search by typing; arrows move; Enter/click launches;
+  edit (rename, cover, remove); add from a file, Steam or installed programs. Esc closes a dialog, then the menu.
+  `[auto]` (filter, Esc out of a dialog)
+
+## Screenshot gallery — waybar camera
+
+- `~/Pictures/screenshots`, newest first; click/Enter opens a preview (←→/H L flip); C copies, Enter opens in the
+  viewer, Del trashes (second press); Esc leaves the preview, then closes. `[auto]` (date label, Esc steps)
+
+## Screenshot — Print / Shift+Print, `shot [full]`
+
+- Freezes every monitor first, then the overlay: drag a region or click a window (or the whole screen), Enter takes
+  the whole screen, Esc or right click cancels; `full` takes the focused monitor at once; the theme's
+  `screenshot.qml` draws the selection and the capture animation; the result goes to `~/Pictures/screenshots`
+  and the clipboard. A second Print while the overlay is up does nothing. `[auto]` (Esc cancels, `full` saves and
+  copies)
+
+## OSD — always running
+
+- Shows volume (PipeWire default sink) and brightness (first backlight) changes for 1.4 s in the theme's
+  `osdStyle` (pill, ascii, neon, minimal, retro, wave); ignores the values at start; follows theme switches. `[auto]`
+  (loads, follows the theme)
+
+## Automated checks
+
+`python3 -m unittest discover -s tests/qml` runs `quickshell` offscreen (`QT_QPA_PLATFORM=offscreen`) on a copy
+of the menus (`$RICE_HOME/.config/quickshell`, default the live `~`), in a fake `$HOME` with stub `hyprctl`,
+`histui`, `nmcli`, `games.py`, `themegen.py` and a fixed theme list. Layer-shell windows cannot exist offscreen, so
+the copy has `PanelWindow` replaced by a floating window with the same properties and the `WlrLayershell` lines
+dropped (`tests/qml/harness.py`). Keys are sent with QtTest's `keyClick`, which carries no scan code: letter
+shortcuts by key position (the Russian layout) stay a manual check. The tests skip when `quickshell` is not
+installed. The launcher scripts are run with a fake `quickshell` that records the IPC calls (and the start of
+the shell when it is not running). The same suite passes on the per-panel menus kept in
+`/home/larion/hypr-rice/.claude/menus-before` (`RICE_HOME=...`); the resident-shell tests skip there.

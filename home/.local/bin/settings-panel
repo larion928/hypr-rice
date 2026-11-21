@@ -1,11 +1,6 @@
 #!/bin/bash
-# settings-panel [monitors|keys|theme|theme:<name>[:fonts|colors|wallpapers|waybar]] — toggle the settings
-# window (~/.config/quickshell/settings):
-# monitors, hotkeys and theme. Alt+F2, the waybar gear, or "Настройки" in the launcher.
-source "$HOME/.config/quickshell/panel.sh"
-if panel_is_open settings; then close_panel settings; exit 0; fi
-
-export SETTINGS_PAGE="${1:-monitors}"
-export RICE_THEME_LIST="${XDG_RUNTIME_DIR:-/tmp}/theme-list.json"
-python3 "$HOME/.config/quickshell/theme-list.py" "$RICE_THEME_LIST"
-open_panel settings
+# settings-panel [monitors|keys|theme|theme:<name>[:fonts|colors|wallpapers|waybar|icons|cursor|windows]] — toggle
+# the settings window (menu "settings" of ~/.config/quickshell/shell): monitors, hotkeys and theme.
+# Alt+F2, the waybar gear, or "Настройки" in the launcher.
+source "$HOME/.config/quickshell/menus.sh"
+menus_call toggle settings "${1:-monitors}"

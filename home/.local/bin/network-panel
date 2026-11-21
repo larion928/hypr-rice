@@ -1,6 +1,5 @@
 #!/bin/bash
-# network-panel — toggle the themed network panel (~/.config/quickshell/network): Wi-Fi list,
-# passwords, current connection. Opened by a click on the network in waybar or from the launcher.
-source "$HOME/.config/quickshell/panel.sh"
-if panel_is_open network; then close_panel network; exit 0; fi
-open_panel network
+# network-panel — toggle the network panel (Wi-Fi, passwords, current connection), a click on the network in waybar
+# Menu "network" of ~/.config/quickshell/shell.
+source "$HOME/.config/quickshell/menus.sh"
+menus_call toggle network ""

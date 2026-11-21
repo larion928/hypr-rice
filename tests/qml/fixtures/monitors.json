@@ -1,0 +1,10 @@
+[
+ {"id": 0, "name": "eDP-1", "description": "Laptop panel", "width": 1920, "height": 1080, "refreshRate": 60.0,
+  "x": 0, "y": 0, "scale": 1, "transform": 0, "focused": true, "disabled": false,
+  "availableModes": ["1920x1080@60.00Hz", "1280x720@60.00Hz"],
+  "activeWorkspace": {"id": 1, "name": "1"}, "specialWorkspace": {"id": 0, "name": ""}},
+ {"id": 1, "name": "HDMI-A-1", "description": "External", "width": 2560, "height": 1440, "refreshRate": 144.0,
+  "x": 1920, "y": 0, "scale": 1.25, "transform": 0, "focused": false, "disabled": false,
+  "availableModes": ["2560x1440@144.00Hz", "2560x1440@60.00Hz", "1920x1080@60.00Hz"],
+  "activeWorkspace": {"id": 2, "name": "2"}, "specialWorkspace": {"id": 0, "name": ""}}
+]

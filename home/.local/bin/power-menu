@@ -1,5 +1,5 @@
 #!/bin/bash
-# power-menu — toggle the themed lock/logout/suspend/reboot/poweroff menu (~/.config/quickshell/power).
-source "$HOME/.config/quickshell/panel.sh"
-if panel_is_open power; then close_panel power; exit 0; fi
-open_panel power
+# power-menu — toggle the lock/logout/suspend/reboot/poweroff menu, Alt+M and the waybar power button
+# Menu "power" of ~/.config/quickshell/shell.
+source "$HOME/.config/quickshell/menus.sh"
+menus_call toggle power ""

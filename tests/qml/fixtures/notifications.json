@@ -1,0 +1,8 @@
+[
+ {"histui_id": "a1", "app_name": "Firefox", "summary": "<b>Загрузка</b> завершена", "body": "file &amp;lt;1&amp;gt;.zip",
+  "timestamp": @NOW@, "urgency": 1},
+ {"histui_id": "a2", "app_name": "Telegram", "summary": "Новое сообщение", "body": "привет",
+  "timestamp": @NOW_MINUS_MINUTE@, "urgency": 1, "histui_dismissed_at": 1},
+ {"histui_id": "a3", "app_name": "System", "summary": "Батарея", "body": "10%",
+  "timestamp": @LAST_YEAR@, "urgency": 2}
+]

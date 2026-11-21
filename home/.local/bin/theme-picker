@@ -1,8 +1,5 @@
 #!/bin/bash
-# theme-picker — toggle the Quickshell theme switcher (~/.config/quickshell/themes).
-source "$HOME/.config/quickshell/panel.sh"
-if panel_is_open themes; then close_panel themes; exit 0; fi
-
-export RICE_THEME_LIST="${XDG_RUNTIME_DIR:-/tmp}/theme-list.json"
-python3 "$HOME/.config/quickshell/theme-list.py" "$RICE_THEME_LIST"
-open_panel themes
+# theme-picker — toggle the theme switcher, Alt+Shift+T and the waybar palette button
+# Menu "themes" of ~/.config/quickshell/shell.
+source "$HOME/.config/quickshell/menus.sh"
+menus_call toggle themes ""

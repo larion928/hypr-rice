@@ -1,9 +1,5 @@
 #!/bin/bash
-# help-panel — toggle the themed cheat sheet (~/.config/quickshell/help), Alt+F1 or waybar "?".
-# Hotkeys come live from `hyprctl binds` (their descriptions in keybind.lua).
-source "$HOME/.config/quickshell/panel.sh"
-if panel_is_open help; then close_panel help; exit 0; fi
-
-export HELP_BINDS="${XDG_RUNTIME_DIR:-/tmp}/help-binds.json"
-hyprctl binds -j > "$HELP_BINDS"
-open_panel help
+# help-panel — toggle the cheat sheet, Alt+F1 or waybar "?"
+# Menu "help" of ~/.config/quickshell/shell.
+source "$HOME/.config/quickshell/menus.sh"
+menus_call toggle help ""

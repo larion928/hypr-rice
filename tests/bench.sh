@@ -4,25 +4,24 @@
 #   tests/bench.sh [menus|theme|all]     (default: all)
 #
 # menus  Opens each menu BENCH_RUNS times (default 3) and times it from the launcher's start until the
-#        panel's layer surface (the WlrLayershell.namespace in its shell.qml) shows up in `hyprctl layers`;
-#        then closes it. "before quickshell" is the part of that spent in the launcher script itself
-#        (theme-list.py, jq, hyprctl binds), read off its xtrace up to `exec quickshell`.
-#        The launchers keep their usual side files (theme-list.json, help-binds.json in $XDG_RUNTIME_DIR).
+#        menu's layer surface (its namespace in ~/.config/quickshell/shell) shows up in `hyprctl layers`;
+#        then closes it. "before IPC" is the part of that spent in the launcher script itself, read off its
+#        xtrace up to its `quickshell ipc` call to the menus shell.
 # theme  Re-applies the current theme with `changetheme --keep-wallpaper`, so the screen flickers like a
 #        theme switch, and shows where the time goes: per command of changetheme (from its xtrace), the
 #        slowest imports of themegen, and per-step time of themegen.apply (cProfile).
 #        Waybar and histuid are restarted and the wallpaper is kept; the config files get the same content.
 set -uo pipefail
 
-source "$HOME/.config/quickshell/panel.sh"  # panel_is_open, close_panel
+source "$HOME/.config/quickshell/menus.sh"  # menus_call
 
 BIN=$HOME/.local/bin
 THEMEGEN_DIR=$HOME/.config/hypr/scripts
 WORK=$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/bench.XXXXXX")
-OPEN_PANEL=  # a panel this script opened and has not yet closed
+OPEN_MENU=  # a menu this script opened and has not yet closed
 
 cleanup() {
-    [ -z "$OPEN_PANEL" ] || close_panel "$OPEN_PANEL"
+    [ -z "$OPEN_MENU" ] || menus_call close "$OPEN_MENU" >/dev/null
     rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -56,59 +55,56 @@ layer_is_mapped() {
     hyprctl layers -j | jq -e --arg namespace "$1" 'any(.. | objects; .namespace? == $namespace)' >/dev/null
 }
 
-process_gone() { ! kill -0 "$1" 2>/dev/null; }
+layer_is_gone() { ! layer_is_mapped "$1"; }
 
 # --- menus ---
 
-# One open-and-close of a menu. Sets BEFORE_QUICKSHELL_US and MAPPED_US (both from the launcher's start;
-# BEFORE_QUICKSHELL_US is "-" when the trace has no `exec quickshell`). Fails when the window never showed up.
-# Not run in a subshell, so the EXIT trap sees OPEN_PANEL.
+# One open-and-close of a menu. Sets BEFORE_IPC_US and MAPPED_US (both from the launcher's start;
+# BEFORE_IPC_US is "-" when the trace has no `quickshell ipc`). Fails when the window never showed up.
+# Not run in a subshell, so the EXIT trap sees OPEN_MENU.
 open_and_close_once() {
-    local script=$1 panel=$2 namespace=$3 trace=$WORK/trace
-    local start mapped pid exec_line shown=1
+    local script=$1 menu=$2 namespace=$3 trace=$WORK/trace
+    local start mapped ipc_line shown=1
 
     start=$(now_us)
-    PS4='+${EPOCHREALTIME} ' bash -x "$BIN/$script" >/dev/null 2>"$trace" </dev/null &
-    pid=$!
-    OPEN_PANEL=$panel
+    OPEN_MENU=$menu
+    PS4='+${EPOCHREALTIME} ' bash -x "$BIN/$script" >/dev/null 2>"$trace" </dev/null
     wait_until layer_is_mapped "$namespace" || { echo "$script: окно не появилось за 10 с" >&2; shown=0; }
     mapped=$(now_us)
 
-    close_panel "$panel"
-    wait_until process_gone "$pid" || { echo "$script: процесс не завершился за 10 с" >&2; kill "$pid"; }
-    wait "$pid" 2>/dev/null
-    OPEN_PANEL=
+    menus_call close "$menu" >/dev/null
+    wait_until layer_is_gone "$namespace" || echo "$script: окно не закрылось за 10 с" >&2
+    OPEN_MENU=
 
-    BEFORE_QUICKSHELL_US=-
-    exec_line=$(grep -m1 '^+[0-9.,]* exec quickshell' "$trace")
-    if [ -n "$exec_line" ]; then
-        exec_line=${exec_line%% *}
-        exec_line=${exec_line#+}
-        BEFORE_QUICKSHELL_US=$(( ${exec_line//[.,]/} - start ))
+    BEFORE_IPC_US=-
+    ipc_line=$(grep -m1 '^+[0-9.,]* quickshell ipc' "$trace")
+    if [ -n "$ipc_line" ]; then
+        ipc_line=${ipc_line%% *}
+        ipc_line=${ipc_line#+}
+        BEFORE_IPC_US=$(( ${ipc_line//[.,]/} - start ))
     fi
     MAPPED_US=$(( mapped - start ))
     [ "$shown" = 1 ]
 }
 
-# The panel's name is the one the launcher script toggles, its namespace the one its shell.qml sets.
+# script:menu:namespace — the menu the script toggles and the layer namespace its window has.
+MENUS=(launcher:launcher:launcher settings-panel:settings:settings-panel theme-picker:themes:theme-picker
+       help-panel:help:help-panel power-menu:power:power-menu notif-panel:notif:notif-panel
+       network-panel:network:network-panel games:games:games shots-gallery:shots:shots-gallery)
+
 bench_menu() {
-    local script=$1 panel namespace
+    local script menu namespace
     local befores=() mappeds=()
 
-    panel=$(sed -n 's/^if panel_is_open \([a-z]*\);.*/\1/p' "$BIN/$script")
-    namespace=$(grep -m1 -o 'WlrLayershell.namespace: "[^"]*"' "$(panel_conf "$panel")/shell.qml" | cut -d'"' -f2)
-    if [ -z "$panel" ] || [ -z "$namespace" ]; then
-        echo "$script: не нашёл имя панели или namespace, пропускаю" >&2
-        return
-    fi
-    if panel_is_open "$panel"; then
-        echo "$script: панель уже открыта, закройте её и повторите" >&2
+    IFS=: read -r script menu namespace <<<"$1"
+    if [ "$(menus_call isOpen "$menu")" != false ]; then
+        echo "$script: меню уже открыто или оболочка меню не отвечает, пропускаю" >&2
         return
     fi
 
     for _ in $(seq "${BENCH_RUNS:-3}"); do
-        open_and_close_once "$script" "$panel" "$namespace" || continue
-        befores+=("$BEFORE_QUICKSHELL_US")
+        open_and_close_once "$script" "$menu" "$namespace" || continue
+        befores+=("$BEFORE_IPC_US")
         mappeds+=("$MAPPED_US")
     done
     if [ ${#mappeds[@]} -eq 0 ]; then
@@ -123,11 +119,11 @@ bench_menu() {
 }
 
 bench_menus() {
-    local script
+    local entry
     echo "Меню: ${BENCH_RUNS:-3} запусков каждого, мс до появления окна"
-    printf '%-16s %-14s %12s %14s %12s\n' menu namespace "до quickshell" "до окна (med)" "до окна (max)"
-    for script in launcher settings-panel theme-picker help-panel power-menu notif-panel network-panel games shots-gallery; do
-        bench_menu "$script"
+    printf '%-16s %-14s %12s %14s %12s\n' menu namespace "до IPC" "до окна (med)" "до окна (max)"
+    for entry in "${MENUS[@]}"; do
+        bench_menu "$entry"
     done
 }
 

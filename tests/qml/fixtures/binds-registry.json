@@ -1,0 +1,8 @@
+{"mainMod": "ALT",
+ "binds": [
+  {"id": "launcher", "default": "ALT + R", "current": "ALT + R", "description": "Приложения | Лаунчер"},
+  {"id": "close", "default": "ALT + C", "current": "ALT + C", "description": "Окна | Закрыть окно"},
+  {"id": "theme_picker", "default": "ALT + SHIFT + T", "current": "ALT + SHIFT + T", "description": "Оформление | Выбор темы"}
+ ],
+ "custom": [{"keys": "SUPER + G", "cmd": "gimp", "name": "GIMP"}],
+ "globals": []}

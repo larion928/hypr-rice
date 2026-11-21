@@ -1,0 +1,17 @@
+[
+ {"locked": false, "mouse": false, "release": false, "repeat": false, "non_consuming": false, "has_description": true,
+  "modmask": 8, "submap": "", "key": "R", "keycode": 0, "catch_all": false, "description": "Приложения | Лаунчер",
+  "dispatcher": "exec", "arg": "~/.local/bin/launcher"},
+ {"locked": false, "mouse": false, "release": false, "repeat": false, "non_consuming": false, "has_description": true,
+  "modmask": 8, "submap": "", "key": "C", "keycode": 0, "catch_all": false, "description": "Окна | Закрыть окно",
+  "dispatcher": "killactive", "arg": ""},
+ {"locked": false, "mouse": false, "release": false, "repeat": false, "non_consuming": false, "has_description": true,
+  "modmask": 9, "submap": "", "key": "T", "keycode": 0, "catch_all": false, "description": "Оформление | Выбор темы",
+  "dispatcher": "exec", "arg": "~/.local/bin/theme-picker"},
+ {"locked": false, "mouse": false, "release": false, "repeat": false, "non_consuming": false, "has_description": true,
+  "modmask": 8, "submap": "", "key": "M", "keycode": 0, "catch_all": false, "description": "Своя группа | Что-то своё | Alt+M",
+  "dispatcher": "exec", "arg": "true"},
+ {"locked": false, "mouse": false, "release": false, "repeat": false, "non_consuming": false, "has_description": false,
+  "modmask": 8, "submap": "", "key": "X", "keycode": 0, "catch_all": false, "description": "",
+  "dispatcher": "exec", "arg": "true"}
+]
