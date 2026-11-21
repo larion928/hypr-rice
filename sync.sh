@@ -3,6 +3,7 @@
 # then commit and push to the dev branch. Users update from main, so nothing reaches them
 # until a release.
 #   sync.sh ["message"]  sync, commit (the message is what `rice update` shows), push to dev
+#                        with any commits made in the repo by hand
 #   sync.sh --dry-run    sync and show the diff, no commit
 #   sync.sh --release    run the tests, then publish dev as main
 # Machine and user files stay out: hypr/monitors.lua, devices.lua, binds-user.lua, user.lua,
@@ -221,16 +222,26 @@ fi
 
 cd "$REPO"
 git add -A
-if git diff --cached --quiet; then
+if ! git diff --cached --quiet; then
+    git diff --cached --stat | tail -n 15
+    if [ "$DRY" = 1 ]; then
+        git reset -q
+        echo "(--dry-run: ничего не закоммичено)"
+        exit 0
+    fi
+    git commit -qm "$MESSAGE"
+fi
+
+# Commits made in the repo itself, not by this script, go out too: --release wants dev on GitHub.
+git fetch -q origin
+unpushed=$(git rev-list --count origin/dev..HEAD)
+if [ "$unpushed" = 0 ]; then
     echo "Изменений нет."
     exit 0
 fi
-git diff --cached --stat | tail -n 15
 if [ "$DRY" = 1 ]; then
-    git reset -q
-    echo "(--dry-run: ничего не закоммичено)"
+    echo "(--dry-run: не отправлено коммитов: $unpushed)"
     exit 0
 fi
-git commit -qm "$MESSAGE"
 git push -q origin dev
-echo "Отправлено: $(git log -1 --format='%h %s')"
+echo "Отправлено коммитов: $unpushed, последний: $(git log -1 --format='%h %s')"
