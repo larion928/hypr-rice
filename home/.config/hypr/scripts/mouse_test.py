@@ -4,8 +4,10 @@ a straight hand line the sensor reports askew is the sensor's angle, which devic
 (libinput turns the motion clockwise by that many whole degrees). The resolution needs a known distance;
 the mouse's firmware sets it, so it is only reported.
 
-Reading /dev/input needs the `input` group. Strokes are split by pauses, not by a button: a held button
-would click whatever window the cursor reaches between strokes."""
+Reading /dev/input needs the `input` group. A stroke is the motion made with the left button held: the mouse
+is grabbed for the test, so neither the cursor nor the clicks reach Hyprland, and the motion back between
+strokes, made with the button up, is not measured."""
+import fcntl
 import math
 import os
 import select
@@ -13,6 +15,7 @@ import statistics
 import struct
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -22,16 +25,28 @@ import mice  # noqa: E402
 
 EVENT = struct.Struct("llHHi")  # struct input_event: time (seconds, microseconds), type, code, value
 EV_SYN = 0x00
+EV_KEY = 0x01
 EV_REL = 0x02
 REL_X = 0x00
 REL_Y = 0x01
+BTN_LEFT = 0x110
+BUTTON_UP = 0  # the values of a BTN_LEFT event
+BUTTON_DOWN = 1
+BUTTON_UNCHANGED = -1  # a report without a BTN_LEFT event
+EVIOCGRAB = 0x40044590  # _IOW('E', 0x90, int)
 
-PAUSE_SECONDS = 0.4  # no motion this long ends a stroke
-MIN_STROKE_COUNTS = 1000  # shorter motion is the hand settling or the mouse lifted back, not a stroke
 ANGLE_STROKES = 5
 DISTANCE_STROKES = 3
 DEFAULT_DISTANCE_MM = 100
 MIN_CORRECTION_DEGREES = 1
+
+
+@dataclass(frozen=True)
+class Report:
+    time: float  # seconds
+    dx: int
+    dy: int
+    button: int  # BUTTON_DOWN, BUTTON_UP or BUTTON_UNCHANGED
 
 
 @dataclass
@@ -41,17 +56,25 @@ class Stroke:
 
 
 class Reader:
-    """The relative motion of one event node, report by report. Pauses are judged by the reports' own times:
-    motion made while the user read the instructions arrives at once, yet stays apart from the stroke."""
+    """The motion of one event node made while its left button is held, report by report."""
 
     def __init__(self, node):
         self.fd = os.open(node, os.O_RDONLY | os.O_NONBLOCK)
         self.pending = b""  # the bytes of an event cut by the end of a read
         self.report = [0, 0]  # dx, dy of a report whose SYN_REPORT has not been read yet
+        self.button = BUTTON_UNCHANGED  # the same report's BTN_LEFT
         self.unused = []  # reports read past the end of the last stroke
 
-    def motions(self, timeout):
-        """(time, dx, dy) of each report within the timeout; [] when the mouse stayed still."""
+    def grab(self):
+        """Keeps the mouse's motion and clicks from Hyprland. The kernel drops the grab when the process ends,
+        a crash included."""
+        try:
+            fcntl.ioctl(self.fd, EVIOCGRAB, 1)
+        except OSError as error:
+            raise SystemExit(f"мышь занята другой программой ({error.strerror})") from None
+
+    def reports(self, timeout):
+        """The reports read within the timeout; [] when the mouse stayed still."""
         if not select.select([self.fd], [], [], timeout)[0]:
             return []
         self.pending += os.read(self.fd, EVENT.size * 256)
@@ -61,39 +84,66 @@ class Reader:
         for seconds, microseconds, kind, code, value in EVENT.iter_unpack(events):
             if kind == EV_REL and code in (REL_X, REL_Y):
                 self.report[code] += value  # REL_X and REL_Y are 0 and 1, the report's indices
-            elif kind == EV_SYN and any(self.report):
-                found.append((seconds + microseconds / 1e6, *self.report))
-                self.report = [0, 0]
+            elif kind == EV_KEY and code == BTN_LEFT:
+                self.button = value
+            elif kind == EV_SYN:
+                found.append(Report(seconds + microseconds / 1e6, *self.report, self.button))
+                self.report, self.button = [0, 0], BUTTON_UNCHANGED
         return found
 
     def drain(self):
-        """Forgets the motion made so far: the next stroke starts with what the mouse does from now on."""
-        while self.motions(timeout=0):
+        """Forgets the reports read so far: the next stroke starts with a press made from now on."""
+        while self.reports(timeout=0):
             pass
         self.unused = []
 
-    def stroke(self):
-        """The next motion between two pauses that is long enough to be a stroke."""
+    def stroke(self, show):
+        """The motion from the next press of the left button to its release; show(stroke) is called as it
+        grows. A click, or a motion back to where it began, measures nothing and is skipped."""
         while True:
-            stroke = self.motion_until_pause()
-            if math.hypot(*stroke.points[-1]) >= MIN_STROKE_COUNTS:
+            stroke = self.held_motion(show)
+            if stroke.points and any(stroke.points[-1]):
                 return stroke
 
-    def motion_until_pause(self):
+    def held_motion(self, show):
         stroke = Stroke()
         x, y = 0, 0
+        held = False
         while True:
-            motions = self.unused or self.motions(timeout=PAUSE_SECONDS if stroke.times else None)
+            reports = self.unused or self.reports(timeout=None)
             self.unused = []
-            if not motions:
-                return stroke
-            for index, (moment, dx, dy) in enumerate(motions):
-                if stroke.times and moment - stroke.times[-1] > PAUSE_SECONDS:
-                    self.unused = motions[index:]
+            for index, report in enumerate(reports):
+                if report.button == BUTTON_DOWN:
+                    held = True
+                if held and (report.dx or report.dy):
+                    x, y = x + report.dx, y + report.dy
+                    stroke.points.append((x, y))
+                    stroke.times.append(report.time)
+                if held and report.button == BUTTON_UP:
+                    self.unused = reports[index + 1:]
                     return stroke
-                x, y = x + dx, y + dy
-                stroke.points.append((x, y))
-                stroke.times.append(moment)
+            if stroke.points:
+                show(stroke)
+
+
+class LiveLine:
+    """One terminal line rewritten as a stroke grows. A mouse sends up to 1000 reports a second, so the line is
+    redrawn at most every REFRESH_SECONDS."""
+    REFRESH_SECONDS = 0.1
+
+    def __init__(self, prefix, describe):
+        self.prefix = prefix
+        self.describe = describe  # stroke -> text shown while it grows
+        self.shown_at = 0.0
+
+    def show(self, stroke):
+        now = time.monotonic()
+        if now - self.shown_at >= self.REFRESH_SECONDS:
+            self.shown_at = now
+            print(f"\r\033[K{self.prefix}{self.describe(stroke)}", end="", flush=True)
+
+    def finish(self, text):
+        print(f"\r\033[K{self.prefix}{text}")
 
 
 def line_angle(points):
@@ -118,13 +168,26 @@ def wobble_percent(points):
     return 100 * math.sqrt(statistics.fmean(distance ** 2 for distance in across)) / length
 
 
+def stroke_length(stroke):
+    """Counts from the stroke's start to its end."""
+    return math.hypot(*stroke.points[-1])
+
+
+def length_progress(stroke):
+    return f"{stroke_length(stroke):.0f} отсчётов"
+
+
+def angle_progress(stroke):
+    return f"{length_progress(stroke)}, {line_angle(stroke.points):+.1f}°"
+
+
 def rotation_for(sensor_angle):
     """The clockwise rotation that turns a line the sensor reports at this angle back to horizontal."""
     return round(-sensor_angle) % 360
 
 
 def counts_per_inch(stroke, millimetres):
-    return math.hypot(*stroke.points[-1]) / (millimetres / 25.4)
+    return stroke_length(stroke) / (millimetres / 25.4)
 
 
 def polling_rate(strokes):
@@ -147,34 +210,37 @@ def pick_mouse(found):
     print("Пошевели мышью, которую проверяем.")
     while True:
         for pointer, reader in readers.items():
-            if reader.motions(timeout=0.05):
+            if reader.reports(timeout=0.05):
                 return pointer, reader
 
 
 def measure_angle(reader):
-    print(f"\nУгол датчика. Прижми мышь боком к линейке (или к краю книги), лежащей горизонтально, и веди вдоль "
-          f"неё 15–20 см, затем остановись. Возвращай мышь, подняв её. Проходов: {ANGLE_STROKES}.")
+    print(f"\nУгол датчика. Прижми мышь боком к линейке (или к краю книги), лежащей горизонтально. Зажми левую "
+          f"кнопку, веди вдоль линейки 15–20 см и отпусти; назад веди с отпущенной кнопкой. "
+          f"Проходов: {ANGLE_STROKES}.")
     reader.drain()
     strokes, angles = [], []
     for number in range(1, ANGLE_STROKES + 1):
-        stroke = reader.stroke()
+        live = LiveLine(f"  проход {number}: ", angle_progress)
+        stroke = reader.stroke(live.show)
         strokes.append(stroke)
         angles.append(line_angle(stroke.points))
-        print(f"  проход {number}: {angles[-1]:+.1f}°, отклонение от прямой {wobble_percent(stroke.points):.1f}%")
+        live.finish(f"{angles[-1]:+.1f}°, отклонение от прямой {wobble_percent(stroke.points):.1f}%")
     return strokes, statistics.fmean(angles), statistics.stdev(angles)
 
 
 def measure_resolution(reader):
     millimetres = ask_distance()
-    print(f"Поставь мышь на начало отметки, замри на секунду, веди ровно до конца и остановись. "
+    print(f"Поставь мышь на начало отметки, зажми левую кнопку, веди ровно до конца и отпусти. "
           f"Проходов: {DISTANCE_STROKES}.")
     reader.drain()
     strokes, values = [], []
     for number in range(1, DISTANCE_STROKES + 1):
-        stroke = reader.stroke()
+        live = LiveLine(f"  проход {number}: ", length_progress)
+        stroke = reader.stroke(live.show)
         strokes.append(stroke)
         values.append(counts_per_inch(stroke, millimetres))
-        print(f"  проход {number}: {values[-1]:.0f} CPI")
+        live.finish(f"{values[-1]:.0f} CPI")
     return strokes, statistics.fmean(values)
 
 
@@ -215,7 +281,8 @@ def main():
     if not found:
         raise SystemExit("мышь по USB или Bluetooth не найдена")
     pointer, reader = pick_mouse(found)
-    print(f"Проверяем {pointer.name}.")
+    reader.grab()
+    print(f"Проверяем {pointer.name}. До конца проверки она не двигает курсор и не кликает; выход — Ctrl+C.")
     angle_strokes, sensor_angle, spread = measure_angle(reader)
     distance_strokes, resolution = measure_resolution(reader)
     print(f"\nРазрешение: {resolution:.0f} CPI (его задаёт прошивка мыши, система не меняет).")

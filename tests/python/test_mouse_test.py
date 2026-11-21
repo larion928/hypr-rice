@@ -1,6 +1,6 @@
 """mouse_test.py (rice mouse-test): the angle, resolution and polling rate counted from a mouse's reports, the
-strokes split by the reports' times, the rotation offered and saved. No real device or Hyprland is touched:
-events go through a FIFO, hyprctl and the answers are stand-ins."""
+strokes taken from the left button's press to its release, the rotation offered and saved. No real device or
+Hyprland is touched: events go through a FIFO, hyprctl and the answers are stand-ins."""
 import math
 import os
 import shutil
@@ -25,16 +25,25 @@ def line(degrees, count=200, step=10):
     return [(round(n * step * math.cos(radians)), round(n * step * math.sin(radians))) for n in range(1, count + 1)]
 
 
+def report(moment, *events):
+    """input_event bytes of one report: the (type, code, value) events and its SYN_REPORT."""
+    seconds, microseconds = int(moment), round(moment % 1 * 1e6)
+    events = (*events, (mouse_test.EV_SYN, 0, 0))
+    return b"".join(mouse_test.EVENT.pack(seconds, microseconds, *event) for event in events)
+
+
 def reports(start, moves):
-    """input_event bytes: each (dx, dy) as REL_X, REL_Y and a SYN_REPORT, one report per millisecond."""
-    data = b""
-    for index, (dx, dy) in enumerate(moves):
-        moment = start + index * REPORT_SECONDS
-        seconds, microseconds = int(moment), round(moment % 1 * 1e6)
-        for kind, code, value in ((mouse_test.EV_REL, mouse_test.REL_X, dx),
-                                  (mouse_test.EV_REL, mouse_test.REL_Y, dy), (mouse_test.EV_SYN, 0, 0)):
-            data += mouse_test.EVENT.pack(seconds, microseconds, kind, code, value)
-    return data
+    """Each (dx, dy) as REL_X, REL_Y and a SYN_REPORT, one report per millisecond."""
+    return b"".join(report(start + index * REPORT_SECONDS, (mouse_test.EV_REL, mouse_test.REL_X, dx),
+                           (mouse_test.EV_REL, mouse_test.REL_Y, dy)) for index, (dx, dy) in enumerate(moves))
+
+
+def held(start, moves):
+    """The moves made between a press and a release of the left button."""
+    end = start + (len(moves) + 1) * REPORT_SECONDS
+    return (report(start, (mouse_test.EV_KEY, mouse_test.BTN_LEFT, mouse_test.BUTTON_DOWN))
+            + reports(start + REPORT_SECONDS, moves)
+            + report(end, (mouse_test.EV_KEY, mouse_test.BTN_LEFT, mouse_test.BUTTON_UP)))
 
 
 class CountingTest(unittest.TestCase):
@@ -70,21 +79,37 @@ class ReaderTest(unittest.TestCase):
         os.close(self.writer)
         shutil.rmtree(self.folder)
 
-    def test_strokes_are_split_by_the_reports_times_and_short_motion_is_skipped(self):
-        settling = [(1, 0)] * 50
+    def stroke(self):
+        return self.reader.stroke(show=lambda stroke: None)
+
+    def test_a_stroke_is_the_motion_with_the_button_held_and_the_way_back_is_not(self):
         stroke = [(10, 1)] * 150
-        os.write(self.writer, reports(100.0, settling) + reports(101.0, stroke) + reports(102.0, stroke))
-        first = self.reader.stroke()
-        second = self.reader.stroke()
+        way_back = [(-10, 0)] * 150
+        os.write(self.writer, reports(100.0, way_back) + held(101.0, stroke) + reports(102.0, way_back)
+                 + held(103.0, stroke))
+        first = self.stroke()
+        second = self.stroke()
         self.assertEqual(first.points[-1], (1500, 150))
         self.assertEqual(second.points[-1], (1500, 150))
-        self.assertEqual(second.times[0], 102.0)
+        self.assertEqual(second.times[0], 103.0 + REPORT_SECONDS)
 
-    def test_drain_forgets_the_motion_made_before(self):
-        os.write(self.writer, reports(100.0, [(10, 0)] * 150))
+    def test_a_click_without_motion_and_a_wheel_turn_are_no_stroke(self):
+        wheel = report(100.0, (mouse_test.EV_REL, 0x08, 1))
+        os.write(self.writer, held(99.0, []) + wheel + held(101.0, [(0, 10)] * 150))
+        self.assertEqual(self.stroke().points[-1], (0, 1500))
+
+    def test_the_live_line_sees_the_stroke_before_the_release(self):
+        grown = []
+        os.write(self.writer, held(100.0, [(10, 0)] * 150))
+        self.reader.stroke(show=lambda stroke: grown.append(len(stroke.points)))
+        self.assertTrue(grown)
+        self.assertLess(max(grown), 150)
+
+    def test_drain_forgets_the_strokes_made_before(self):
+        os.write(self.writer, held(100.0, [(10, 0)] * 150))
         self.reader.drain()
-        os.write(self.writer, reports(200.0, [(0, 10)] * 150))
-        self.assertEqual(self.reader.stroke().points[-1], (0, 1500))
+        os.write(self.writer, held(200.0, [(0, 10)] * 150))
+        self.assertEqual(self.stroke().points[-1], (0, 1500))
 
 
 class OfferRotationTest(unittest.TestCase):
