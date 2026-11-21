@@ -65,7 +65,9 @@ hl.on("hyprland.start", function()
     -- Another desktop's notification daemon that holds the bus is closed by histuid.service itself.
     hl.exec_cmd("systemctl --user start histuid.service portal-restart.timer")
     -- The menus and the volume/brightness OSD (~/.config/quickshell/shell); they follow the current theme.
-    hl.exec_cmd("quickshell -d -n -p ~/.config/quickshell/shell")
+    -- gtk3: Qt takes GTK's icon theme, the one the rice sets per theme; without it the shell finds no theme icons
+    -- (the launcher's, the tray's). quickshell/menus.sh starts it the same way.
+    hl.exec_cmd("QT_QPA_PLATFORMTHEME=gtk3 quickshell -d -n -p ~/.config/quickshell/shell")
     hl.exec_cmd("awww-daemon")
     -- The theme's wallpaper as written by changetheme (also covers a theme set offline).
     hl.exec_cmd("sleep 1; [ -f ~/.config/hypr/current-wallpaper ] && ~/.local/bin/wallpaper \"$(cat ~/.config/hypr/current-wallpaper)\"")
