@@ -106,7 +106,7 @@ OverlayPanel {
                 anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
                 size: 20
                 markSize: 21
-                fallbackGlyph: ""
+                fallbackGlyph: "\uf002"
             }
             Text {
                 anchors { left: input.left; verticalCenter: parent.verticalCenter }
@@ -190,7 +190,7 @@ OverlayPanel {
                         Text {
                             anchors.centerIn: parent
                             visible: !appIcon.visible
-                            text: row.modelData.glyph || ""
+                            text: row.modelData.glyph || "\uf2d0"
                             font.family: Theme.glyphFont; font.pixelSize: 20
                             color: row.modelData.danger ? Theme.crit : Theme.accent
                         }

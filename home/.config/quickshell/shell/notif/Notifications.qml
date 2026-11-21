@@ -148,9 +148,9 @@ OverlayPanel {
                 Row {
                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                     spacing: 4
-                    IconButton { glyph: store.dnd ? "" : ""; active: store.dnd; onClicked: store.toggleDnd() }
-                    IconButton { glyph: ""; onClicked: store.readAll() }
-                    IconButton { glyph: ""; onClicked: menu.close() }
+                    IconButton { glyph: store.dnd ? "\uf1f6" : "\uf0f3"; active: store.dnd; onClicked: store.toggleDnd() }
+                    IconButton { glyph: "\uf00c"; onClicked: store.readAll() }
+                    IconButton { glyph: "\uf00d"; onClicked: menu.close() }
                 }
             }
 
@@ -158,7 +158,7 @@ OverlayPanel {
                 id: search
                 width: parent.width
                 height: 38
-                placeholder: "  Поиск по уведомлениям"
+                placeholder: "\uf002  Поиск по уведомлениям"
                 onTextChanged: menu.query = text
                 onEscaped: {
                     if (text) {
@@ -213,7 +213,7 @@ OverlayPanel {
                 spacing: 8
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: Theme.ui.headerGlyph || ""
+                    text: Theme.ui.headerGlyph || "\uf0f3"
                     font.family: Theme.titleFont; font.pixelSize: 40
                     color: Theme.alpha(Theme.muted, 0.6)
                 }

@@ -82,8 +82,8 @@ Rectangle {
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                 spacing: 2
                 visible: hover.hovered
-                IconButton { small: true; glyph: ""; onClicked: card.copyRequested() }
-                IconButton { small: true; glyph: ""; danger: true; onClicked: card.removeRequested() }
+                IconButton { small: true; glyph: "\uf0c5"; onClicked: card.copyRequested() }
+                IconButton { small: true; glyph: "\uf1f8"; danger: true; onClicked: card.removeRequested() }
             }
             Text {
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }

@@ -147,8 +147,8 @@ OverlayPanel {
                 text: "Скриншоты"
                 size: 28
                 markSize: 25
+                fallbackGlyph: "\uf030"
                 spacing: 12
-                fallbackGlyph: ""
             }
             Text {
                 text: files.count
@@ -161,14 +161,14 @@ OverlayPanel {
             anchors { right: parent.right; rightMargin: 24; verticalCenter: header.verticalCenter }
             spacing: 8
             Chip {
-                glyph: ""
+                glyph: "\uf07c"
                 text: "Открыть папку"
                 onClicked: {
                     Quickshell.execDetached(["thunar", menu.dir]);
                     menu.close();
                 }
             }
-            IconButton { glyph: ""; filled: true; onClicked: menu.close() }
+            IconButton { glyph: "\uf00d"; filled: true; onClicked: menu.close() }
         }
 
         // ---------- grid ----------
@@ -214,11 +214,11 @@ OverlayPanel {
                         visible: hover.hovered
                         anchors { right: parent.right; top: parent.top; margins: 6 }
                         spacing: 4
-                        IconButton { small: true; filled: true; glyph: ""; onClicked: menu.copy(cell.filePath) }
-                        IconButton { small: true; filled: true; glyph: ""; onClicked: menu.open(cell.filePath) }
+                        IconButton { small: true; filled: true; glyph: "\uf0c5"; onClicked: menu.copy(cell.filePath) }
+                        IconButton { small: true; filled: true; glyph: "\uf35d"; onClicked: menu.open(cell.filePath) }
                         IconButton {
                             small: true; filled: true; danger: true
-                            glyph: menu.armed === cell.filePath ? "?" : ""
+                            glyph: menu.armed === cell.filePath ? "?" : "\uf1f8"
                             onClicked: menu.trash(cell.filePath)
                         }
                     }
@@ -256,16 +256,16 @@ OverlayPanel {
             Row {
                 anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 8 }
                 spacing: 8
-                IconButton { glyph: ""; filled: true; onClicked: menu.preview = Math.max(0, menu.preview - 1) }
-                Chip { glyph: ""; text: "Копировать"; onClicked: menu.copy(menu.pathAt(menu.preview)) }
-                Chip { glyph: ""; text: "Открыть"; onClicked: menu.open(menu.pathAt(menu.preview)) }
+                IconButton { glyph: "\uf060"; filled: true; onClicked: menu.preview = Math.max(0, menu.preview - 1) }
+                Chip { glyph: "\uf0c5"; text: "Копировать"; onClicked: menu.copy(menu.pathAt(menu.preview)) }
+                Chip { glyph: "\uf35d"; text: "Открыть"; onClicked: menu.open(menu.pathAt(menu.preview)) }
                 Chip {
-                    glyph: ""
+                    glyph: "\uf1f8"
                     danger: true
                     text: menu.armed === menu.pathAt(menu.preview) ? "Точно?" : "В корзину"
                     onClicked: menu.trash(menu.pathAt(menu.preview))
                 }
-                IconButton { glyph: ""; filled: true; onClicked: menu.preview = Math.min(files.count - 1, menu.preview + 1) }
+                IconButton { glyph: "\uf061"; filled: true; onClicked: menu.preview = Math.min(files.count - 1, menu.preview + 1) }
             }
         }
 

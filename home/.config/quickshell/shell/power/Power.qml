@@ -16,11 +16,11 @@ OverlayPanel {
     property string armed: ""
 
     readonly property var actions: [
-        { id: "lock",     key: "L", label: "Блокировка",  glyph: "", cmd: "hyprlock", shell: "hyprlock" },
-        { id: "logout",   key: "E", label: "Выход",       glyph: "", danger: true, cmd: "hyprctl dispatch 'hl.dsp.exit()'", shell: "hyprctl dispatch exit" },
-        { id: "suspend",  key: "S", label: "Сон",         glyph: "", cmd: "hyprlock & sleep 1; systemctl suspend", shell: "systemctl suspend" },
-        { id: "reboot",   key: "R", label: "Перезагрузка", glyph: "", danger: true, cmd: "systemctl reboot", shell: "systemctl reboot" },
-        { id: "poweroff", key: "P", label: "Выключение",  glyph: "", danger: true, cmd: "systemctl poweroff", shell: "systemctl poweroff" },
+        { id: "lock",     key: "L", label: "Блокировка",  glyph: "\uf023", cmd: "hyprlock", shell: "hyprlock" },
+        { id: "logout",   key: "E", label: "Выход",       glyph: "\uf2f5", danger: true, cmd: "hyprctl dispatch 'hl.dsp.exit()'", shell: "hyprctl dispatch exit" },
+        { id: "suspend",  key: "S", label: "Сон",         glyph: "\uf186", cmd: "hyprlock & sleep 1; systemctl suspend", shell: "systemctl suspend" },
+        { id: "reboot",   key: "R", label: "Перезагрузка", glyph: "\uf2f9", danger: true, cmd: "systemctl reboot", shell: "systemctl reboot" },
+        { id: "poweroff", key: "P", label: "Выключение",  glyph: "\uf011", danger: true, cmd: "systemctl poweroff", shell: "systemctl poweroff" },
     ]
 
     function select(index) {
@@ -74,6 +74,7 @@ OverlayPanel {
             size: 40
             markSize: 32
             spinning: true
+            fallbackGlyph: "\uf011"
         }
 
         Row {
