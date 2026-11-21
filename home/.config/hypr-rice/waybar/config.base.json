@@ -10,6 +10,7 @@
     ],
     "modules-right": [
         "hyprland/language",
+        "custom/player",
         "pulseaudio",
         "cpu",
         "memory",
@@ -173,6 +174,15 @@
         "tooltip": true,
         "tooltip-format": "Настройки: мониторы, клавиши, тема, функции (Alt+F2)",
         "on-click": "~/.local/bin/settings-panel"
+    },
+    "custom/player": {
+        "exec": "~/.local/bin/player-panel bar",
+        "return-type": "json",
+        "interval": "once",
+        "signal": 11,
+        "max-length": 40,
+        "tooltip": true,
+        "on-click": "~/.local/bin/player-panel"
     },
     "custom/power": {
         "exec": "~/.local/bin/power-mode",

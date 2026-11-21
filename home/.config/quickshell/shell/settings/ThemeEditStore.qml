@@ -39,7 +39,8 @@ Scope {
         "custom/shots": "Скриншоты", "custom/settings": "Настройки", "custom/help": "Справка",
         "custom/theme": "Выбор темы", "custom/exit": "Выключение", "custom/claude": "Лимиты Claude",
         "tray": "Трей", "backlight": "Яркость", "bluetooth": "Bluetooth", "idle_inhibitor": "Не засыпать",
-        "mpris": "Плеер", "disk": "Диск", "power-profiles-daemon": "Профиль питания (системный)"
+        "custom/player": "Плеер", "mpris": "Плеер (стандартный)", "disk": "Диск",
+        "power-profiles-daemon": "Профиль питания (системный)"
     })
     readonly property var fontSlots: [["font", "Основной", "панель, терминал, моноширинный текст"],
                                       ["display", "Заголовки", "названия, часы на экране блокировки"],

@@ -67,6 +67,7 @@ PATHS=(
     .local/bin/power-menu
     .local/bin/help-panel
     .local/bin/notif-panel
+    .local/bin/player-panel
     .local/bin/screen-fx
     .local/bin/mouse-sens
     .local/bin/portal-restart

@@ -22,10 +22,16 @@ menus_start() {
 
 # menus_call <function> <menu> [argument]: toggle, open, close or isOpen; prints what the shell answers.
 menus_call() {
-    quickshell ipc -p "$MENUS_SHELL" call menus "$@" 2>/dev/null && return 0
+    shell_call menus "$@"
+}
+
+# shell_call <target> <function> [argument...]: calls an IpcHandler of the shell (menus, player), starting the
+# shell first when it is not running; prints what it answers.
+shell_call() {
+    quickshell ipc -p "$MENUS_SHELL" call "$@" 2>/dev/null && return 0
     if menus_running; then
         notify-send -u critical "Меню" "Оболочка меню не отвечает: quickshell log -p $MENUS_SHELL"
         return 1
     fi
-    menus_start && quickshell ipc -p "$MENUS_SHELL" call menus "$@"
+    menus_start && quickshell ipc -p "$MENUS_SHELL" call "$@"
 }

@@ -158,6 +158,7 @@ SAMPLE_LOOKS = {
     "hyprland/workspaces": "1 2 3 4", "hyprland/window": "Заголовок окна", "clock": "13:37",
     "network": "󰖩", "custom/battery": "󰁹 58%", "custom/power": "󰾅", "custom/updates": "󰏗 3",
     "custom/histui": "󰂚", "custom/claude": "✻ 42%", "tray": "󰀻 󰍹", "mpris": "󰎈 Песня",
+    "custom/player": "󰎈 Песня",
 }
 
 

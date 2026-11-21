@@ -342,6 +342,15 @@ class Shots(MenuTest):
 
 
 @unittest.skipUnless(resident(), "the per-panel menus have no resident shell")
+class Player(MenuTest):
+    # The sandbox has no session bus, so no MPRIS player: only the empty state can be seen here.
+    def test_without_players_the_card_says_so_and_the_bar_shows_the_icon_alone(self):
+        value = self.open("player")
+        self.assertIsNone(value("menu.player"))
+        self.assertEqual(json.loads(value("Players.barJson"))["class"], "none")
+        self.escape_closes("player")
+
+
 class ResidentShell(MenuTest):
     def test_toggle_opens_then_closes(self):
         for menu in MENUS:
@@ -374,7 +383,8 @@ class ResidentShell(MenuTest):
 
 SCRIPTS = {"launcher": ("launcher", ""), "settings-panel": ("settings", "monitors"), "theme-picker": ("themes", ""),
            "help-panel": ("help", ""), "power-menu": ("power", ""), "notif-panel": ("notif", ""),
-           "network-panel": ("network", ""), "games": ("games", ""), "shots-gallery": ("shots", "")}
+           "network-panel": ("network", ""), "games": ("games", ""), "shots-gallery": ("shots", ""),
+           "player-panel": ("player", "")}
 # A quickshell that records its arguments; `ipc` fails until `-d` (the start) has run once when $DOWN is set.
 FAKE_QUICKSHELL = """#!/bin/sh
 printf '%s\\n' "$*" >> "$CALLS"
@@ -416,6 +426,20 @@ class LauncherScripts(unittest.TestCase):
                       self.run_script("settings-panel", "theme:claude:colors"))
         self.assertIn(f"ipc -p {self.shell} call menus toggle settings features",
                       self.run_script("settings-panel", "features"))
+
+    def test_media_keys_reach_the_shells_player(self):
+        for argument, function in (("play-pause", "togglePlaying"), ("next", "next"), ("previous", "previous")):
+            with self.subTest(argument=argument):
+                self.assertIn(f"ipc -p {self.shell} call player {function}", self.run_script("player-panel", argument))
+
+    def test_the_bar_asks_the_shell_but_never_starts_it(self):
+        env = self.sandbox.env()
+        env["DOWN"] = str(self.sandbox.root / "down")
+        (self.sandbox.root / "down").touch()
+        result = subprocess.run([str(SOURCE_HOME / ".local/bin/player-panel"), "bar"], env=env, capture_output=True,
+                                text=True, check=True, timeout=10)
+        self.assertEqual(json.loads(result.stdout)["class"], "none")
+        self.assertNotIn(f"-d -n -p {self.shell}", self.sandbox.recorded())
 
     def test_shell_is_started_when_not_running(self):
         calls = self.run_script("power-menu", down=True)

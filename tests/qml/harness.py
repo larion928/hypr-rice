@@ -32,7 +32,8 @@ from pathlib import Path
 FIXTURES = Path(__file__).parent / "fixtures"
 SOURCE_HOME = Path(os.environ.get("RICE_HOME", Path.home()))
 SOURCE = SOURCE_HOME / ".config/quickshell"
-MENUS = ("launcher", "settings", "themes", "help", "power", "notif", "network", "games", "shots", "clipboard")
+MENUS = ("launcher", "settings", "themes", "help", "power", "notif", "network", "games", "shots", "clipboard",
+         "player")
 CURRENT_THEME = "claude"
 
 # QML errors worth failing a test for; a missing picture or font is not one, nor PipeWire missing in the fake

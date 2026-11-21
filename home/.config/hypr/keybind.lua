@@ -182,11 +182,12 @@ hl.bind("XF86AudioMicMute",      hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_
 hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd("brightnessctl s 10%+"),                           desc("Звук и яркость | Яркость | клавиши яркости", { locked = true, repeating = true }))
 hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("brightnessctl s 10%-"),                           { locked = true, repeating = true })
 
--- Requires playerctl
-hl.bind("XF86AudioNext",  hl.dsp.exec_cmd("playerctl next"),       desc("Звук и яркость | Следующий / предыдущий трек | медиаклавиши", { locked = true }))
-hl.bind("XF86AudioPause", hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
-hl.bind("XF86AudioPlay",  hl.dsp.exec_cmd("playerctl play-pause"), desc("Звук и яркость | Пауза / воспроизведение | Play/Pause", { locked = true }))
-hl.bind("XF86AudioPrev",  hl.dsp.exec_cmd("playerctl previous"),   { locked = true })
+-- The player the player card shows (player-panel), not the one playerctl would pick among several.
+local player = "~/.local/bin/player-panel"
+hl.bind("XF86AudioNext",  hl.dsp.exec_cmd(player .. " next"),       desc("Звук и яркость | Следующий / предыдущий трек | медиаклавиши", { locked = true }))
+hl.bind("XF86AudioPause", hl.dsp.exec_cmd(player .. " play-pause"), { locked = true })
+hl.bind("XF86AudioPlay",  hl.dsp.exec_cmd(player .. " play-pause"), desc("Звук и яркость | Пауза / воспроизведение | Play/Pause", { locked = true }))
+hl.bind("XF86AudioPrev",  hl.dsp.exec_cmd(player .. " previous"),   { locked = true })
 
 -- The user's own binds from the settings panel: keys → command.
 for _, c in ipairs(user.custom or {}) do

@@ -1,0 +1,20 @@
+#!/bin/bash
+# player-panel — the player card and the media keys; both control the same player, the one the shell keeps
+# active (services/Players.qml: the one that started playing last, or the one picked in the card).
+#   player-panel                          toggle the card (menu "player" of ~/.config/quickshell/shell)
+#   player-panel play-pause|next|previous the media keys
+#   player-panel bar                      waybar JSON for custom/player
+source "$HOME/.config/quickshell/menus.sh"
+
+# The bar's icon while the shell is down: waybar asks every time it starts, the shell may start after it.
+IDLE_BAR='{"text": "󰎈", "tooltip": "Плеер", "class": "none"}'
+
+case "${1:-}" in
+    "") menus_call toggle player "" ;;
+    play-pause) shell_call player togglePlaying ;;
+    next) shell_call player next ;;
+    previous) shell_call player previous ;;
+    # Not shell_call: waybar runs this at its own start, and starting the shell from here races hyprland.lua.
+    bar) quickshell ipc -p "$MENUS_SHELL" call player bar 2>/dev/null || echo "$IDLE_BAR" ;;
+    *) echo "player-panel [play-pause|next|previous|bar]" >&2; exit 2 ;;
+esac
