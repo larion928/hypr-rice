@@ -220,9 +220,10 @@ hl.config({
     },
 })
 
--- With the scrolling layout three fingers move the tape, and the workspace swipe takes four.
+-- With the scrolling layout three fingers move the tape, and the workspace swipe takes four. At scale 1 the
+-- tape went slower than the fingers and a short swipe snapped back to the column it started from (USER).
 if on("gestures") and on("scrolling") then
-    hl.gesture({ fingers = 3, direction = "horizontal", action = "scroll_move" })
+    hl.gesture({ fingers = 3, direction = "horizontal", action = "scroll_move", scale = 2 })
     hl.gesture({ fingers = 4, direction = "horizontal", action = "workspace" })
 elseif on("gestures") then
     hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
