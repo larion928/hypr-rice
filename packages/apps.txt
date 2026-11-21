@@ -105,7 +105,7 @@ fastfetch   | Утилиты    | fastfetch                        | fastfetch
 flatseal    | Утилиты    | Flatseal (права Flatpak-программ) | flatseal
 missioncenter | Утилиты    | Mission Center (нагрузка системы) | mission-center
 bleachbit   | Утилиты    | BleachBit (очистка мусора)       | bleachbit
-syncthing   | Утилиты    | Syncthing (синхронизация файлов) | syncthing
+syncthing   | Утилиты    | Syncthing (синхронизация файлов) | syncthing hook:syncthing
 localsend   | Утилиты    | LocalSend (файлы по Wi-Fi)       | flatpak:org.localsend.localsend_app
 zram        | Система    | zram: сжатый swap в памяти (половина RAM) | zram-generator hook:zram
 earlyoom    | Система    | earlyoom: при нехватке памяти закрывает браузер раньше игры | earlyoom hook:earlyoom

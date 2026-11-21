@@ -17,7 +17,7 @@ jobs:
       - name: Shell scripts parse
         run: |
           status=0
-          for f in install.sh rice sync.sh system/hypr-theme-root system/rice-cache-trim \
+          for f in install.sh rice lib/*.sh lib/hooks/*.sh tests/*.sh sync.sh system/hypr-theme-root system/rice-cache-trim \
                    $(grep -rlI '^#!.*\(ba\)\?sh' home/.local/bin home/.config/hypr-rice/waybar/scripts); do
             bash -n "$f" || { echo "::error file=$f::bash -n failed"; status=1; }
           done
@@ -48,11 +48,13 @@ jobs:
       # apptheme/icons/glyphs.py;
       # ffmpeg: the animated-wallpaper tests, which are skipped without it.
       # lua: tests/python drives the Hyprland config's event handlers with a stand-in `hl`.
-      - run: pacman -Syu --noconfirm --needed jq python python-pillow python-fonttools python-gobject gtk3 fontconfig ffmpeg lua
+      - run: pacman -Syu --noconfirm --needed jq python python-pillow python-fonttools python-gobject gtk3 fontconfig ffmpeg lua quickshell
       - uses: actions/checkout@v5
       - run: tests/run.sh
       # The scripts as the repo ships them (RICE_HOME), not a live copy: there is none here.
       - run: RICE_HOME="$PWD/home" PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s tests/python
+      # quickshell: the menus, loaded offscreen with stand-ins for the session (tests/qml/harness.py).
+      - run: RICE_HOME="$PWD/home" PYTHONDONTWRITEBYTECODE=1 QT_QPA_PLATFORM=offscreen python -m unittest discover -s tests/qml
 
   install:
     needs: syntax
