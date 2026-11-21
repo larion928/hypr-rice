@@ -4,7 +4,8 @@
 // closes; the scripts open and close them over IPC:
 //   quickshell ipc -p ~/.config/quickshell/shell call menus toggle <menu> [argument]
 // open, close and isOpen work the same way. Menus: launcher, settings, themes, help, power, notif, network, games,
-// shots, shot, clipboard. Colours and fonts follow the current theme as it changes (common/Theme.qml).
+// shots, shot, picker (the colour picker), clipboard. Colours and fonts follow the current theme as it changes
+// (common/Theme.qml).
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -21,6 +22,7 @@ import qs.games
 import qs.shots
 import qs.shot
 import qs.clipboard
+import qs.picker
 import qs.polkit
 
 ShellRoot {
@@ -28,7 +30,7 @@ ShellRoot {
 
     readonly property var slots: ({ launcher: launcherSlot, settings: settingsSlot, themes: themesSlot, help: helpSlot,
                                     power: powerSlot, notif: notifSlot, network: networkSlot, games: gamesSlot,
-                                    shots: shotsSlot, shot: shotSlot, clipboard: clipboardSlot })
+                                    shots: shotsSlot, shot: shotSlot, picker: pickerSlot, clipboard: clipboardSlot })
 
     function slot(name) {
         const found = slots[name];
@@ -56,6 +58,7 @@ ShellRoot {
     MenuSlot { id: gamesSlot; Games { argument: gamesSlot.argument } }
     MenuSlot { id: shotsSlot; Shots { argument: shotsSlot.argument } }
     MenuSlot { id: shotSlot; Screenshot { argument: shotSlot.argument } }
+    MenuSlot { id: pickerSlot; ColorPicker {} }
     MenuSlot { id: clipboardSlot; Clipboard {} }
 
     // The session's polkit agent: an app asking for an administrator's rights gets the password window.

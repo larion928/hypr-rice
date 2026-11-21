@@ -48,6 +48,12 @@ FEATURES = (
     Feature("shot-animation", "Анимации", "Анимация скриншота",
             "Эффект темы после снимка; без неё снимок сохраняется и экран сразу свободен"),
     Feature("shutter-sound", "Звук", "Звук затвора", "Щелчок темы, когда сделан скриншот"),
+    # tesseract is in base.txt: a feature on by default has to find its packages installed.
+    Feature("ocr", "Скриншоты", "Распознавание текста",
+            "Alt+Shift+Print — выделить область, её текст (русский и английский) копируется в буфер",
+            needs=("tesseract", "tesseract-data-rus", "tesseract-data-eng")),
+    Feature("color-picker", "Скриншоты", "Пипетка",
+            "Alt+Shift+C — лупа над экраном, клик копирует цвет точки как #rrggbb"),
     Feature("gestures", "Ввод", "Свайп тремя пальцами",
             "На тачпаде: три пальца влево или вправо — соседний рабочий стол", hyprland=True),
     Feature("menu-blur", "Внешний вид", "Размытие под меню",

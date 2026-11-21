@@ -133,6 +133,9 @@ end)
 -- Print: drag a region or click a window; Shift+Print: whole monitor.
 bind("screenshot",      "Print",         hl.dsp.exec_cmd("~/.local/bin/shot"),      desc("Скриншоты | Область или окно (клик), Enter — весь экран"))
 bind("screenshot_full", "SHIFT + Print", hl.dsp.exec_cmd("~/.local/bin/shot full"), desc("Скриншоты | Весь монитор"))
+-- Features (Alt+F2 → Функции); switched off, the key says so in a notification.
+bind("ocr",          key("SHIFT + Print"), hl.dsp.exec_cmd("~/.local/bin/shot ocr"),   desc("Скриншоты | Распознать текст в области (в буфер)"))
+bind("color_picker", key("SHIFT + C"),     hl.dsp.exec_cmd("~/.local/bin/shot color"), desc("Скриншоты | Пипетка: цвет с экрана (#rrggbb в буфер)"))
 
 -------------
 --- BASIC ---

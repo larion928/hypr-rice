@@ -1,6 +1,7 @@
 // The screenshot overlay, opened by ~/.local/bin/shot after it froze every monitor with grim into
 // $XDG_RUNTIME_DIR/shot (one <monitor>.png each, with monitors.json and clients.json). The argument is
-// "region" or "full", optionally ":<theme>" to draw with another theme's screenshot.qml.
+// "region", "full" or "ocr" (the region's text to the clipboard, shot/ocr.py), optionally ":<theme>" to draw
+// with another theme's screenshot.qml.
 // The frozen frame, mouse/keyboard handling and saving live here; every theme provides
 // themes/<name>/screenshot.qml that only draws the selection and the capture animation.
 // The capture animation and the shutter sound are features (Alt+F2 → Функции): without the animation the
@@ -82,12 +83,26 @@ Scope {
         selScreen = screenName;
         sel = rect;
         phase = "saving";
+        const screen = Quickshell.screens.find(s => s.name === screenName);
+        const region = [`${run}/${screenName}.png`, rect.x, rect.y, rect.width, rect.height, screen.width, screen.height];
+        if (mode === "ocr") {
+            readText(region);
+        } else {
+            save(region);
+        }
+    }
+
+    // The text goes to the clipboard and a notification from ocr.py; the screen is free while tesseract reads.
+    function readText(region) {
+        Quickshell.execDetached(["python3", Quickshell.shellDir + "/shot/ocr.py", ...region].map(String));
+        close();
+    }
+
+    function save(region) {
         if (Features.on("shutter-sound")) {
             Quickshell.execDetached(["sh", "-c", `[ -f "$1" ] && exec pw-play "$1"`, "sh", themeDir + "/shutter.wav"]);
         }
-        const screen = Quickshell.screens.find(s => s.name === screenName);
-        cropProc.command = ["python3", Quickshell.shellDir + "/shot/crop.py", `${run}/${screenName}.png`,
-                            rect.x, rect.y, rect.width, rect.height, screen.width, screen.height, outFile].map(String);
+        cropProc.command = ["python3", Quickshell.shellDir + "/shot/crop.py", ...region, outFile].map(String);
         cropProc.running = true;
     }
 

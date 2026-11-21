@@ -49,6 +49,9 @@ python-pillow
 python-fonttools  # themegen.py icons: the icon names of the Nerd Font, for the icon picker
 grim
 wl-clipboard
+tesseract  # feature ocr (on by default): Alt+Shift+Print
+tesseract-data-rus
+tesseract-data-eng
 libnotify
 glib2
 librsvg
