@@ -112,6 +112,32 @@ class ReaderTest(unittest.TestCase):
         self.assertEqual(self.stroke().points[-1], (0, 1500))
 
 
+class MeasureAngleTest(unittest.TestCase):
+    def setUp(self):
+        self.folder = Path(tempfile.mkdtemp(prefix="mouse-test-"))
+        fifo = self.folder / "event"
+        os.mkfifo(fifo)
+        self.reader = mouse_test.Reader(fifo)
+        self.writer = os.open(fifo, os.O_WRONLY)
+        for patch in (mock.patch.object(mouse_test, "ANGLE_STROKES", 2), mock.patch("builtins.print")):
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def tearDown(self):
+        os.close(self.writer)
+        shutil.rmtree(self.folder)
+
+    def test_a_stroke_led_away_from_the_user_is_not_the_sensor_angle(self):
+        away = [(1, -10)] * 150
+        across = [(10, 1)] * 150
+        os.write(self.writer, held(100.0, away) + held(101.0, across) + held(102.0, across))
+        self.reader.drain = lambda: None  # the strokes are written before the measuring starts
+        strokes, angle, spread = mouse_test.measure_angle(self.reader)
+        self.assertEqual(len(strokes), 2)
+        self.assertAlmostEqual(angle, 5.7, places=1)
+        self.assertAlmostEqual(spread, 0)
+
+
 class OfferRotationTest(unittest.TestCase):
     def setUp(self):
         self.folder = Path(tempfile.mkdtemp(prefix="mouse-test-"))

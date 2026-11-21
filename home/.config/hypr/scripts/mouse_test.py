@@ -36,6 +36,9 @@ BUTTON_UNCHANGED = -1  # a report without a BTN_LEFT event
 EVIOCGRAB = 0x40044590  # _IOW('E', 0x90, int)
 
 ANGLE_STROKES = 5
+# A stroke further from horizontal than this goes more up-down than sideways: the mouse was led away from the
+# user, not across, and its angle is the wrong axis, not the sensor's.
+MAX_STROKE_DEGREES = 45
 DISTANCE_STROKES = 3
 DEFAULT_DISTANCE_MM = 100
 MIN_CORRECTION_DEGREES = 1
@@ -215,17 +218,21 @@ def pick_mouse(found):
 
 
 def measure_angle(reader):
-    print(f"\nУгол датчика. Прижми мышь боком к линейке (или к краю книги), лежащей горизонтально. Зажми левую "
-          f"кнопку, веди вдоль линейки 15–20 см и отпусти; назад веди с отпущенной кнопкой. "
-          f"Проходов: {ANGLE_STROKES}.")
+    print(f"\nУгол датчика. Положи линейку (или книгу) поперёк стола, слева направо, и прижми к ней мышь боком. "
+          f"Зажми левую кнопку, веди мышь вбок вдоль линейки 15–20 см и отпусти; назад веди с отпущенной "
+          f"кнопкой. Проходов: {ANGLE_STROKES}.")
     reader.drain()
     strokes, angles = [], []
-    for number in range(1, ANGLE_STROKES + 1):
-        live = LiveLine(f"  проход {number}: ", angle_progress)
+    while len(strokes) < ANGLE_STROKES:
+        live = LiveLine(f"  проход {len(strokes) + 1}: ", angle_progress)
         stroke = reader.stroke(live.show)
+        angle = line_angle(stroke.points)
+        if abs(angle) > MAX_STROKE_DEGREES:
+            live.finish(f"{angle:+.1f}° — мышь шла от себя, а не вбок; не засчитан, веди слева направо")
+            continue
         strokes.append(stroke)
-        angles.append(line_angle(stroke.points))
-        live.finish(f"{angles[-1]:+.1f}°, отклонение от прямой {wobble_percent(stroke.points):.1f}%")
+        angles.append(angle)
+        live.finish(f"{angle:+.1f}°, отклонение от прямой {wobble_percent(stroke.points):.1f}%")
     return strokes, statistics.fmean(angles), statistics.stdev(angles)
 
 
