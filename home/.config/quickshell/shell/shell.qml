@@ -1,5 +1,6 @@
-// The rice's menus and on-screen displays in one long-running Quickshell (started from hyprland.lua; the menu
-// scripts in ~/.local/bin start it when it is not running). Each menu is loaded when it opens and unloaded when it
+// The rice's menus, on-screen displays and polkit agent (the administrator password window, polkit/) in one
+// long-running Quickshell (started from hyprland.lua; the menu scripts in ~/.local/bin start it when it is not
+// running). Each menu is loaded when it opens and unloaded when it
 // closes; the scripts open and close them over IPC:
 //   quickshell ipc -p ~/.config/quickshell/shell call menus toggle <menu> [argument]
 // open, close and isOpen work the same way. Menus: launcher, settings, themes, help, power, notif, network, games,
@@ -7,6 +8,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Services.Polkit
 import qs.osd
 import qs.launcher
 import qs.settings
@@ -19,6 +21,7 @@ import qs.games
 import qs.shots
 import qs.shot
 import qs.clipboard
+import qs.polkit
 
 ShellRoot {
     id: shell
@@ -54,6 +57,13 @@ ShellRoot {
     MenuSlot { id: shotsSlot; Shots { argument: shotsSlot.argument } }
     MenuSlot { id: shotSlot; Screenshot { argument: shotSlot.argument } }
     MenuSlot { id: clipboardSlot; Clipboard {} }
+
+    // The session's polkit agent: an app asking for an administrator's rights gets the password window.
+    PolkitAgent { id: polkitAgent }
+    LazyLoader {
+        active: polkitAgent.flow !== null
+        PolkitDialog { flow: polkitAgent.flow }
+    }
 
     IpcHandler {
         target: "menus"
