@@ -37,6 +37,20 @@ function step(event, columns) {
     return 0;
 }
 
+// How far a key moves the selection in a list under a text field: Down/Tab/Ctrl+J and Up/Shift+Tab/Ctrl+K.
+// Plain letters, and Left/Right, belong to the text, so they give 0.
+function listStep(event) {
+    const name = of(event);
+    const control = event.modifiers & Qt.ControlModifier;
+    if (event.key === Qt.Key_Down || event.key === Qt.Key_Tab || (control && name === "J")) {
+        return 1;
+    }
+    if (event.key === Qt.Key_Up || event.key === Qt.Key_Backtab || (control && name === "K")) {
+        return -1;
+    }
+    return 0;
+}
+
 function isEnter(event) {
     return event.key === Qt.Key_Return || event.key === Qt.Key_Enter;
 }

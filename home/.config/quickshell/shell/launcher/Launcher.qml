@@ -61,19 +61,6 @@ OverlayPanel {
         close();
     }
 
-    // Down/Tab/Ctrl+J and Up/Shift+Tab/Ctrl+K move; plain letters, and Left/Right, belong to the text.
-    function moveKey(event) {
-        const name = KeyName.of(event);
-        const control = event.modifiers & Qt.ControlModifier;
-        if (event.key === Qt.Key_Down || event.key === Qt.Key_Tab || (control && name === "J")) {
-            return 1;
-        }
-        if (event.key === Qt.Key_Up || event.key === Qt.Key_Backtab || (control && name === "K")) {
-            return -1;
-        }
-        return 0;
-    }
-
     FileView { id: usageFile; path: menu.usagePath; blockLoading: true }
 
     namespace: "launcher"
@@ -125,7 +112,7 @@ OverlayPanel {
                 clip: true
                 onTextChanged: menu.query = text
                 Keys.onPressed: event => {
-                    const step = menu.moveKey(event);
+                    const step = KeyName.listStep(event);
                     if (event.key === Qt.Key_Escape) {
                         menu.close();
                     } else if (step !== 0) {
