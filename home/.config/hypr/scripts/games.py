@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The game library of the games window (Alt+G, ~/.config/quickshell/games): what it lists, adds and
+"""The game library of the games window (Alt+G, ~/.config/quickshell/shell/games): what it lists, adds and
 starts. The library is the user's own file, ~/.config/hypr-rice/games.json, which rice updates
 never touch; covers picked for games are copied to ~/.local/share/hypr-rice/game-covers. The code is
 in gamelib/, this file is the command line: COMMANDS is the list of commands.

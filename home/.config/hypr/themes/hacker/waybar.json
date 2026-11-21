@@ -40,7 +40,7 @@
   "custom/settings": {
     "format": "󱆃",
     "tooltip": true,
-    "tooltip-format": "Настройки: мониторы, клавиши, тема (Alt+F2)",
+    "tooltip-format": "Настройки: мониторы, клавиши, тема, функции (Alt+F2)",
     "on-click": "~/.local/bin/settings-panel"
   },
   "custom/theme": {

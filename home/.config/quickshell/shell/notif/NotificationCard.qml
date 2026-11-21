@@ -68,7 +68,7 @@ Rectangle {
                 }
                 Text {
                     visible: !appIcon.visible
-                    text: ""
+                    text: "\uf0f3"
                     font.family: Theme.glyphFont; font.pixelSize: 14
                     color: Theme.accent
                 }

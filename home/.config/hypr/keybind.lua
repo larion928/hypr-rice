@@ -103,7 +103,7 @@ bind("theme_picker", key("SHIFT + T"), hl.dsp.exec_cmd("~/.local/bin/theme-picke
 bind("screen_fx",    key("SHIFT + F"), hl.dsp.exec_cmd("~/.local/bin/screen-fx"),       desc("Оформление | Эффект экрана (в теме hacker)"))
 bind("bar_restart",  key("SHIFT + O"), hl.dsp.exec_cmd("~/.local/bin/waybar-start"),    desc("Оформление | Перезапустить панель"))
 bind("help",         key("F1"),        hl.dsp.exec_cmd("~/.local/bin/help-panel"),      desc("Система | Эта справка"))
-bind("settings",     key("F2"),        hl.dsp.exec_cmd("~/.local/bin/settings-panel"),  desc("Система | Настройки: мониторы и клавиши"))
+bind("settings",     key("F2"),        hl.dsp.exec_cmd("~/.local/bin/settings-panel"),  desc("Система | Настройки: мониторы, клавиши, тема, функции"))
 
 -- Passthrough for VMs and remote desktops: every key, Alt+… included, goes to the focused
 -- window until Super+F12 is pressed again.

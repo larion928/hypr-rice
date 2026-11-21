@@ -124,7 +124,7 @@ curl -fsSL https://raw.githubusercontent.com/larion928/hypr-rice/main/install.sh
 | Клавиши | |
 |---|---|
 | Alt + F1 | справка по всем горячим клавишам |
-| Alt + F2 | настройки: мониторы, клавиши, тема |
+| Alt + F2 | настройки: мониторы, клавиши, тема, функции |
 | Alt + Shift + T | выбор темы (или `changetheme <тема>`) |
 | Alt + R | лаунчер: программы и системные команды |
 | Alt + Enter | терминал kitty |
