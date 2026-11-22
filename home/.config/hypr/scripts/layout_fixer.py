@@ -47,6 +47,7 @@ SWITCH_PAUSE_S = 0.05
 KEY_PAUSE_S = 0.004
 VIRTUAL_NAME = "rice-layout-fixer"
 SETTINGS = Path.home() / ".config/hypr-rice/layout-fix.json"
+RUSSIAN_WORDS = Path(__file__).with_name("layout_words_ru.txt")
 
 
 class Strokes:
@@ -94,7 +95,8 @@ class Speller:
     """hunspell -a for one dictionary, kept running: a line per word, "*", "+" or "-" when it is a word,
     "& word count offset: first, second, ..." when it is not and something is close, "#" when nothing is."""
 
-    def __init__(self, dictionary):
+    def __init__(self, dictionary, frequent=()):
+        self.rank = {word: place for place, word in enumerate(frequent)}
         self.process = subprocess.Popen(["hunspell", "-a", "-i", "utf-8", "-d", dictionary], stdin=subprocess.PIPE,
                                         stdout=subprocess.PIPE, text=True, encoding="utf-8")
         self.process.stdout.readline()  # the version banner
@@ -103,9 +105,11 @@ class Speller:
         return self.answer(word)[:1] in "*+-"
 
     def suggestions(self, word):
-        """The words hunspell offers for a word it does not know, closest first."""
+        """The words hunspell offers for a word it does not know: the most frequent first when frequent words were
+        given (hunspell's own order put the meant Russian word as low as fifth), hunspell's order among the rest."""
         answer = self.answer(word)
-        return answer.split(": ", 1)[1].split(", ") if answer.startswith("&") else []
+        offered = answer.split(": ", 1)[1].split(", ") if answer.startswith("&") else []
+        return sorted(offered, key=lambda suggestion: self.rank.get(suggestion.lower(), len(self.rank)))
 
     def answer(self, word):
         """hunspell's line about the word ("" when it said nothing)."""
@@ -445,6 +449,12 @@ def excluded_classes():
         return []
 
 
+def frequent_words(path):
+    """The words of a frequency list: one per line, the most frequent first; "#" lines are comments."""
+    with open(path, encoding="utf-8") as lines:
+        return [line.strip() for line in lines if line.strip() and not line.startswith("#")]
+
+
 def feature_on(feature_id):
     result = subprocess.run([sys.executable, str(Path(__file__).with_name("features.py")), "is", feature_id],
                             capture_output=True)
@@ -465,7 +475,10 @@ def run_daemon():
     except PermissionError:
         raise SystemExit("нет доступа к /dev/uinput: " + no_access)
     modes = Modes(feature_on("layout-auto"), feature_on("layout-typo"), frozenset(excluded_classes()))
-    spellers = {"us": Speller("en_US"), "ru": Speller("ru_RU")} if modes.automatic or modes.typos else None
+    spellers = None
+    if modes.automatic or modes.typos:
+        # English needs no frequencies: hunspell's first suggestion for it was the meant word.
+        spellers = {"us": Speller("en_US"), "ru": Speller("ru_RU", frequent_words(RUSSIAN_WORDS))}
     fixer = Fixer(session, keyboard, spellers, modes)
     events = hyprland_events()
 

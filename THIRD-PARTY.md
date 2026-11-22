@@ -65,3 +65,9 @@ SOFTWARE.
 
 The name Claude and the Clawd character belong to Anthropic. The theme is unofficial and not
 affiliated with Anthropic.
+
+## Word frequencies / Частоты слов
+
+`home/.config/hypr/scripts/layout_words_ru.txt`: the Russian list of [FrequencyWords](https://github.com/hermitdave/FrequencyWords)
+(2018, ru_50k, built from OpenSubtitles) by Hermit Dave, CC BY-SA 4.0; kept only the words the hunspell
+ru_RU dictionary knows, counts dropped. The typo fix puts the most frequent suggestions first.

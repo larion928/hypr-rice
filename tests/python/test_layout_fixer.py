@@ -1,7 +1,9 @@
 """layout_fixer.py: the keys it keeps, when it fixes a word, and what it presses; with a fake Hyprland, a fake
 virtual keyboard and fake dictionaries (nothing here reads /dev/input or reaches the session)."""
+import shutil
 import sys
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from rice_sandbox import LIVE_SCRIPTS
@@ -221,6 +223,17 @@ class FixerTest(unittest.TestCase):
         self.assertEqual(run.call_args.args[0][:2], ["wl-paste", "--primary"])
         self.assertEqual(self.session.switches, ["us"])
         self.assertEqual(keys.typed("us", self.keyboard.taps), "hello")
+
+
+@unittest.skipUnless(shutil.which("hunspell") and Path("/usr/share/hunspell/ru_RU.dic").exists(),
+                     "hunspell с русским словарём не установлен")
+class SpellerTest(unittest.TestCase):
+    def test_russian_suggestions_come_most_frequent_first(self):
+        speller = layout_fixer.Speller("ru_RU", layout_fixer.frequent_words(layout_fixer.RUSSIAN_WORDS))
+        self.addCleanup(speller.process.kill)
+        self.assertTrue(speller.knows("привет"))
+        self.assertEqual(speller.suggestions("превет")[0], "привет")  # hunspell alone puts it fifth
+        self.assertEqual(speller.suggestions("привет"), [])
 
 
 class LayoutKeysTest(unittest.TestCase):
