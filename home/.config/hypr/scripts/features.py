@@ -58,7 +58,7 @@ class Feature:
 # The input features type keys themselves: going wrong, they get in the way of everything typed.
 TYPES_KEYS_CAUTION = ("Функция может работать плохо и мешать работе за компьютером. Если начнутся проблемы с вводом "
                       "или команды станут срабатывать сами, выключи её.")
-EXPERIMENTAL_CAUTION = "Функция экспериментальная и может работать плохо. Если начнутся проблемы, выключи её."
+EXPERIMENTAL_CAUTION = "Функция экспериментальная, возможны ошибки и баги. Если начнутся проблемы, выключи её."
 
 FEATURES = (
     Feature("animations", "Анимации", "Анимации окон",

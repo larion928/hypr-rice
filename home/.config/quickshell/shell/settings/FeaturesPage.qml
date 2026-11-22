@@ -59,7 +59,7 @@ Item {
                                     visible: row.modelData.experimental
                                     width: parent.width
                                     wrapMode: Text.WordWrap
-                                    text: "Экспериментальная: ещё обкатывается, возможны шероховатости"
+                                    text: "Функция экспериментальная, возможны ошибки и баги"
                                     font.family: Theme.bodyFont; font.pixelSize: 13
                                     color: Theme.warn
                                 }
