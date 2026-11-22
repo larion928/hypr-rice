@@ -7,6 +7,7 @@
 //             fonts, colours, wallpapers, panel, icons, cursor, windows, kept in ~/.config/hypr-rice/theme-edits.json.
 //   features  Функции: the rice's features switched on and off by features.py, which keeps them in
 //             ~/.config/hypr-rice/features.json (FeaturesModel); missing packages are installed first.
+//   words     Словарь: the user's own words for the layout fixer's dictionaries (OwnWordsModel, own_words.py).
 // Quick switching is the theme picker's (Alt+Shift+T).
 import QtQuick
 import qs.common
@@ -23,6 +24,7 @@ OverlayPanel {
     readonly property alias ownThemes: ownThemes
     readonly property alias userFiles: userFiles
     readonly property alias features: features
+    readonly property alias ownWords: ownWords
 
     // Esc: out of a picker, a dialog, the icon picker, a theme's settings; then the window closes. While a combo
     // is being recorded it only stops the recording.
@@ -100,6 +102,7 @@ OverlayPanel {
     OwnThemes { id: ownThemes; themeEdit: menu.themeEdit }
     UserFiles { id: userFiles; themeEdit: menu.themeEdit }
     FeaturesModel { id: features }
+    OwnWordsModel { id: ownWords }
 
     Rectangle {
         id: sheet
@@ -125,7 +128,7 @@ OverlayPanel {
             }
             Item { width: 24; height: 1 }
             Repeater {
-                model: [["monitors", "Мониторы"], ["keys", "Клавиши"], ["theme", "Тема"], ["features", "Функции"]]
+                model: [["monitors", "Мониторы"], ["keys", "Клавиши"], ["theme", "Тема"], ["features", "Функции"], ["words", "Словарь"]]
                 TabButton {
                     required property var modelData
                     text: modelData[1]
@@ -155,6 +158,7 @@ OverlayPanel {
                 onSwitched: menu.close()
             }
             FeaturesPage { anchors.fill: parent; visible: menu.page === "features"; features: menu.features }
+            OwnWordsPage { anchors.fill: parent; visible: menu.page === "words"; ownWords: menu.ownWords }
         }
 
         // While a combo is being recorded, the wheel and the side buttons of the mouse count as keys.

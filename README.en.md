@@ -106,7 +106,7 @@ Every menu opens in the current theme's colours and fonts; pressing its key agai
 | Menu | Open | What is in it |
 |---|---|---|
 | Launcher | Alt+R | programs and the rice's commands: themes, settings, network, power, exit; search understands text typed in the wrong layout |
-| Settings | Alt+F2 | monitors, keys, themes, features (below) |
+| Settings | Alt+F2 | monitors, keys, themes, features, dictionary (below) |
 | Help | Alt+F1 | every hotkey, read from the config, and the files for your own settings |
 | Theme picker | Alt+Shift+T | every theme as a card |
 | Exit | Alt+M | lock, log out, suspend, reboot, power off (the dangerous ones on a second press) |
@@ -162,6 +162,10 @@ The settings window opens with Alt+F2, the gear on the bar or from the launcher.
 | Automatic layout fix: a word in the wrong layout is fixed after the space by the dictionaries (Russian, English); not in fullscreen windows nor in the programs under `exclude` in `~/.config/hypr-rice/layout-fix.json` | off |
 | Typo fix, experimental: Alt+Shift+Space on a word that is in neither the Russian nor the English dictionary gives the other layout first, then the dictionary's suggestions (up to 5: the words you type most first, then the language's most frequent), then the word as typed. For that the typed words the dictionary knows are counted in `~/.config/hypr-rice/words-ru-used.json` / `words-en-used.json` (a password gets there only if it is a dictionary word itself). Alt+Shift+Enter learns the last word into `~/.config/hypr-rice/words-ru.dic` / `words-en.dic`; a word the dictionary did not know that is left after Alt+Shift+Space is learnt by itself (add your own there too; `word/model` declines like model: `горутина/машина`) | off |
 | Scrolling windows, experimental: columns on an endless tape, as in niri; Alt+P is the column width, Alt+Shift+P fits the visible ones; three fingers move the tape, four the workspace | off |
+
+- **Dictionary.** Your own words, which the typo fix and the automatic layout fix know besides the
+  dictionary: add one (`word` or `word/model`), remove one. Alt+Shift+Enter adds there too. Kept in
+  `~/.config/hypr-rice/words-ru.dic` and `words-en.dic`.
 
 ## Games
 
@@ -226,6 +230,7 @@ first install). Keep your changes in these files; updates leave them alone:
 | `~/.config/hypr/devices.lua` | mouse and touchpad (`mouse-sens`, `rice mouse-test`) |
 | `~/.config/hypr-rice/theme-edits.json` | theme edits (written by the Alt+F2 window) |
 | `~/.config/hypr-rice/features.json` | which features are on (written by the Alt+F2 window and `rice features`) |
+| `~/.config/hypr-rice/words-ru.dic`, `words-en.dic` | your own words for the typo fix (written by the Alt+F2 window and Alt+Shift+Enter) |
 | `~/.config/hypr-rice/games.json` | the game library (written by the Alt+G window) |
 | `~/.config/fish/user.fish` | fish: aliases, `PATH`, variables |
 | `~/.config/hypr-rice/kitty/user.conf` | kitty: font, opacity, your own keys |

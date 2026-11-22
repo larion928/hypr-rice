@@ -130,6 +130,23 @@ elif sys.argv[1] in ("on", "off"):
     state[feature["id"]] = sys.argv[1] == "on"
     json.dump(state, open(state_file, "w"))
 """
+# own_words.py: the words kept in a file of the fake home; "привет" is refused as a word the dictionary knows.
+OWN_WORDS_PY = """import json, os, sys
+open(os.environ["CALLS"], "a").write("own_words.py " + " ".join(sys.argv[1:]) + "\\n")
+kept = os.path.expanduser("~/.config/hypr-rice/own-words-test.json")
+words = json.load(open(kept)) if os.path.exists(kept) else {"ru": ["горутина/машина", "прив"], "us": []}
+if sys.argv[1] == "list":
+    print(json.dumps(words, ensure_ascii=False))
+elif sys.argv[1] == "add" and sys.argv[2] == "привет":
+    print("«привет» словарь и так знает")
+    sys.exit(1)
+elif sys.argv[1] == "add":
+    words["ru"].append(sys.argv[2])
+    json.dump(words, open(kept, "w"))
+elif sys.argv[1] == "remove":
+    words["ru"].remove(sys.argv[2])
+    json.dump(words, open(kept, "w"))
+"""
 # rice-install-package: "secret" is the right sudo password; the install goes on in the background for a moment, then
 # switches the --switch-on feature on (through features.py, like the real one) and ends its log.
 RICE_INSTALL_PACKAGE = STUB_HEAD + """IFS= read -r password
@@ -217,7 +234,7 @@ class MenuSandbox:
     def _add_test_target(self, qml, menu_expression):
         """The IPC target "test" in the document with ShellRoot. In the resident shell the settings window's
         stores are reached as menu.mon, menu.keys, ...; in a per-panel settings document they are ids already."""
-        stores = ("mon", "keys", "themeEdit", "ownThemes", "userFiles", "features", "net")
+        stores = ("mon", "keys", "themeEdit", "ownThemes", "userFiles", "features", "ownWords", "net")
         locals_ = "".join(f"const {name} = menu ? menu.{name} : undefined; " for name in stores) if self.resident else ""
         target = f"""
     TestCase {{ id: harnessKeys; when: false; running: false }}
@@ -263,6 +280,7 @@ class MenuSandbox:
         (scripts / "games.py").write_text(GAMES_PY)
         (scripts / "themegen.py").write_text(THEMEGEN_PY)
         (scripts / "features.py").write_text(FEATURES_PY)
+        (scripts / "own_words.py").write_text(OWN_WORDS_PY)
         installer = self.home / ".local/bin/rice-install-package"
         installer.parent.mkdir(parents=True)
         installer.write_text(RICE_INSTALL_PACKAGE)

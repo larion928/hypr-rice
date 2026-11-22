@@ -8,7 +8,7 @@ from pathlib import Path
 
 STORES = {
     "PackageInstall": "install", "ThemeEditStore": "themeEdit", "KeysModel": "keys", "MonitorsModel": "mon", "OwnThemes": "ownThemes",
-          "UserFiles": "userFiles", "PanelSection": "panelEditor"}
+          "UserFiles": "userFiles", "PanelSection": "panelEditor", "OwnWordsModel": "ownWords"}
 # What every QML object has.
 BUILT_IN = {"running", "command", "text", "x", "y", "width", "height", "visible", "write"}
 

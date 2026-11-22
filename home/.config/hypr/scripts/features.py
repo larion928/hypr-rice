@@ -117,7 +117,8 @@ FEATURES = (
             "которые ты сам печатаешь чаще всего: фиксер считает набранные слова, известные словарю, в "
             "~/.config/hypr-rice/words-ru-used.json (words-en-used.json); пароль попадёт туда, только если он "
             "сам словарное слово. Alt+Shift+Enter запоминает последнее слово в ~/.config/hypr-rice/words-ru.dic "
-            "(words-en.dic); незнакомое словарю слово, оставленное после Alt+Shift+Пробел, запоминается само. "
+            "(words-en.dic), незнакомое словарю слово, оставленное после Alt+Shift+Пробел, запоминается само; "
+            "список своих слов — на вкладке «Словарь». "
             "Работает вместе с исправлением раскладки",
             default=False, needs=("hunspell", "hunspell-ru", "hunspell-en_us"), restarts="rice-layout-fixer.service",
             experimental=True),

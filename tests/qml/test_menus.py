@@ -139,6 +139,20 @@ class Settings(MenuTest):
 
 
 @unittest.skipUnless(resident(), "the per-panel menus have no features page")
+class OwnWords(MenuTest):
+    def test_words_listed_added_refused_and_taken_out(self):
+        value = self.open("settings", "words")
+        self.sandbox.wait_for("settings", "ownWords.ru.length", 2)
+        value('ownWords.add("айти", () => {})')
+        self.sandbox.wait_for("settings", "ownWords.ru", ["горутина/машина", "прив", "айти"])
+        value('ownWords.add("привет", () => {})')
+        self.sandbox.wait_for("settings", "ownWords.message", "«привет» словарь и так знает")
+        self.sandbox.wait_for("settings", "ownWords.busy", False)
+        value('ownWords.remove("прив")')
+        self.sandbox.wait_for("settings", "ownWords.ru", ["горутина/машина", "айти"])
+        self.assertEqual(value("ownWords.message"), "")
+
+
 class Features(MenuTest):
     def test_features_listed_by_group_and_switched(self):
         value = self.open("settings", "features")
