@@ -5,15 +5,19 @@ rice-layout-fixer.service runs it.
 
 It reads the keyboards and mice (/dev/input; the input group) without taking them, and keeps the keys typed
 since the last reset: a click, a change of window, Enter, an arrow, a Ctrl/Alt/Super combination or the lock
-screen forget them, and nothing is written anywhere. A fix erases the last word (with the spaces after it),
+screen forget them; the keys themselves are written nowhere (with layout-typo, the words of the dictionaries are
+counted and the learnt ones kept, below). A fix erases the last word (with the spaces after it),
 switches the layout and presses the same keys again through its own virtual keyboard (/dev/uinput), so it works
 in any program whatever it does with text; a second fix of the same word switches it back. With layout-typo a word
 that is a word in neither layout goes to the other layout at the first press, then through hunspell's suggestions,
 then back to what was typed; a word neither dictionary knew that is left on the screen after the key (typing goes
-on) is learnt into the user's own dictionary.
+on) is learnt into the user's own dictionary, and the words typed that a dictionary knows are counted, so the user's
+most used ones come first among the suggestions.
   layout-fix word        (SIGUSR1) the last word
   layout-fix selection   (SIGUSR2) the selected text (the primary selection), typed over it in the other layout
+  layout-fix learn       (SIGRTMIN+1) the last word, as typed, goes into the user's own dictionary
 """
+import atexit
 import fcntl
 import json
 import os
@@ -51,6 +55,8 @@ VIRTUAL_NAME = "rice-layout-fixer"
 SETTINGS = Path.home() / ".config/hypr-rice/layout-fix.json"
 # The user's own words, hunspell's personal dictionaries: a word per line, "word/model" declines like model.
 OWN_WORDS = {"us": Path.home() / ".config/hypr-rice/words-en.dic", "ru": Path.home() / ".config/hypr-rice/words-ru.dic"}
+USED_WORDS = {"us": Path.home() / ".config/hypr-rice/words-en-used.json",
+              "ru": Path.home() / ".config/hypr-rice/words-ru-used.json"}
 RUSSIAN_WORDS = Path(__file__).with_name("layout_words_ru.txt")
 
 
@@ -74,6 +80,12 @@ class Strokes:
         """The last count keys are now strokes (a fix typed them over)."""
         self.keys = (self.keys[:len(self.keys) - count] + strokes)[-STROKE_LIMIT:]
 
+    def last_word(self):
+        """The word the keys end with; [] when they end with a space."""
+        if self.keys and self.keys[-1][0] == keys.SPACE:
+            return []
+        return self.tail()
+
     def tail(self):
         """The last word and the spaces typed after it."""
         end = len(self.keys)
@@ -95,12 +107,55 @@ class Strokes:
         return word[start:]
 
 
+# Often enough to lose little of the counts to a crash, rarely enough not to write a file at every word.
+SAVE_USE_EVERY_S = 60
+
+
+class WordUse:
+    """How often the user typed each word: {word: times} in a JSON file, written at most once a minute and when
+    the fixer stops."""
+
+    def __init__(self, path):
+        self.path = path
+        self.times = self.read()
+        self.saved_at = time.monotonic()
+        self.unsaved = False
+
+    def read(self):
+        try:
+            times = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        return times if isinstance(times, dict) else {}
+
+    def of(self, word):
+        return self.times.get(word, 0)
+
+    def add(self, word):
+        self.times[word] = self.of(word) + 1
+        self.unsaved = True
+        if time.monotonic() - self.saved_at >= SAVE_USE_EVERY_S:
+            self.save()
+
+    def save(self):
+        if not self.unsaved:
+            return
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        written = self.path.with_suffix(".tmp")
+        written.write_text(json.dumps(self.times, ensure_ascii=False), encoding="utf-8")
+        written.replace(self.path)  # a crash while writing leaves the old counts, not half a file
+        self.saved_at = time.monotonic()
+        self.unsaved = False
+
+
 class Speller:
     """hunspell -a for one dictionary, kept running: a line per word, "*", "+" or "-" when it is a word,
-    "& word count offset: first, second, ..." when it is not and something is close, "#" when nothing is."""
+    "& word count offset: first, second, ..." when it is not and something is close, "#" when nothing is.
+    use is the WordUse of the user's words in this dictionary."""
 
-    def __init__(self, dictionary, own_words, frequent=()):
+    def __init__(self, dictionary, own_words, use, frequent=()):
         self.own_words = own_words
+        self.use = use
         self.rank = {word: place for place, word in enumerate(frequent)}
         self.process = subprocess.Popen(["hunspell", "-a", "-i", "utf-8", "-d", dictionary, "-p", str(own_words)],
                                         stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, encoding="utf-8")
@@ -110,11 +165,20 @@ class Speller:
         return self.answer(word)[:1] in "*+-"
 
     def suggestions(self, word):
-        """The words hunspell offers for a word it does not know: the most frequent first when frequent words were
-        given (hunspell's own order put the meant Russian word as low as fifth), hunspell's order among the rest."""
+        """The words hunspell offers for a word it does not know: the ones the user typed most first, then the most
+        frequent in the language when frequent words were given (hunspell's own order put the meant Russian word as
+        low as fifth), hunspell's order among the rest."""
         answer = self.answer(word)
         offered = answer.split(": ", 1)[1].split(", ") if answer.startswith("&") else []
-        return sorted(offered, key=lambda suggestion: self.rank.get(suggestion.lower(), len(self.rank)))
+        return sorted(offered, key=self.place)
+
+    def place(self, suggestion):
+        word = suggestion.lower()
+        return -self.use.of(word), self.rank.get(word, len(self.rank))
+
+    def used(self, word):
+        """The user typed the word: it goes higher among the suggestions."""
+        self.use.add(word)
 
     def learn(self, word):
         """The word is the user's: hunspell knows it from now on, and the user's dictionary keeps it for later."""
@@ -245,6 +309,20 @@ def bare(text):
     return text.strip(WORD_EDGES)
 
 
+def word_of(layout, strokes):
+    """The word strokes type in layout, without its punctuation and spaces, in lower case: as dictionaries keep it."""
+    return bare(keys.typed(layout, strokes)).lower()
+
+
+def is_word(word):
+    """Two letters or more, hyphens allowed: a word that can be learnt or counted."""
+    return len(word) >= 2 and word.replace("-", "").isalpha()
+
+
+def notify(title, body):
+    subprocess.run(["notify-send", "-a", "Словарь", title, body], capture_output=True, timeout=5)
+
+
 class Fixer:
     """What the keys mean for the buffer, and the fixes. session, keyboard and spellers are Session,
     VirtualKeyboard and a {layout: Speller} (None when neither layout-auto nor layout-typo is on)."""
@@ -257,7 +335,7 @@ class Fixer:
         self.strokes = Strokes()
         self.held = set()        # modifier keys held now
         self.before_combination = ([], 0.0)
-        self.request = None      # "word" or "selection", carried out once the modifiers are up
+        self.request = None      # "word", "selection" or "learn", carried out once the modifiers are up
         self.cycle = None        # the last word's Cycle while the buffer still ends with its choice
 
     def key(self, code, value):
@@ -285,10 +363,29 @@ class Fixer:
             self.strokes.backspace()
         elif (code, False) in keys.CHARACTERS["us"]:
             self.strokes.add((code, bool(self.held & SHIFTS)))
-            if code == keys.SPACE and self.modes.automatic:
-                self.check_finished_word()
+            if code == keys.SPACE:
+                self.word_ended()
+        elif code == keys.ENTER:
+            self.count(self.strokes.last_word())
+            self.strokes.reset()
         else:
             self.strokes.reset()
+
+    def word_ended(self):
+        """A space after a word: with layout-auto it may be fixed, then the word left counts as used."""
+        if self.modes.automatic:
+            self.check_finished_word()
+        self.count(self.strokes.finished_word())
+
+    def count(self, strokes):
+        """With layout-typo, the word in strokes is counted when its dictionary knows it: the user's most used
+        words come first among the suggestions."""
+        if not self.modes.typos or not strokes:
+            return
+        layout = self.session.layout()
+        word = word_of(layout, strokes)
+        if is_word(word) and self.spellers[layout].knows(word):
+            self.spellers[layout].used(word)
 
     def reset(self):
         """A click or another window: the text cursor may be anywhere now."""
@@ -311,6 +408,8 @@ class Fixer:
             self.fix_word()
         elif request == "selection":
             self.retype_selection()
+        elif request == "learn":
+            self.learn_last_word()
 
     def fix_word(self):
         """The last word becomes the next choice of its Cycle; a new Cycle when the word is not the one shown."""
@@ -354,9 +453,25 @@ class Fixer:
         if not self.modes.typos:
             return
         layout, strokes = self.cycle.shown()
-        word = bare(keys.typed(layout, strokes)).lower()
-        if len(word) >= 2 and word.replace("-", "").isalpha() and not self.spellers[layout].knows(word):
+        word = word_of(layout, strokes)
+        if is_word(word) and not self.spellers[layout].knows(word):
             self.spellers[layout].learn(word)
+
+    def learn_last_word(self):
+        """The dictionary's hotkey: the last word, as typed, is the user's; a notification says what came of it."""
+        if not self.spellers:
+            notify("Словарь не работает", "Он нужен исправлению опечаток или автоисправлению раскладки: "
+                                          "Alt+F2 → Функции")
+            return
+        layout = self.session.layout()
+        word = word_of(layout, self.strokes.tail())
+        if not is_word(word):
+            notify("Нечего запоминать", "Сначала набери слово, потом нажми клавишу")
+        elif self.spellers[layout].knows(word):
+            notify("Уже в словаре", word)
+        else:
+            self.spellers[layout].learn(word)
+            notify("Запомнено", word + " (список: Alt+F2 → Словарь)")
 
     def put(self, shown, layout, strokes):
         """Erases the shown strokes and types strokes in layout; the buffer holds them instead."""
@@ -503,9 +618,12 @@ def run_daemon():
     modes = Modes(feature_on("layout-auto"), feature_on("layout-typo"), frozenset(excluded_classes()))
     spellers = None
     if modes.automatic or modes.typos:
+        uses = {layout: WordUse(path) for layout, path in USED_WORDS.items()}
+        for use in uses.values():
+            atexit.register(use.save)
         # English needs no frequencies: hunspell's first suggestion for it was the meant word.
-        spellers = {"us": Speller("en_US", OWN_WORDS["us"]),
-                    "ru": Speller("ru_RU", OWN_WORDS["ru"], frequent_words(RUSSIAN_WORDS))}
+        spellers = {"us": Speller("en_US", OWN_WORDS["us"], uses["us"]),
+                    "ru": Speller("ru_RU", OWN_WORDS["ru"], uses["ru"], frequent_words(RUSSIAN_WORDS))}
     fixer = Fixer(session, keyboard, spellers, modes)
     events = hyprland_events()
 
@@ -514,6 +632,9 @@ def run_daemon():
     signal.set_wakeup_fd(wakeup_write)
     signal.signal(signal.SIGUSR1, lambda *_: fixer.ask("word"))
     signal.signal(signal.SIGUSR2, lambda *_: fixer.ask("selection"))
+    signal.signal(signal.SIGRTMIN + 1, lambda *_: fixer.ask("learn"))
+    # systemctl stop: an exit, so that the counts are saved (atexit), not the default death.
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit())
 
     scanned = time.monotonic()
     while True:

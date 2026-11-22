@@ -50,6 +50,7 @@ class FakeSpeller:
         self.words = set(words)
         self.suggested = suggested or {}
         self.learnt = []
+        self.counted = []
 
     def knows(self, word):
         return word.lower() in self.words
@@ -60,6 +61,9 @@ class FakeSpeller:
     def learn(self, word):
         self.words.add(word)
         self.learnt.append(word)
+
+    def used(self, word):
+        self.counted.append(word)
 
 
 def strokes(layout, text):
@@ -88,12 +92,12 @@ class FixerTest(unittest.TestCase):
             if shifted:
                 fixer.key(SHIFT, 0)
 
-    def press_hotkey(self, fixer, request="word"):
+    def press_hotkey(self, fixer, request="word", key=keys.SPACE):
         fixer.key(ALT, 1)
         fixer.key(SHIFT, 1)
-        fixer.key(keys.SPACE, 1)
+        fixer.key(key, 1)
         fixer.ask(request)
-        fixer.key(keys.SPACE, 0)
+        fixer.key(key, 0)
         fixer.key(SHIFT, 0)
         fixer.key(ALT, 0)
 
@@ -244,6 +248,45 @@ class FixerTest(unittest.TestCase):
                 fixer.key(typed_on, 1)
                 self.assertEqual(self.spellers["ru"].learnt, [])
 
+    def test_words_a_dictionary_knows_are_counted_at_a_space_or_enter(self):
+        fixer = self.fixer(typos=True)
+        self.type(fixer, "Hello, helo dog")
+        fixer.key(keys.ENTER, 1)
+        self.type(fixer, "dog ")
+        fixer.key(keys.ENTER, 1)
+        self.assertEqual(self.spellers["us"].counted, ["hello", "dog", "dog"])
+
+    def test_nothing_is_counted_without_typos(self):
+        fixer = self.fixer(automatic=True)
+        self.type(fixer, "hello ghbdtn ")
+        self.assertEqual(self.spellers["us"].counted + self.spellers["ru"].counted, [])
+
+    def test_a_word_fixed_automatically_is_counted_as_fixed(self):
+        fixer = self.fixer(automatic=True, typos=True)
+        self.type(fixer, "ghbdtn ")
+        self.assertEqual((self.spellers["us"].counted, self.spellers["ru"].counted), ([], ["привет"]))
+
+    def test_the_learn_hotkey_learns_the_last_word_as_typed_and_says_so(self):
+        for typed, learnt, title in (("прив ", ["прив"], "Запомнено"), ("привет", [], "Уже в словаре"),
+                                     ("", [], "Нечего запоминать")):
+            with self.subTest(typed=typed):
+                self.setUp()
+                self.session.current = "ru"
+                fixer = self.fixer(typos=True)
+                self.type(fixer, typed, "ru")
+                with mock.patch.object(layout_fixer, "notify") as notify:
+                    self.press_hotkey(fixer, "learn", keys.ENTER)
+                self.assertEqual(self.spellers["ru"].learnt, learnt)
+                self.assertEqual(notify.call_args.args[0], title)
+                self.assertEqual(self.keyboard.taps, [])
+
+    def test_the_learn_hotkey_without_dictionaries_says_what_they_need(self):
+        fixer = layout_fixer.Fixer(self.session, self.keyboard, None)
+        self.type(fixer, "fqnb")
+        with mock.patch.object(layout_fixer, "notify") as notify:
+            self.press_hotkey(fixer, "learn", keys.ENTER)
+        self.assertEqual(notify.call_args.args[0], "Словарь не работает")
+
     def test_automatic_fix_never_replaces_a_typo(self):
         fixer = self.fixer(automatic=True, typos=True)
         self.type(fixer, "helo ")
@@ -268,6 +311,12 @@ class SpellerTest(unittest.TestCase):
         self.assertEqual(speller.suggestions("превет")[0], "привет")  # hunspell alone puts it fifth
         self.assertEqual(speller.suggestions("привет"), [])
 
+    def test_the_users_most_typed_word_comes_first(self):
+        speller = self.speller()
+        second = speller.suggestions("превет")[1]
+        speller.used(second)
+        self.assertEqual(speller.suggestions("превет")[0], second)
+
     def test_a_learnt_word_is_known_at_once_and_after_a_restart(self):
         speller = self.speller()
         self.assertFalse(speller.knows("айтемы"))
@@ -287,7 +336,9 @@ class SpellerTest(unittest.TestCase):
         self.own_words = Path(folder.name) / "hypr-rice/words-ru.dic"
 
     def speller(self):
-        speller = layout_fixer.Speller("ru_RU", self.own_words, layout_fixer.frequent_words(layout_fixer.RUSSIAN_WORDS))
+        use = layout_fixer.WordUse(self.own_words.with_name("words-ru-used.json"))
+        speller = layout_fixer.Speller("ru_RU", self.own_words, use,
+                                       layout_fixer.frequent_words(layout_fixer.RUSSIAN_WORDS))
         self.addCleanup(self.stop, speller.process)
         return speller
 
@@ -297,6 +348,34 @@ class SpellerTest(unittest.TestCase):
         process.wait()
         process.stdin.close()
         process.stdout.close()
+
+
+class WordUseTest(unittest.TestCase):
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.path = Path(folder.name) / "hypr-rice/words-ru-used.json"
+
+    def test_counts_are_saved_and_read_back(self):
+        use = layout_fixer.WordUse(self.path)
+        use.add("прив")
+        use.add("прив")
+        use.save()
+        self.assertEqual(layout_fixer.WordUse(self.path).of("прив"), 2)
+
+    def test_a_count_is_not_written_at_every_word(self):
+        use = layout_fixer.WordUse(self.path)
+        use.add("прив")
+        self.assertFalse(self.path.exists())
+        a_minute_later = use.saved_at + layout_fixer.SAVE_USE_EVERY_S
+        with mock.patch.object(layout_fixer.time, "monotonic", return_value=a_minute_later):
+            use.add("прив")
+        self.assertEqual(layout_fixer.WordUse(self.path).of("прив"), 2)
+
+    def test_a_broken_file_reads_as_no_counts(self):
+        self.path.parent.mkdir()
+        self.path.write_text("[1, 2", encoding="utf-8")
+        self.assertEqual(layout_fixer.WordUse(self.path).of("прив"), 0)
 
 
 class LayoutKeysTest(unittest.TestCase):

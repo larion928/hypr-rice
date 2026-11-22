@@ -160,7 +160,7 @@ The settings window opens with Alt+F2, the gear on the bar or from the launcher.
 | Clipboard history (erased when switched off) | off |
 | Layout fix: Alt+Shift+Space types the last word again in the other layout (again: back), Alt+Ctrl+Space the selected text; needs the `input` group, the window offers to add it | off |
 | Automatic layout fix: a word in the wrong layout is fixed after the space by the dictionaries (Russian, English); not in fullscreen windows nor in the programs under `exclude` in `~/.config/hypr-rice/layout-fix.json` | off |
-| Typo fix, experimental: Alt+Shift+Space on a word that is in neither the Russian nor the English dictionary gives the other layout first, then the dictionary's suggestions (up to 5, the most frequent words first), then the word as typed; a word the dictionary did not know that is left after the key is learnt into `~/.config/hypr-rice/words-ru.dic` / `words-en.dic` (add your own there too; `word/model` declines like model: `горутина/машина`) | off |
+| Typo fix, experimental: Alt+Shift+Space on a word that is in neither the Russian nor the English dictionary gives the other layout first, then the dictionary's suggestions (up to 5: the words you type most first, then the language's most frequent), then the word as typed. For that the typed words the dictionary knows are counted in `~/.config/hypr-rice/words-ru-used.json` / `words-en-used.json` (a password gets there only if it is a dictionary word itself). Alt+Shift+Enter learns the last word into `~/.config/hypr-rice/words-ru.dic` / `words-en.dic`; a word the dictionary did not know that is left after Alt+Shift+Space is learnt by itself (add your own there too; `word/model` declines like model: `горутина/машина`) | off |
 | Scrolling windows, experimental: columns on an endless tape, as in niri; Alt+P is the column width, Alt+Shift+P fits the visible ones; three fingers move the tape, four the workspace | off |
 
 ## Games
@@ -261,6 +261,7 @@ The main modifier is Alt; the settings can switch it to Super. The full list: Al
 | Print, Shift+Print, Alt+Shift+Print, Alt+Shift+C | screenshots, text, colour picker (see Screenshots) |
 | Alt+Shift+O | restart the bar |
 | Alt+Shift+Space / Alt+Ctrl+Space | the last word / the selected text in the other layout (the "Исправление раскладки" feature); with "Исправление опечаток", the dictionary's suggestions for a misspelt word |
+| Alt+Shift+Enter | learn the last word into your own dictionary (with "Исправление опечаток" or "Автоисправление раскладки") |
 | Super+F12 | key passthrough for virtual machines (QEMU windows and others switch it on themselves) |
 
 ## Installer options

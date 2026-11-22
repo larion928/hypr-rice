@@ -141,6 +141,10 @@ bind("color_picker", key("SHIFT + C"),     hl.dsp.exec_cmd("~/.local/bin/shot co
 if on("layout-fix") then
     bind("layout_fix",           key("SHIFT + space"), hl.dsp.exec_cmd("~/.local/bin/layout-fix word"),      desc("Ввод | Последнее слово в другой раскладке (ещё раз — обратно)"))
     bind("layout_fix_selection", key("CTRL + space"),  hl.dsp.exec_cmd("~/.local/bin/layout-fix selection"), desc("Ввод | Выделенный текст в другой раскладке"))
+    -- The dictionary is there only with one of the features that read it.
+    if on("layout-typo") or on("layout-auto") then
+        bind("layout_learn", key("SHIFT + Return"), hl.dsp.exec_cmd("~/.local/bin/layout-fix learn"), desc("Ввод | Запомнить последнее слово в своём словаре"))
+    end
 end
 
 -------------

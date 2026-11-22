@@ -113,9 +113,12 @@ FEATURES = (
             default=False, needs=("hunspell", "hunspell-ru", "hunspell-en_us"), restarts="rice-layout-fixer.service"),
     Feature("layout-typo", "Ввод", "Исправление опечаток",
             "Alt+Shift+Пробел на слове, которого нет ни в русском, ни в английском словаре: первое нажатие — другая "
-            "раскладка, следующие — подсказки словаря, после последней — набранное слово. Незнакомое словарю "
-            "слово, оставленное после клавиши, запоминается в ~/.config/hypr-rice/words-ru.dic (words-en.dic), "
-            "туда можно вписать и свои. Работает вместе с исправлением раскладки",
+            "раскладка, следующие — подсказки словаря, после последней — набранное слово. Первыми идут слова, "
+            "которые ты сам печатаешь чаще всего: фиксер считает набранные слова, известные словарю, в "
+            "~/.config/hypr-rice/words-ru-used.json (words-en-used.json); пароль попадёт туда, только если он "
+            "сам словарное слово. Alt+Shift+Enter запоминает последнее слово в ~/.config/hypr-rice/words-ru.dic "
+            "(words-en.dic); незнакомое словарю слово, оставленное после Alt+Shift+Пробел, запоминается само. "
+            "Работает вместе с исправлением раскладки",
             default=False, needs=("hunspell", "hunspell-ru", "hunspell-en_us"), restarts="rice-layout-fixer.service",
             experimental=True),
 )
