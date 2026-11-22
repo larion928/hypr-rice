@@ -74,9 +74,9 @@ Scope {
 
     function switchOn(feature) {
         if (feature.missing.length) {
-            install.ask({ packages: feature.missing, title: feature.missing.join(", ") + " — " + feature.name,
-                          feature: feature.id, done: "Установлено, «" + feature.name + "» включена.",
-                          notice: "«" + feature.name + "» включена." });
+            install.ask({ packages: feature.missing, title: feature.name + " (" + feature.missing.join(", ") + ")",
+                          feature: feature.id, done: "Установлено, \"" + feature.name + "\" включена.",
+                          notice: "\"" + feature.name + "\" включена." });
         } else {
             turn(feature.id, "on");
         }

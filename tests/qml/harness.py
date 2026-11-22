@@ -125,7 +125,7 @@ elif sys.argv[1] == "grant":
 elif sys.argv[1] in ("on", "off"):
     feature = next(feature for feature in features if feature["id"] == sys.argv[2])
     if sys.argv[1] == "on" and feature["missing"]:
-        print("«" + feature["name"] + "» не включена: нужны пакеты " + " ".join(feature["missing"]), file=sys.stderr)
+        print('"' + feature["name"] + '" не включена: нужны пакеты ' + " ".join(feature["missing"]), file=sys.stderr)
         sys.exit(1)
     state[feature["id"]] = sys.argv[1] == "on"
     json.dump(state, open(state_file, "w"))
@@ -138,7 +138,7 @@ words = json.load(open(kept)) if os.path.exists(kept) else {"ru": ["горути
 if sys.argv[1] == "list":
     print(json.dumps(words, ensure_ascii=False))
 elif sys.argv[1] == "add" and sys.argv[2] == "привет":
-    print("«привет» словарь и так знает")
+    print('"привет" уже есть в обычном словаре')
     sys.exit(1)
 elif sys.argv[1] == "add":
     words["ru"].append(sys.argv[2])

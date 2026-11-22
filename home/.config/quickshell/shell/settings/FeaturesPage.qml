@@ -67,8 +67,8 @@ Item {
                                     visible: row.modelData.missing.length > 0
                                     width: parent.width
                                     wrapMode: Text.WordWrap
-                                    text: "Нужно установить: " + row.modelData.missing.join(", ")
-                                          + " — установка предложится при включении"
+                                    text: "Нужны пакеты: " + row.modelData.missing.join(", ")
+                                          + ". Их предложит установить при включении"
                                     font.family: Theme.bodyFont; font.pixelSize: 13
                                     color: Theme.warn
                                 }

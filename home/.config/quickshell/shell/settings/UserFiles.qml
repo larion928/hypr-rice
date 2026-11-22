@@ -79,7 +79,7 @@ Scope {
             if (themeEdit.edit.cursor === name) {
                 themeEdit.change("cursor", "");
             }
-            say("Курсор «" + name + "» удалён");
+            say("Курсор \"" + name + "\" удалён");
             themeEdit.readCursorThemes();
         });
     }
@@ -97,11 +97,11 @@ Scope {
         });
     }
     function addEngine(item) {
-        say("Перевожу «" + item.title + "» в mp4…");
+        say("Перевожу \"" + item.title + "\" в mp4…");
         run(["wallpaper-engine-add", item.id, themeEdit.ownWallpaperDir()], lines => {
             themeEdit.addWallpaper(lines[lines.length - 1]);
             engineAdded = engineAdded.concat([item.id]);
-            say("Добавлено «" + item.title + "»: сохрани тему, чтобы обои остались");
+            say("Добавлено \"" + item.title + "\": сохрани тему, чтобы обои остались");
         });
     }
 

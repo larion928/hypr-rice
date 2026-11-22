@@ -68,7 +68,7 @@ Item {
         anchors { left: picker.left; top: picker.bottom; topMargin: 64 }
         text: themeEdit.iconThemeNow().startsWith("Papirus")
               ? "Цвет папок" + (themeEdit.editing && !themeEdit.edit.folders ? "  · как в теме: " + (themeEdit.editing.own.folders || "стандартный") : "")
-              : "Цвет папок меняется только у тем значков Papirus (тема значков — в разделе «Значки»)"
+              : "Цвет папок меняется только у тем значков Papirus (тема значков выбирается в разделе \"Значки\")"
         font.family: Theme.bodyFont; font.pixelSize: 14; font.bold: true
         color: Theme.fg
     }

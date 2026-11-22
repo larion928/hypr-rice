@@ -25,7 +25,7 @@ Item {
 
         Text {
             x: 18; y: 14
-            text: "Расположение — перетащи экран мышкой"
+            text: "Расположение: перетащи экран мышкой"
             font.family: Theme.bodyFont; font.pixelSize: 14
             color: Theme.muted
         }

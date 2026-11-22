@@ -40,9 +40,9 @@ class OwnWordsTest(unittest.TestCase):
 
     def test_what_is_not_added_says_why(self):
         own_words.add("прив")
-        for entry, reason in (("привет", "и так знает"), ("прив", "уже в твоём словаре"),
-                              ("прив-lol", "не слово"), ("фича/ыыы", "словарю неизвестен"),
-                              ("фича/cat", "того же языка")):
+        for entry, reason in (("привет", "уже есть в обычном словаре"), ("прив", "уже есть в твоих словах"),
+                              ("прив-lol", "не подходит"), ("фича/ыыы", "Словарь не знает"),
+                              ("фича/cat", "на том же языке")):
             with self.subTest(entry=entry), self.assertRaisesRegex(own_words.Refused, reason):
                 own_words.add(entry)
         self.assertEqual(self.listed()["ru"], ["прив"])
@@ -52,7 +52,7 @@ class OwnWordsTest(unittest.TestCase):
         own_words.add("фича/свеча")
         own_words.remove("фича/свеча")
         self.assertEqual(self.listed()["ru"], ["прив"])
-        with self.assertRaisesRegex(own_words.Refused, "нет в твоём словаре"):
+        with self.assertRaisesRegex(own_words.Refused, "нет в твоих словах"):
             own_words.remove("фича")
 
     def listed(self):

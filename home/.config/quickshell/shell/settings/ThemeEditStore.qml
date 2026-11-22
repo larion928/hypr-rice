@@ -205,9 +205,9 @@ Scope {
         if (!isAnimated(path) || !wallpaperNeeds || install.item) {
             return;
         }
-        install.ask({ packages: [wallpaperNeeds], title: "mpvpaper — анимированные обои", source: "aur",
-                      done: "Установлено. Нажми «Поставить сейчас» на анимированных обоях, и они заиграют.",
-                      notice: "Alt+F2 → Тема → Обои: «Поставить сейчас» на анимированных обоях" });
+        install.ask({ packages: [wallpaperNeeds], title: "анимированные обои (mpvpaper)", source: "aur",
+                      done: "Установлено. Нажми \"Поставить сейчас\" на анимированных обоях, и они заиграют.",
+                      notice: "Alt+F2 → Тема → Обои: \"Поставить сейчас\" на анимированных обоях" });
     }
     // This theme's folder for wallpapers the user adds to it.
     function ownWallpaperDir() {

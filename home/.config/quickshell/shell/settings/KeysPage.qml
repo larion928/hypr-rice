@@ -65,7 +65,7 @@ Item {
                 width: keyList.width
                 wrapMode: Text.WordWrap
                 text: page.keys.globalRows().length
-                      ? "Программа сама выбрать клавишу не может (отсюда «среда рабочего стола не разрешила» в Discord): назначь её здесь. Подходят и кнопки мыши: колёсико, боковые."
+                      ? "Программа сама выбрать клавишу не может (отсюда \"среда рабочего стола не разрешила\" в Discord): назначь её здесь. Подходят и кнопки мыши: колёсико, боковые."
                       : "Пока ни одна программа не просила сочетание. Discord просит его, когда в его настройках назначаешь клавишу рации; запусти программу и открой это окно снова."
                 font.family: Theme.bodyFont; font.pixelSize: 13
                 color: Theme.muted
@@ -76,7 +76,7 @@ Item {
                     required property var modelData
                     keys: page.keys
                     width: keyList.width
-                    title: modelData.description + "  —  " + modelData.name.split(":")[0]
+                    title: modelData.description + "  ·  " + modelData.name.split(":")[0]
                     combo: modelData.keys
                     isDefault: true
                     emptyLabel: "не назначено"
@@ -94,7 +94,7 @@ Item {
                     required property int index
                     keys: page.keys
                     width: keyList.width
-                    title: (modelData.name || modelData.cmd) + "  —  " + modelData.cmd
+                    title: (modelData.name || modelData.cmd) + "  ·  " + modelData.cmd
                     combo: modelData.keys
                     isDefault: true
                     removable: true

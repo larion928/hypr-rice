@@ -117,7 +117,7 @@ class Settings(MenuTest):
     def test_keys(self):
         value = self.open("settings", "keys")
         self.sandbox.wait_for("settings", "keys.binds.length", 3)
-        self.assertEqual(value("keys.label('SUPER + SHIFT + mouse:275')"), "Super+Shift+Мышь «назад»")
+        self.assertEqual(value("keys.label('SUPER + SHIFT + mouse:275')"), 'Super+Shift+Мышь "назад"')
         self.assertEqual(value("keys.conflicts('ALT + R', 'close')"), "Лаунчер")
         self.assertEqual(value("keys.conflicts('SUPER + G', '')"), "GIMP")
         value("keys.setMainMod('SUPER')")
@@ -154,7 +154,7 @@ class OwnWords(MenuTest):
         value('ownWords.add("айти", () => {})')
         self.sandbox.wait_for("settings", "ownWords.ru", ["горутина/машина", "прив", "айти"])
         value('ownWords.add("привет", () => {})')
-        self.sandbox.wait_for("settings", "ownWords.message", "«привет» словарь и так знает")
+        self.sandbox.wait_for("settings", "ownWords.message", '"привет" уже есть в обычном словаре')
         self.sandbox.wait_for("settings", "ownWords.busy", False)
         value('ownWords.remove("прив")')
         self.sandbox.wait_for("settings", "ownWords.ru", ["горутина/машина", "айти"])
@@ -214,7 +214,7 @@ class Features(MenuTest):
         self.sandbox.wait_for("settings", "features.list.length", 5)
         self.sandbox.eval("settings", "features.turn('clipboard', 'on')")
         self.sandbox.wait_for("settings", "features.message",
-                              "«История буфера обмена» не включена: нужны пакеты cliphist wl-clipboard")
+                              '"История буфера обмена" не включена: нужны пакеты cliphist wl-clipboard')
 
     def test_missing_packages_are_installed_before_switching_on(self):
         value = self.open("settings", "features")
@@ -229,11 +229,11 @@ class Features(MenuTest):
         value("features.toggle(features.list[3])")
         value("features.install.start('secret')")  # one password for both packages
         self.sandbox.wait_for("settings", "features.install.phase", "done")
-        self.assertEqual(value("features.install.message"), "Установлено, «История буфера обмена» включена.")
+        self.assertEqual(value("features.install.message"), 'Установлено, "История буфера обмена" включена.')
         self.sandbox.wait_for("settings", "features.list[3].on", True)
         calls = self.sandbox.recorded()
         self.assertEqual([call for call in calls if call.startswith("rice-install-package")],
-                         ["rice-install-package --notice «История буфера обмена» включена. "
+                         ['rice-install-package --notice "История буфера обмена" включена. '
                           "--switch-on clipboard cliphist wl-clipboard"])
         self.assertEqual(calls.count("features.py on clipboard"), 1)
 

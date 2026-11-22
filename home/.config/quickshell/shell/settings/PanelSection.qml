@@ -120,8 +120,8 @@ Item {
     Text {
         id: panelHint
         anchors { left: parent.left; top: panelTop.bottom; topMargin: 14 }
-        text: "Перетаскивай модули: по панели — переставить, с панели вниз — убрать, из набора снизу на панель — добавить. "
-              + "Значки меняются во вкладке «Значки модулей» или нажатием на модуль."
+        text: "Перетаскивай модули: по панели, чтобы переставить, с панели вниз, чтобы убрать, из набора снизу на панель, "
+              + "чтобы добавить. Значки меняются во вкладке \"Значки модулей\" или нажатием на модуль."
               + (themeEdit.liveReading ? "   · обновляю данные панели…" : "")
         font.family: Theme.bodyFont; font.pixelSize: 13
         color: Theme.muted
@@ -204,12 +204,12 @@ Item {
     Text {
         id: hoveredName
         anchors { left: parent.left; top: mockBar.bottom; topMargin: 30 }
-        text: panelEditor.drag ? (panelEditor.target ? "Отпусти — встанет " + panelEditor.sideNames[panelEditor.target.side]
+        text: panelEditor.drag ? (panelEditor.target ? "Отпусти, и модуль встанет " + panelEditor.sideNames[panelEditor.target.side]
                                                       : panelEditor.drag.side ? "Отпусти здесь, чтобы убрать с панели" : "Тащи на панель")
               : panelEditor.hovered ? themeEdit.moduleName(panelEditor.hovered)
-                                      + (themeEdit.moduleNote(panelEditor.hovered) ? " — " + themeEdit.moduleNote(panelEditor.hovered) : "")
-                                      + (themeEdit.iconEditable(panelEditor.hovered) ? " · нажми — сменить значок, тащи — переставить"
-                                                                                     : " · тащи — переставить; значок не меняется")
+                                      + (themeEdit.moduleNote(panelEditor.hovered) ? ": " + themeEdit.moduleNote(panelEditor.hovered) : "")
+                                      + (themeEdit.iconEditable(panelEditor.hovered) ? " · нажми, чтобы сменить значок, тащи, чтобы переставить"
+                                                                                     : " · тащи, чтобы переставить, значок не меняется")
               : " "
         font.family: Theme.bodyFont; font.pixelSize: 14
         color: panelEditor.drag && panelEditor.drag.side && !panelEditor.target ? Theme.crit : Theme.fg

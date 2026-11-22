@@ -64,71 +64,72 @@ FEATURES = (
     Feature("animations", "Анимации", "Анимации окон",
             "Окна, рабочие столы и меню появляются и исчезают плавно", hyprland=True),
     Feature("shot-animation", "Анимации", "Анимация скриншота",
-            "Эффект темы после снимка; без неё снимок сохраняется и экран сразу свободен"),
-    Feature("shutter-sound", "Звук", "Звук затвора", "Щелчок темы, когда сделан скриншот"),
+            "После скриншота играет анимация темы. Без неё экраном можно пользоваться сразу"),
+    Feature("shutter-sound", "Звук", "Звук затвора", "Щелчок при скриншоте, у каждой темы свой"),
     # tesseract is in base.txt: a feature on by default has to find its packages installed.
     Feature("ocr", "Скриншоты", "Распознавание текста",
-            "Alt+Shift+Print — выделить область, её текст (русский и английский) копируется в буфер",
+            "Alt+Shift+Print: выдели область, и текст из неё (русский или английский) скопируется в буфер",
             needs=("tesseract", "tesseract-data-rus", "tesseract-data-eng")),
     Feature("color-picker", "Скриншоты", "Пипетка",
-            "Alt+Shift+C — лупа над экраном, клик копирует цвет точки как #rrggbb"),
+            "Alt+Shift+C: появляется лупа, клик копирует цвет точки в виде #rrggbb"),
     Feature("gestures", "Ввод", "Свайп тремя пальцами",
-            "На тачпаде: три пальца влево или вправо — соседний рабочий стол; с прокруткой окон три пальца "
-            "двигают ленту, а рабочий стол — четыре", hyprland=True),
+            "Три пальца влево или вправо на тачпаде переключают рабочий стол. С прокруткой окон три пальца "
+            "двигают ленту, а стол переключают четыре", hyprland=True),
     Feature("scrolling", "Окна", "Прокрутка окон",
-            "Окна встают колонками в бесконечную ленту, как в niri; Alt+P — ширина колонки, Alt+Shift+P — "
-            "уместить видимые колонки на экране",
+            "Окна выстраиваются колонками в бесконечную ленту, как в niri. Alt+P меняет ширину колонки, "
+            "Alt+Shift+P умещает видимые колонки на экран",
             default=False, hyprland=True, experimental=True),
     Feature("menu-blur", "Внешний вид", "Размытие под меню",
-            "Фон под лаунчером, уведомлениями и другими меню размыт; без него легче видеокарте",
+            "Фон под лаунчером, уведомлениями и другими меню размыт. Без размытия меньше нагрузка на видеокарту",
             hyprland=True),
     Feature("wallpaper-pause", "Обои", "Пауза анимированных обоев",
-            "Обои замирают, пока их целиком закрывают полноэкранные окна: меньше нагрузка в играх и видео",
+            "Обои замирают, когда их целиком закрывает окно на весь экран. Меньше нагрузка в играх и при "
+            "просмотре видео",
             hyprland=True),
     Feature("daily-check", "Система", "Ежедневная проверка системы",
-            "rice doctor раз в день; о найденном приходит уведомление", unit="rice-doctor.timer"),
+            "Раз в день проверяет систему (rice doctor) и присылает уведомление, если что-то нашла",
+            unit="rice-doctor.timer"),
     # The unit is wanted by hyprland-session.target, which Hyprland 0.57+ starts itself (not under uwsm).
     Feature("clipboard", "Ввод", "История буфера обмена",
-            "Alt+Shift+V — последние 100 скопированных записей, до 100 МБ; при выключении история стирается",
+            "Alt+Shift+V: последние 100 скопированных записей (до 100 МБ). Если выключить, история удалится",
             default=False, unit="rice-clipboard.service", needs=("cliphist",), forget=("cliphist", "wipe")),
     # udiskie is in base.txt: a feature on by default has to find its package installed. Under
     # hyprland-session.target like the clipboard history.
     Feature("automount", "Устройства", "Автомонтирование USB-дисков",
-            "Флешки и карты памяти подключаются сами; пока диск вставлен, его значок в трее панели "
-            "(Тема → Панель → Трей); извлечь — из значка или в Thunar", unit="rice-udiskie.service", needs=("udiskie",)),
+            "Флешки и карты памяти подключаются сами. Пока диск вставлен, на панели виден его значок "
+            "(Тема → Панель → Трей). Извлечь можно через значок или в Thunar",
+            unit="rice-udiskie.service", needs=("udiskie",)),
     Feature("automount-notify", "Устройства", "Уведомления о дисках",
-            "Уведомление, когда диск смонтирован (с кнопкой «Открыть») или отмонтирован; работает вместе с "
+            'Уведомление, когда диск подключён (с кнопкой "Открыть") и когда отключён. Работает только вместе с '
             "автомонтированием",
             default=False, restarts="rice-udiskie.service"),
     # The phone finds the computer on ports 1714-1764 (KDE Connect's ufw profile). zenity is the window that
     # picks the files to send.
     Feature("kdeconnect", "Устройства", "Телефон (KDE Connect)",
-            "Батарея телефона на панели (Тема → Панель → Телефон) и меню по клику: найти телефон, отправить файлы и "
-            "буфер обмена, открыть файлы телефона; в Thunar — «Отправить через KDE Connect»",
+            "Заряд телефона на панели (Тема → Панель → Телефон), по клику меню: найти телефон, отправить файлы и "
+            'буфер обмена, открыть файлы телефона. В Thunar появится пункт "Отправить через KDE Connect"',
             default=False, unit="rice-kdeconnect.service", needs=("kdeconnect", "sshfs", "python-gobject", "zenity"),
             ports=("1714:1764/tcp", "1714:1764/udp")),
     # Reads the keyboards (/dev/input) and types through its own virtual one (/dev/uinput): both need the input
     # group, with which any program of the user could read the keys too, so it is asked for, never assumed.
     Feature("layout-fix", "Ввод", "Исправление раскладки",
-            "Alt+Shift+Пробел — последнее слово перепечатывается в другой раскладке, ещё раз — обратно; "
-            "Alt+Ctrl+Пробел — выделенный текст. Нажатия не записываются: в памяти только текущее слово",
+            "Alt+Shift+Пробел перепечатывает последнее слово в другой раскладке, повторное нажатие возвращает как "
+            "было. Alt+Ctrl+Пробел делает то же с выделенным текстом. Нажатия никуда не записываются, в памяти "
+            "только текущее слово",
             default=False, hyprland=True, unit="rice-layout-fixer.service", groups=("input",),
             caution=TYPES_KEYS_CAUTION),
     Feature("layout-auto", "Ввод", "Автоисправление раскладки",
-            "Слово, набранное не в той раскладке, исправляется само после пробела, если в другой раскладке это "
-            "слово (словари русский и английский); отменить — Alt+Shift+Пробел. Не срабатывает в полноэкранных "
-            "окнах; работает вместе с исправлением раскладки",
+            "Если слово набрано не в той раскладке, после пробела оно исправится само. Отменить: Alt+Shift+Пробел. "
+            "В окнах на весь экран не срабатывает. Работает только вместе с исправлением раскладки",
             default=False, needs=("hunspell", "hunspell-ru", "hunspell-en_us"), restarts="rice-layout-fixer.service",
             caution=TYPES_KEYS_CAUTION),
     Feature("layout-typo", "Ввод", "Исправление опечаток",
-            "Alt+Shift+Пробел на слове, которого нет ни в русском, ни в английском словаре: первое нажатие — другая "
-            "раскладка, следующие — подсказки словаря, после последней — набранное слово. Первыми идут слова, "
-            "которые ты сам печатаешь чаще всего: фиксер считает набранные слова, известные словарю, в "
-            "~/.config/hypr-rice/words-ru-used.json (words-en-used.json); пароль попадёт туда, только если он "
-            "сам словарное слово. Alt+Shift+Enter запоминает последнее слово в ~/.config/hypr-rice/words-ru.dic "
-            "(words-en.dic), незнакомое словарю слово, оставленное после Alt+Shift+Пробел, запоминается само; "
-            "список своих слов — на вкладке «Словарь». "
-            "Работает вместе с исправлением раскладки",
+            "Alt+Shift+Пробел на слове с опечаткой: первое нажатие меняет раскладку, следующие перебирают подсказки, "
+            "после последней возвращается набранное. Первыми идут слова, которые ты печатаешь чаще: для этого "
+            "считается, какие слова из словаря ты набираешь (в ~/.config/hypr-rice; пароль попадёт туда, только "
+            "если это обычное слово). Alt+Shift+Enter добавляет последнее слово в твои слова, а незнакомое слово, "
+            "оставленное после перебора, добавляется само. Список на вкладке Словарь. Работает только вместе "
+            "с исправлением раскладки",
             default=False, needs=("hunspell", "hunspell-ru", "hunspell-en_us"), restarts="rice-layout-fixer.service",
             experimental=True, caution=TYPES_KEYS_CAUTION),
 )
@@ -137,7 +138,7 @@ BY_ID = {feature.id: feature for feature in FEATURES}
 
 def feature(feature_id):
     if feature_id not in BY_ID:
-        raise ValueError(f"нет такой функции: {feature_id} (rice features — список)")
+        raise ValueError(f"нет такой функции: {feature_id} (список: rice features)")
     return BY_ID[feature_id]
 
 
@@ -185,7 +186,7 @@ def switch(feature_id, on):
     item = feature(feature_id)
     missing = missing_packages(item) if on else []
     if missing:
-        raise ValueError(f"«{item.name}» не включена: нужны пакеты {' '.join(missing)}")
+        raise ValueError(f'"{item.name}" не включена: нужны пакеты {" ".join(missing)}')
     current = state()
     current[item.id] = on
     save(current)
@@ -196,10 +197,10 @@ def switch(feature_id, on):
     if not on and item.forget:
         forget(item)
     if on and closed_ports(item):
-        print(f"ufw не пропускает {' '.join(closed_ports(item))}: открыть — rice features grant {item.id}")
+        print(f"ufw не пропускает {' '.join(closed_ports(item))}, открыть: rice features grant {item.id}")
     if on and missing_groups(item):
         groups = " ".join(missing_groups(item))
-        print(f"нужна группа {groups}: добавить — rice features grant {item.id}, затем перезайти")
+        print(f"нужна группа {groups}, добавить: rice features grant {item.id}, затем перезайти")
 
 
 def ufw_enabled():

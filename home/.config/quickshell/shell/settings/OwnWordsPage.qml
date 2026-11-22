@@ -29,9 +29,10 @@ Item {
         Text {
             width: parent.width
             wrapMode: Text.WordWrap
-            text: "Слова, которые исправление опечаток и автоисправление раскладки знают сверх словаря. "
-                  + "Alt+Shift+Enter запоминает последнее набранное слово. «слово/образец» склоняется как образец: "
-                  + "горутина/машина — «горутины», «горутиной»."
+            text: "Твои слова, которых нет в обычном словаре: сленг, термины, имена. Их знают исправление опечаток "
+                  + "и автоисправление раскладки. Добавить слово можно здесь или клавишами Alt+Shift+Enter сразу "
+                  + "после него. Чтобы слово склонялось, допиши через косую черту похожее: горутина/машина даст "
+                  + "\"горутины\" и \"горутиной\""
             font.family: Theme.bodyFont; font.pixelSize: 14
             color: Theme.muted
         }
@@ -40,7 +41,7 @@ Item {
             Field {
                 id: field
                 width: 420
-                placeholder: "слово или слово/образец, Enter — добавить"
+                placeholder: "Новое слово, например айти или горутина/машина"
                 onAccepted: page.add()
             }
             IconButton {
@@ -70,7 +71,7 @@ Item {
                 Text {
                     anchors { top: title.bottom; topMargin: 6 }
                     visible: language.modelData[1].length === 0
-                    text: "Пока пусто"
+                    text: "Пока нет своих слов"
                     font.family: Theme.bodyFont; font.pixelSize: 14
                     color: Theme.muted
                 }

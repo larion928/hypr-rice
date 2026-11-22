@@ -51,7 +51,7 @@ Rectangle {
         id: pickerStatus
         anchors { left: parent.left; top: pickerTop.bottom; topMargin: 10 }
         text: !themeEdit.allIcons.length ? "загружаю значки шрифта…"
-              : picker.foundIcons.length + " значков · нажми, чтобы выбрать, двойной щелчок — сразу применить"
+              : picker.foundIcons.length + " значков · нажми, чтобы выбрать, двойной щелчок сразу применяет"
                 + (picker.hovered ? " · " + picker.hovered : "")
                 + (["pulseaudio", "temperature", "backlight", "battery"].includes(themeEdit.iconFor)
                    ? " · у этого модуля значок меняется по уровню, свой будет один на все уровни" : "")

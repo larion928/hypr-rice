@@ -285,7 +285,7 @@ class FixerTest(unittest.TestCase):
         self.type(fixer, "fqnb")
         with mock.patch.object(layout_fixer, "notify") as notify:
             self.press_hotkey(fixer, "learn", keys.ENTER)
-        self.assertEqual(notify.call_args.args[0], "Словарь не работает")
+        self.assertEqual(notify.call_args.args[0], "Словарь выключен")
 
     def test_automatic_fix_never_replaces_a_typo(self):
         fixer = self.fixer(automatic=True, typos=True)

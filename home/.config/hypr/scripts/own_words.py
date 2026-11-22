@@ -49,9 +49,10 @@ def known(layout, word):
         result = subprocess.run(["hunspell", "-l", "-i", "utf-8", "-d", DICTIONARIES[layout]], input=word,
                                 capture_output=True, text=True)
     except FileNotFoundError:
-        raise Refused("нет hunspell: его ставит «Исправление опечаток» (Функции)")
+        raise Refused('Не установлен hunspell. Он поставится, когда включишь "Исправление опечаток" в Функциях')
     if result.returncode != 0:
-        raise Refused(f"нет словаря {DICTIONARIES[layout]}: его ставит «Исправление опечаток» (Функции)")
+        raise Refused(f'Не установлен словарь {DICTIONARIES[layout]}. Он поставится, когда включишь "Исправление '
+                      f'опечаток" в Функциях')
     return not result.stdout.strip()
 
 
@@ -59,17 +60,16 @@ def add(entry):
     word, _, model = entry.strip().lower().partition("/")
     layout = next((layout for layout, letters in ALPHABETS.items() if re.fullmatch(letters, word)), None)
     if layout is None:
-        raise Refused(f"«{word}» не слово: нужны только русские или только английские буквы, можно через дефис")
+        raise Refused(f'"{word}" не подходит: нужны только русские или только английские буквы, дефис можно')
     if model and not re.fullmatch(ALPHABETS[layout], model):
-        raise Refused(f"образец «{model}» должен быть словом того же языка, что и «{word}»")
+        raise Refused(f'Образец "{model}" должен быть на том же языке, что и "{word}"')
     if model and not known(layout, model):
-        raise Refused(f"образец «{model}» словарю неизвестен: возьми слово, которое он знает и которое "
-                      f"склоняется так же")
+        raise Refused(f'Словарь не знает "{model}". Возьми обычное слово, которое склоняется так же')
     if known(layout, word):
-        raise Refused(f"«{word}» словарь и так знает")
+        raise Refused(f'"{word}" уже есть в обычном словаре')
     have = lines(layout)
     if any(line.partition("/")[0] == word for line in have):
-        raise Refused(f"«{word}» уже в твоём словаре")
+        raise Refused(f'"{word}" уже есть в твоих словах')
     write(layout, have + [f"{word}/{model}" if model else word])
 
 
@@ -79,7 +79,7 @@ def remove(line):
         if line in have:
             write(layout, [kept for kept in have if kept != line])
             return
-    raise Refused(f"«{line}» нет в твоём словаре")
+    raise Refused(f'"{line}" нет в твоих словах')
 
 
 def main(args):

@@ -22,7 +22,7 @@ Rectangle {
         Chip { text: "← Темы"; onClicked: themeEdit.editing = null }
         SectionTitle {
             anchors.verticalCenter: parent.verticalCenter
-            text: themeEdit.editing ? "Тема «" + themeEdit.editing.pal.label + "»" : ""
+            text: themeEdit.editing ? "Тема \"" + themeEdit.editing.pal.label + "\"" : ""
         }
     }
     Row {

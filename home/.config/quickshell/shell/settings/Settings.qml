@@ -152,7 +152,7 @@ OverlayPanel {
         }
         Text {
             anchors { right: parent.right; rightMargin: 32; verticalCenter: header.verticalCenter }
-            text: "Esc — закрыть"
+            text: "Esc закрыть"
             font.family: Theme.bodyFont; font.pixelSize: 14
             color: Theme.muted
         }
@@ -194,7 +194,7 @@ OverlayPanel {
             Text {
                 id: captureText
                 anchors.centerIn: parent
-                text: "Нажми сочетание или кнопку мыши (колёсико, боковые) · Esc — отмена"
+                text: "Нажми сочетание или кнопку мыши (колёсико, боковые) · Esc отмена"
                 font.family: Theme.bodyFont; font.pixelSize: 16
                 color: Theme.fg
             }

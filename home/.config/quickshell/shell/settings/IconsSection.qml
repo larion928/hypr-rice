@@ -99,7 +99,7 @@ Item {
     Text {
         id: batteryNote
         anchors { left: batteryTitle.left; top: batteryTitle.bottom; topMargin: 4 }
-        text: "у любой темы, в цветах этой; анимация — та, что у рисунка"
+        text: "у любой темы, в цветах этой, с анимацией рисунка"
         font.family: Theme.bodyFont; font.pixelSize: 13
         color: Theme.muted
     }

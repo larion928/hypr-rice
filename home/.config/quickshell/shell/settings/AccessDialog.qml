@@ -35,7 +35,7 @@ Rectangle {
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
             spacing: 12
             SectionTitle {
-                text: dialog.feature ? "Разрешения — «" + dialog.feature.name + "»" : ""
+                text: dialog.feature ? "Разрешения для \"" + dialog.feature.name + "\"" : ""
             }
             Text {
                 width: parent.width

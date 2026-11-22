@@ -42,7 +42,7 @@ Item {
         spacing: 10
         SectionTitle {
             anchors.verticalCenter: parent.verticalCenter
-            text: page.chosen ? "«" + page.chosen.pal.label + "»" : ""
+            text: page.chosen ? "\"" + page.chosen.pal.label + "\"" : ""
             font.pixelSize: 16
             font.bold: false
         }

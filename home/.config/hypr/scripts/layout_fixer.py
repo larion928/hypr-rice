@@ -460,8 +460,7 @@ class Fixer:
     def learn_last_word(self):
         """The dictionary's hotkey: the last word, as typed, is the user's; a notification says what came of it."""
         if not self.spellers:
-            notify("Словарь не работает", "Он нужен исправлению опечаток или автоисправлению раскладки: "
-                                          "Alt+F2 → Функции")
+            notify("Словарь выключен", "Включи исправление опечаток или автоисправление раскладки: Alt+F2 → Функции")
             return
         layout = self.session.layout()
         word = word_of(layout, self.strokes.tail())
@@ -471,7 +470,7 @@ class Fixer:
             notify("Уже в словаре", word)
         else:
             self.spellers[layout].learn(word)
-            notify("Запомнено", word + " (список: Alt+F2 → Словарь)")
+            notify("Запомнено", f'"{word}" теперь в твоих словах (Alt+F2 → Словарь)')
 
     def put(self, shown, layout, strokes):
         """Erases the shown strokes and types strokes in layout; the buffer holds them instead."""

@@ -122,7 +122,7 @@ Scope {
         }
         const names = { "return": "Enter", "print": "PrtSc", "space": "Space", "tab": "Tab",
                         "left": "←", "right": "→", "up": "↑", "down": "↓", "prior": "PgUp", "next": "PgDn",
-                        "mouse:274": "Колёсико", "mouse:275": "Мышь «назад»", "mouse:276": "Мышь «вперёд»" };
+                        "mouse:274": "Колёсико", "mouse:275": "Мышь \"назад\"", "mouse:276": "Мышь \"вперёд\"" };
         const modifiers = { SUPER: "Super", ALT: "Alt", CTRL: "Ctrl", CONTROL: "Ctrl", SHIFT: "Shift" };
         return s.split("+").map(x => x.trim())
             .map(x => modifiers[x.toUpperCase()] || names[x.toLowerCase()] || (x.length === 1 ? x.toUpperCase() : x))

@@ -22,7 +22,7 @@ Rectangle {
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
             spacing: 12
             SectionTitle {
-                text: dialog.feature ? "Включить «" + dialog.feature.name + "»?" : ""
+                text: dialog.feature ? "Включить \"" + dialog.feature.name + "\"?" : ""
             }
             Text {
                 width: parent.width
@@ -34,8 +34,8 @@ Rectangle {
             Text {
                 width: parent.width
                 wrapMode: Text.WordWrap
-                text: dialog.feature ? "Выключить: здесь, в Функциях (мышью: шестерёнка на панели), или в терминале "
-                                       + "rice features off " + dialog.feature.id : ""
+                text: dialog.feature ? "Выключить можно здесь, во вкладке Функции (мышью через шестерёнку на панели), "
+                                       + "или командой rice features off " + dialog.feature.id : ""
                 font.family: Theme.bodyFont; font.pixelSize: 13
                 color: Theme.muted
             }
