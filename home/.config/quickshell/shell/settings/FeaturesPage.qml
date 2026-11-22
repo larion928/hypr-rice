@@ -98,4 +98,5 @@ Item {
 
     InstallDialog { install: page.features.install; anchors.fill: parent; z: 30; visible: install.item !== null }
     AccessDialog { features: page.features; anchors.fill: parent; z: 30; visible: features.asking !== null }
+    CautionDialog { features: page.features; anchors.fill: parent; z: 30; visible: features.cautioning !== null }
 }

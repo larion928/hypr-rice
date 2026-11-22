@@ -9,23 +9,41 @@ import qs.common
 // on in the background). A feature whose packages are missing is switched on only once they are installed: all of
 // them with one sudo password, and the installer switches it on itself, even if the dialog was closed meanwhile
 // (PackageInstall). A feature that needs what the system does not allow yet (ports ufw keeps closed, a group the
-// user is not in) asks first whether to allow it (`asking`, AccessDialog).
+// user is not in) asks first whether to allow it (`asking`, AccessDialog). One that may get in the way when it goes
+// wrong (its caution) is switched on only once that warning is accepted (`cautioning`, CautionDialog).
 Scope {
     id: features
 
-    // [{id, group, name, about, on, needs, missing, experimental, closedPorts, missingGroups}] in display order
+    // [{id, group, name, about, on, needs, missing, experimental, closedPorts, missingGroups, caution}] in display order
     property var list: []
     readonly property var groups: [...new Set(list.map(feature => feature.group))]
     property string message: ""    // what features.py said about the last switch: why it was refused
     readonly property bool busy: runner.running || listProc.running  // a switch now would act on an old list
     readonly property alias install: install
     property var asking: null               // the feature asking for ports or groups, while the dialog is up
+    property var cautioning: null           // the feature whose warning is up, before it is switched on
     readonly property bool granting: grantRunner.running
 
     function toggle(feature) {
         if (feature.on) {
             turn(feature.id, "off");
-        } else if (feature.closedPorts.length || feature.missingGroups.length) {
+        } else if (feature.caution) {
+            cautioning = feature;
+        } else {
+            switchOnAllowed(feature);
+        }
+    }
+
+    // The warning's «Включить».
+    function acceptCaution() {
+        const feature = cautioning;
+        cautioning = null;
+        switchOnAllowed(feature);
+    }
+
+    // What the system must allow is asked about first.
+    function switchOnAllowed(feature) {
+        if (feature.closedPorts.length || feature.missingGroups.length) {
             asking = feature;
         } else {
             switchOn(feature);

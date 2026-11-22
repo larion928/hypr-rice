@@ -140,8 +140,16 @@ class Settings(MenuTest):
 
 @unittest.skipUnless(resident(), "the per-panel menus have no features page")
 class OwnWords(MenuTest):
-    def test_words_listed_added_refused_and_taken_out(self):
+    def test_without_a_feature_reading_them_the_tab_is_not_there(self):
         value = self.open("settings", "words")
+        self.assertEqual(value("menu.page"), "features")
+        self.assertFalse(value("menu.wordsShown"))
+
+    def test_words_listed_added_refused_and_taken_out(self):
+        state = self.sandbox.home / ".config/hypr-rice/features.json"
+        state.write_text('{"layout-typo": true}')
+        value = self.open("settings", "words")
+        self.assertEqual(value("menu.page"), "words")
         self.sandbox.wait_for("settings", "ownWords.ru.length", 2)
         value('ownWords.add("айти", () => {})')
         self.sandbox.wait_for("settings", "ownWords.ru", ["горутина/машина", "прив", "айти"])
@@ -166,6 +174,21 @@ class Features(MenuTest):
         self.sandbox.wait_for("settings", "features.list[2].on", True)
         switches = [call for call in self.sandbox.recorded() if call.startswith(("features.py on", "features.py off"))]
         self.assertEqual(switches, ["features.py off animations", "features.py on daily-check"])
+
+    def test_a_feature_with_a_caution_is_switched_on_only_once_it_is_accepted(self):
+        value = self.open("settings", "features")
+        self.sandbox.wait_for("settings", "features.list.length", 5)
+        value("features.toggle(features.list[1])")
+        self.sandbox.wait_for("settings", "features.list[1].on", False)
+        self.sandbox.wait_for("settings", "features.busy", False)
+        value("features.toggle(features.list[1])")
+        self.assertEqual(value("features.cautioning.id"), "shot-animation")
+        self.sandbox.key("settings", KEY["Escape"])
+        self.assertIsNone(value("features.cautioning"))
+        self.assertFalse(value("features.list[1].on"))
+        value("features.toggle(features.list[1])")
+        value("features.acceptCaution()")
+        self.sandbox.wait_for("settings", "features.list[1].on", True)
 
     def test_what_the_system_must_allow_is_asked_about_before_switching_on(self):
         value = self.open("settings", "features")

@@ -7,7 +7,8 @@
 //             fonts, colours, wallpapers, panel, icons, cursor, windows, kept in ~/.config/hypr-rice/theme-edits.json.
 //   features  Функции: the rice's features switched on and off by features.py, which keeps them in
 //             ~/.config/hypr-rice/features.json (FeaturesModel); missing packages are installed first.
-//   words     Словарь: the user's own words for the layout fixer's dictionaries (OwnWordsModel, own_words.py).
+//   words     Словарь: the user's own words for the layout fixer's dictionaries (OwnWordsModel, own_words.py);
+//             there only while a feature that reads them is on (another page is shown when it goes off).
 // Quick switching is the theme picker's (Alt+Shift+T).
 import QtQuick
 import qs.common
@@ -18,6 +19,8 @@ OverlayPanel {
 
     readonly property var startAt: (argument || "monitors").split(":")
     property string page: startAt[0]
+    readonly property bool wordsShown: Features.on("layout-typo") || Features.on("layout-auto")
+    onWordsShownChanged: leaveHiddenPage()
     readonly property alias mon: mon
     readonly property alias keys: keys
     readonly property alias themeEdit: themeEdit
@@ -43,6 +46,8 @@ OverlayPanel {
             themeEdit.install.dismiss();
         } else if (features.install.item) {
             features.install.dismiss();
+        } else if (features.cautioning) {
+            features.cautioning = null;
         } else if (features.asking && !features.granting) {
             features.asking = null;
         } else if (themeEdit.iconFor) {
@@ -90,6 +95,12 @@ OverlayPanel {
     Component.onCompleted: {
         ThemeList.refresh();
         openAsked();
+        leaveHiddenPage();
+    }
+    function leaveHiddenPage() {
+        if (page === "words" && !wordsShown) {
+            page = "features";
+        }
     }
     Connections {
         target: ThemeList
@@ -128,7 +139,8 @@ OverlayPanel {
             }
             Item { width: 24; height: 1 }
             Repeater {
-                model: [["monitors", "Мониторы"], ["keys", "Клавиши"], ["theme", "Тема"], ["features", "Функции"], ["words", "Словарь"]]
+                model: [["monitors", "Мониторы"], ["keys", "Клавиши"], ["theme", "Тема"], ["features", "Функции"]]
+                       .concat(menu.wordsShown ? [["words", "Словарь"]] : [])
                 TabButton {
                     required property var modelData
                     text: modelData[1]

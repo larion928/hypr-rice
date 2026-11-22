@@ -143,7 +143,8 @@ The settings window opens with Alt+F2, the gear on the bar or from the launcher.
   live in `~/.config/hypr/binds-user.lua`.
 - **Theme.** Every theme, editing a theme (see Themes), import, copy, export, reset, delete.
 - **Features.** Parts of the rice that can be switched off. When a feature needs a package, the window
-  offers to install it. The same from a terminal: `rice features`.
+  offers to install it. The input and experimental features are switched on after a warning that they may
+  get in the way, and how to switch them off. The same from a terminal: `rice features`.
 
 | Feature | Default |
 |---|---|
@@ -163,7 +164,7 @@ The settings window opens with Alt+F2, the gear on the bar or from the launcher.
 | Typo fix, experimental: Alt+Shift+Space on a word that is in neither the Russian nor the English dictionary gives the other layout first, then the dictionary's suggestions (up to 5: the words you type most first, then the language's most frequent), then the word as typed. For that the typed words the dictionary knows are counted in `~/.config/hypr-rice/words-ru-used.json` / `words-en-used.json` (a password gets there only if it is a dictionary word itself). Alt+Shift+Enter learns the last word into `~/.config/hypr-rice/words-ru.dic` / `words-en.dic`; a word the dictionary did not know that is left after Alt+Shift+Space is learnt by itself (add your own there too; `word/model` declines like model: `горутина/машина`) | off |
 | Scrolling windows, experimental: columns on an endless tape, as in niri; Alt+P is the column width, Alt+Shift+P fits the visible ones; three fingers move the tape, four the workspace | off |
 
-- **Dictionary.** Your own words, which the typo fix and the automatic layout fix know besides the
+- **Dictionary** (while the typo fix or the automatic layout fix is on). Your own words, which the typo fix and the automatic layout fix know besides the
   dictionary: add one (`word` or `word/model`), remove one. Alt+Shift+Enter adds there too. Kept in
   `~/.config/hypr-rice/words-ru.dic` and `words-en.dic`.
 

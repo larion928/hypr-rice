@@ -35,15 +35,6 @@ Item {
             font.family: Theme.bodyFont; font.pixelSize: 14
             color: Theme.muted
         }
-        Text {
-            visible: !Features.on("layout-typo") && !Features.on("layout-auto")
-            width: parent.width
-            wrapMode: Text.WordWrap
-            text: "Сейчас словарь не читает никто: он нужен «Исправлению опечаток» или «Автоисправлению раскладки» "
-                  + "(Функции)"
-            font.family: Theme.bodyFont; font.pixelSize: 14
-            color: Theme.warn
-        }
         Row {
             spacing: 10
             Field {

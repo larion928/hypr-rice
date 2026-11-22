@@ -118,7 +118,7 @@ class FeaturesCommandTest(unittest.TestCase):
         listed = json.loads(result.stdout)
         self.assertEqual([item["id"] for item in listed], [item.id for item in features.FEATURES])
         self.assertEqual(set(listed[0]), {"id", "group", "name", "about", "on", "needs", "missing", "experimental",
-                                             "closedPorts", "missingGroups"})
+                                             "closedPorts", "missingGroups", "caution"})
 
 
 class MissingPackageTest(unittest.TestCase):

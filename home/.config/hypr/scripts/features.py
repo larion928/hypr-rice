@@ -37,7 +37,8 @@ class Feature:
     is switched (only if it runs). experimental: still being tried out; the settings window says so. ports: what
     it has to receive from the network ("1714:1764/tcp"); groups: the system groups the user must be in ("input"
     to read the keyboard). While ufw closes a port or the user is not in a group, switching it on offers to allow
-    them under one password (grant)."""
+    them under one password (grant). caution: what the settings window warns about before switching it on; an
+    experimental feature without one gets EXPERIMENTAL_CAUTION."""
     id: str
     group: str
     name: str
@@ -51,7 +52,13 @@ class Feature:
     experimental: bool = False
     ports: tuple = ()
     groups: tuple = ()
+    caution: str = ""
 
+
+# The input features type keys themselves: going wrong, they get in the way of everything typed.
+TYPES_KEYS_CAUTION = ("Функция может работать плохо и мешать работе за компьютером. Если начнутся проблемы с вводом "
+                      "или команды станут срабатывать сами, выключи её.")
+EXPERIMENTAL_CAUTION = "Функция экспериментальная и может работать плохо. Если начнутся проблемы, выключи её."
 
 FEATURES = (
     Feature("animations", "Анимации", "Анимации окон",
@@ -105,12 +112,14 @@ FEATURES = (
     Feature("layout-fix", "Ввод", "Исправление раскладки",
             "Alt+Shift+Пробел — последнее слово перепечатывается в другой раскладке, ещё раз — обратно; "
             "Alt+Ctrl+Пробел — выделенный текст. Нажатия не записываются: в памяти только текущее слово",
-            default=False, hyprland=True, unit="rice-layout-fixer.service", groups=("input",)),
+            default=False, hyprland=True, unit="rice-layout-fixer.service", groups=("input",),
+            caution=TYPES_KEYS_CAUTION),
     Feature("layout-auto", "Ввод", "Автоисправление раскладки",
             "Слово, набранное не в той раскладке, исправляется само после пробела, если в другой раскладке это "
             "слово (словари русский и английский); отменить — Alt+Shift+Пробел. Не срабатывает в полноэкранных "
             "окнах; работает вместе с исправлением раскладки",
-            default=False, needs=("hunspell", "hunspell-ru", "hunspell-en_us"), restarts="rice-layout-fixer.service"),
+            default=False, needs=("hunspell", "hunspell-ru", "hunspell-en_us"), restarts="rice-layout-fixer.service",
+            caution=TYPES_KEYS_CAUTION),
     Feature("layout-typo", "Ввод", "Исправление опечаток",
             "Alt+Shift+Пробел на слове, которого нет ни в русском, ни в английском словаре: первое нажатие — другая "
             "раскладка, следующие — подсказки словаря, после последней — набранное слово. Первыми идут слова, "
@@ -121,7 +130,7 @@ FEATURES = (
             "список своих слов — на вкладке «Словарь». "
             "Работает вместе с исправлением раскладки",
             default=False, needs=("hunspell", "hunspell-ru", "hunspell-en_us"), restarts="rice-layout-fixer.service",
-            experimental=True),
+            experimental=True, caution=TYPES_KEYS_CAUTION),
 )
 BY_ID = {feature.id: feature for feature in FEATURES}
 
@@ -158,7 +167,8 @@ def listing():
     current = state()
     return [{"id": item.id, "group": item.group, "name": item.name, "about": item.about, "on": current[item.id],
              "needs": list(item.needs), "missing": missing_packages(item), "experimental": item.experimental,
-             "closedPorts": closed_ports(item), "missingGroups": missing_groups(item)}
+             "closedPorts": closed_ports(item), "missingGroups": missing_groups(item),
+             "caution": item.caution or (EXPERIMENTAL_CAUTION if item.experimental else "")}
             for item in FEATURES]
 
 
@@ -297,7 +307,7 @@ ERRORS = (ValueError, OSError)
 COMMANDS = {
     "list": Command(printing_json(listing), "",
                     "every feature as JSON: id, group, name, about, on, needs, missing, experimental, closedPorts, "
-                    "missingGroups",
+                    "missingGroups, caution",
                     ERRORS),
     "show": Command(printing(shown), "", "every feature and whether it is on, for a terminal", ERRORS),
     "on": Command(lambda feature_id: switch(feature_id, True), "<id>",
