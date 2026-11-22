@@ -2,6 +2,7 @@
 virtual keyboard and fake dictionaries (nothing here reads /dev/input or reaches the session)."""
 import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -48,12 +49,17 @@ class FakeSpeller:
     def __init__(self, *words, suggested=None):
         self.words = set(words)
         self.suggested = suggested or {}
+        self.learnt = []
 
     def knows(self, word):
         return word.lower() in self.words
 
     def suggestions(self, word):
         return self.suggested.get(word, [])
+
+    def learn(self, word):
+        self.words.add(word)
+        self.learnt.append(word)
 
 
 def strokes(layout, text):
@@ -184,12 +190,13 @@ class FixerTest(unittest.TestCase):
     def test_a_typo_becomes_each_suggestion_in_turn_then_what_was_typed(self):
         self.session = FakeSession(layout="ru")
         fixer = self.fixer(typos=True)
-        self.presses_show(fixer, "так превет, ", "ru", ["преет, ", "привет, ", "превет, ", "преет, "])
-        self.assertEqual(self.session.switches, [])
+        switched = keys.typed("us", strokes("ru", "превет, "))
+        self.presses_show(fixer, "так превет, ", "ru", [switched, "преет, ", "привет, ", "превет, ", switched])
+        self.assertEqual(self.session.switches, ["us", "ru", "us"])
 
     def test_a_suggestion_off_the_layout_is_left_out(self):
         fixer = self.fixer(typos=True)
-        self.presses_show(fixer, "helo", "us", ["hello", "halo", "helo"])
+        self.presses_show(fixer, "helo", "us", ["рудщ", "hello", "halo", "helo"])
 
     def test_with_typos_a_word_of_the_other_layout_still_switches(self):
         fixer = self.fixer(typos=True)
@@ -207,8 +214,35 @@ class FixerTest(unittest.TestCase):
 
     def test_typing_on_forgets_the_suggestions(self):
         fixer = self.fixer(typos=True)
-        self.presses_show(fixer, "helo", "us", ["hello"])
-        self.presses_show(fixer, " helo", "us", ["hello"])
+        self.presses_show(fixer, "helo", "us", ["рудщ", "hello"])
+        self.presses_show(fixer, " helo", "us", ["рудщ"])
+
+    def test_slang_kept_after_the_key_is_learnt_and_then_fixed_automatically(self):
+        fixer = self.fixer(automatic=True, typos=True)
+        self.presses_show(fixer, "fqnb", "us", ["айти"])
+        self.type(fixer, " ", "ru")
+        self.assertEqual(self.spellers["ru"].learnt, ["айти"])
+        self.session.switch("us")
+        self.keyboard.taps = []
+        self.type(fixer, "fqnb ")
+        self.assertEqual(keys.typed("ru", self.keyboard.taps[5:]), "айти ")
+
+    def test_what_was_typed_kept_after_going_round_is_learnt(self):
+        fixer = self.fixer(typos=True)
+        self.presses_show(fixer, "helo", "us", ["рудщ", "hello", "halo", "helo"])
+        self.type(fixer, " ")
+        self.assertEqual(self.spellers["us"].learnt, ["helo"])
+
+    def test_nothing_is_learnt_on_backspace_without_typos_or_for_a_known_word(self):
+        for typed, shown, modes, typed_on in (("fqnb", "айти", {"typos": True}, keys.BACKSPACE),
+                                              ("fqnb", "айти", {}, keys.SPACE),
+                                              ("ghbdtn", "привет", {"typos": True}, keys.ENTER)):
+            with self.subTest(typed=typed, modes=modes, typed_on=typed_on):
+                self.setUp()
+                fixer = self.fixer(**modes)
+                self.presses_show(fixer, typed, "us", [shown])
+                fixer.key(typed_on, 1)
+                self.assertEqual(self.spellers["ru"].learnt, [])
 
     def test_automatic_fix_never_replaces_a_typo(self):
         fixer = self.fixer(automatic=True, typos=True)
@@ -229,11 +263,40 @@ class FixerTest(unittest.TestCase):
                      "hunspell с русским словарём не установлен")
 class SpellerTest(unittest.TestCase):
     def test_russian_suggestions_come_most_frequent_first(self):
-        speller = layout_fixer.Speller("ru_RU", layout_fixer.frequent_words(layout_fixer.RUSSIAN_WORDS))
-        self.addCleanup(speller.process.kill)
+        speller = self.speller()
         self.assertTrue(speller.knows("привет"))
         self.assertEqual(speller.suggestions("превет")[0], "привет")  # hunspell alone puts it fifth
         self.assertEqual(speller.suggestions("привет"), [])
+
+    def test_a_learnt_word_is_known_at_once_and_after_a_restart(self):
+        speller = self.speller()
+        self.assertFalse(speller.knows("айтемы"))
+        speller.learn("айтемы")
+        self.assertTrue(speller.knows("айтемы"))
+        self.assertTrue(self.speller().knows("айтемы"))
+
+    def test_an_own_word_with_a_model_declines_like_it(self):
+        self.own_words.parent.mkdir()
+        self.own_words.write_text("горутина/машина\n", encoding="utf-8")
+        speller = self.speller()
+        self.assertTrue(speller.knows("горутиной"))
+
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.own_words = Path(folder.name) / "hypr-rice/words-ru.dic"
+
+    def speller(self):
+        speller = layout_fixer.Speller("ru_RU", self.own_words, layout_fixer.frequent_words(layout_fixer.RUSSIAN_WORDS))
+        self.addCleanup(self.stop, speller.process)
+        return speller
+
+    @staticmethod
+    def stop(process):
+        process.kill()
+        process.wait()
+        process.stdin.close()
+        process.stdout.close()
 
 
 class LayoutKeysTest(unittest.TestCase):

@@ -8,7 +8,9 @@ since the last reset: a click, a change of window, Enter, an arrow, a Ctrl/Alt/S
 screen forget them, and nothing is written anywhere. A fix erases the last word (with the spaces after it),
 switches the layout and presses the same keys again through its own virtual keyboard (/dev/uinput), so it works
 in any program whatever it does with text; a second fix of the same word switches it back. With layout-typo a word
-that is a word in neither layout becomes hunspell's suggestions instead, one per press, and then what was typed.
+that is a word in neither layout goes to the other layout at the first press, then through hunspell's suggestions,
+then back to what was typed; a word neither dictionary knew that is left on the screen after the key (typing goes
+on) is learnt into the user's own dictionary.
   layout-fix word        (SIGUSR1) the last word
   layout-fix selection   (SIGUSR2) the selected text (the primary selection), typed over it in the other layout
 """
@@ -47,6 +49,8 @@ SWITCH_PAUSE_S = 0.05
 KEY_PAUSE_S = 0.004
 VIRTUAL_NAME = "rice-layout-fixer"
 SETTINGS = Path.home() / ".config/hypr-rice/layout-fix.json"
+# The user's own words, hunspell's personal dictionaries: a word per line, "word/model" declines like model.
+OWN_WORDS = {"us": Path.home() / ".config/hypr-rice/words-en.dic", "ru": Path.home() / ".config/hypr-rice/words-ru.dic"}
 RUSSIAN_WORDS = Path(__file__).with_name("layout_words_ru.txt")
 
 
@@ -95,10 +99,11 @@ class Speller:
     """hunspell -a for one dictionary, kept running: a line per word, "*", "+" or "-" when it is a word,
     "& word count offset: first, second, ..." when it is not and something is close, "#" when nothing is."""
 
-    def __init__(self, dictionary, frequent=()):
+    def __init__(self, dictionary, own_words, frequent=()):
+        self.own_words = own_words
         self.rank = {word: place for place, word in enumerate(frequent)}
-        self.process = subprocess.Popen(["hunspell", "-a", "-i", "utf-8", "-d", dictionary], stdin=subprocess.PIPE,
-                                        stdout=subprocess.PIPE, text=True, encoding="utf-8")
+        self.process = subprocess.Popen(["hunspell", "-a", "-i", "utf-8", "-d", dictionary, "-p", str(own_words)],
+                                        stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, encoding="utf-8")
         self.process.stdout.readline()  # the version banner
 
     def knows(self, word):
@@ -110,6 +115,14 @@ class Speller:
         answer = self.answer(word)
         offered = answer.split(": ", 1)[1].split(", ") if answer.startswith("&") else []
         return sorted(offered, key=lambda suggestion: self.rank.get(suggestion.lower(), len(self.rank)))
+
+    def learn(self, word):
+        """The word is the user's: hunspell knows it from now on, and the user's dictionary keeps it for later."""
+        self.process.stdin.write("@" + word + "\n")  # hunspell answers nothing to "@"
+        self.process.stdin.flush()
+        self.own_words.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.own_words, "a", encoding="utf-8") as file:
+            file.write(word + "\n")
 
     def answer(self, word):
         """hunspell's line about the word ("" when it said nothing)."""
@@ -263,6 +276,8 @@ class Fixer:
             self.before_combination = (self.strokes.keys, time.monotonic())
             self.strokes.reset()
             return
+        if self.cycle and (code == keys.ENTER or (code, False) in keys.CHARACTERS["us"]):
+            self.learn_shown()
         self.cycle = None
         if self.session.locked():
             self.strokes.reset()
@@ -307,9 +322,8 @@ class Fixer:
         self.put(tail, *self.cycle.next())
 
     def candidates(self, tail):
-        """What the key offers for the word in tail, typed in the current layout: with layout-typo, hunspell's
-        suggestions for a word that is a word in neither layout; else (or when there are none) the same keys in
-        the other layout."""
+        """What the key offers for the word in tail, typed in the current layout: the same keys in the other layout;
+        with layout-typo, for a word that is a word in neither layout, hunspell's suggestions after them."""
         layout = self.session.layout()
         other = keys.other(layout)
         switched = [(other, tail)]
@@ -321,7 +335,9 @@ class Fixer:
             return switched
         if self.spellers[layout].knows(word) or self.spellers[other].knows(bare(keys.typed(other, tail))):
             return switched
-        return self.suggested(layout, text, word) or switched
+        # A word neither dictionary knows may be slang typed in the wrong layout, not a typo (fqnb = айти):
+        # the layout first.
+        return switched + self.suggested(layout, text, word)
 
     def suggested(self, layout, text, word):
         """text with each of hunspell's closest suggestions for its word in place of the word, as choices; one
@@ -331,6 +347,16 @@ class Fixer:
         offered = self.spellers[layout].suggestions(word)[:SUGGESTIONS_OFFERED]
         choices = (keys.strokes_for(layout, before + suggestion + after) for suggestion in offered)
         return [(layout, strokes) for strokes in choices if strokes is not None]
+
+    def learn_shown(self):
+        """Typing went on after the key: with layout-typo, the word left on the screen is the user's, learnt when
+        its dictionary did not know it."""
+        if not self.modes.typos:
+            return
+        layout, strokes = self.cycle.shown()
+        word = bare(keys.typed(layout, strokes)).lower()
+        if len(word) >= 2 and word.replace("-", "").isalpha() and not self.spellers[layout].knows(word):
+            self.spellers[layout].learn(word)
 
     def put(self, shown, layout, strokes):
         """Erases the shown strokes and types strokes in layout; the buffer holds them instead."""
@@ -478,7 +504,8 @@ def run_daemon():
     spellers = None
     if modes.automatic or modes.typos:
         # English needs no frequencies: hunspell's first suggestion for it was the meant word.
-        spellers = {"us": Speller("en_US"), "ru": Speller("ru_RU", frequent_words(RUSSIAN_WORDS))}
+        spellers = {"us": Speller("en_US", OWN_WORDS["us"]),
+                    "ru": Speller("ru_RU", OWN_WORDS["ru"], frequent_words(RUSSIAN_WORDS))}
     fixer = Fixer(session, keyboard, spellers, modes)
     events = hyprland_events()
 

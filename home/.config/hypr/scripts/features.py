@@ -112,9 +112,12 @@ FEATURES = (
             "окнах; работает вместе с исправлением раскладки",
             default=False, needs=("hunspell", "hunspell-ru", "hunspell-en_us"), restarts="rice-layout-fixer.service"),
     Feature("layout-typo", "Ввод", "Исправление опечаток",
-            "Alt+Shift+Пробел на слове, которого нет ни в русском, ни в английском словаре, — подсказки словаря "
-            "по очереди, после последней — набранное слово. Работает вместе с исправлением раскладки",
-            default=False, needs=("hunspell", "hunspell-ru", "hunspell-en_us"), restarts="rice-layout-fixer.service"),
+            "Alt+Shift+Пробел на слове, которого нет ни в русском, ни в английском словаре: первое нажатие — другая "
+            "раскладка, следующие — подсказки словаря, после последней — набранное слово. Незнакомое словарю "
+            "слово, оставленное после клавиши, запоминается в ~/.config/hypr-rice/words-ru.dic (words-en.dic), "
+            "туда можно вписать и свои. Работает вместе с исправлением раскладки",
+            default=False, needs=("hunspell", "hunspell-ru", "hunspell-en_us"), restarts="rice-layout-fixer.service",
+            experimental=True),
 )
 BY_ID = {feature.id: feature for feature in FEATURES}
 
