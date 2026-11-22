@@ -16,9 +16,9 @@ Column {
         wrapMode: Text.WordWrap
         text: !pairing.device ? ""
               : pairing.device.requestedByPeer ? "Телефон просит сопряжения. Ключ " + pairing.device.key
-                                                 + " — такой же должен быть на телефоне."
-              : pairing.device.requested ? "Подтвердите на телефоне. Ключ " + pairing.device.key
-                                           + " — такой же должен быть на телефоне."
+                                                 + ", такой же должен быть на телефоне."
+              : pairing.device.requested ? "Подтверди на телефоне. Ключ " + pairing.device.key
+                                           + ", такой же должен быть на телефоне."
               : "Телефон не сопряжён: без сопряжения с ним ничего нельзя сделать."
         font.family: Theme.bodyFont; font.pixelSize: 13
         color: Theme.fg

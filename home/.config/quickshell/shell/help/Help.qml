@@ -97,7 +97,7 @@ OverlayPanel {
         }
         Text {
             anchors { right: parent.right; rightMargin: 32; verticalCenter: header.verticalCenter }
-            text: menu.mainModLabel + " — главная клавиша · Esc — закрыть"
+            text: menu.mainModLabel + ": главная клавиша · Esc закрыть"
             font.family: Theme.bodyFont; font.pixelSize: 14
             color: Theme.muted
         }

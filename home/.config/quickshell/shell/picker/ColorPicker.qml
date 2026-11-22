@@ -113,7 +113,7 @@ Scope {
                     Text {
                         id: hint
                         anchors.centerIn: parent
-                        text: "клик — скопировать цвет · Esc — выход"
+                        text: "клик копирует цвет · Esc выход"
                         font.family: Theme.bodyFont; font.pixelSize: 12
                         color: Theme.muted
                     }

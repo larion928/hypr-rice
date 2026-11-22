@@ -236,7 +236,7 @@ OverlayPanel {
             Text {
                 anchors.centerIn: parent
                 visible: files.count === 0
-                text: "Скриншотов пока нет — Print, чтобы сделать"
+                text: "Скриншотов пока нет. Сделать: Print"
                 font.family: Theme.titleFont; font.pixelSize: 18; font.italic: Theme.italicTitle
                 color: Theme.muted
             }
@@ -274,7 +274,7 @@ OverlayPanel {
             anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 14 }
             text: menu.preview >= 0
                   ? menu.stamp(files.get(menu.preview, "fileName") || "") + "   ·   ← → листать · C копировать · Enter открыть · Del в корзину · Esc назад"
-                  : "клик — просмотр · C копировать · Del в корзину · Esc закрыть"
+                  : "клик просмотр · C копировать · Del в корзину · Esc закрыть"
             font.family: Theme.bodyFont; font.pixelSize: 13
             color: Theme.muted
         }

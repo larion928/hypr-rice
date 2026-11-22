@@ -427,7 +427,7 @@ class Phone(MenuTest):
         self.open("phone")
         phone = '{ name: "A", paired: false, reachable: true, battery: null }'
         bar = json.loads(self.sandbox.eval("phone", "Phones.barState(" + phone + ")"))
-        self.assertEqual(bar, {"text": "\U000f011c", "tooltip": "A: не сопряжён — клик, чтобы сопрячь",
+        self.assertEqual(bar, {"text": "\U000f011c", "tooltip": "A: не сопряжён, клик, чтобы сопрячь",
                                "class": "none"})
 
 

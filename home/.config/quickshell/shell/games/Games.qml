@@ -42,7 +42,7 @@ OverlayPanel {
             return;
         }
         if (!game.present) {
-            message = "«" + game.name + "» больше нет на месте: " + game.target;
+            message = "\"" + game.name + "\" больше нет на месте: " + game.target;
             return;
         }
         Quickshell.execDetached(["python3", backend, "launch", game.id]);
@@ -269,8 +269,8 @@ OverlayPanel {
             width: 560
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.WordWrap
-            text: "Пока пусто. «Добавить»: файл игры (.exe пойдёт через Proton, .AppImage, программа), "
-                  + "программа из системы, например osu!, или игра из Steam."
+            text: "Пока пусто. Через \"Добавить\" можно взять файл игры (.exe пойдёт через Proton, .AppImage, "
+                  + "программа), программу из системы, например osu!, или игру из Steam."
             font.family: Theme.bodyFont; font.pixelSize: 16
             color: Theme.muted
         }

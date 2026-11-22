@@ -71,7 +71,7 @@ Singleton {
             return idleBar("Телефон не найден: откройте KDE Connect на телефоне в той же сети");
         }
         if (!device.paired) {
-            return idleBar(Pango.escape(device.name) + ": не сопряжён — клик, чтобы сопрячь");
+            return idleBar(Pango.escape(device.name) + ": не сопряжён, клик, чтобы сопрячь");
         }
         if (!device.reachable) {
             return idleBar(Pango.escape(device.name) + ": не на связи");

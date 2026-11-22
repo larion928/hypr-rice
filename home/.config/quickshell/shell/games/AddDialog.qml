@@ -55,7 +55,7 @@ Rectangle {
                     width: parent.width
                     wrapMode: Text.WordWrap
                     text: "Файл игры: .exe (и .msi) запустится через Proton с карточкой загрузки, .AppImage и "
-                          + "программа Linux — как есть. Название возьмётся из имени файла, его можно поменять."
+                          + "программа Linux запустятся как есть. Название возьмётся из имени файла, его можно поменять."
                     font.family: Theme.bodyFont; font.pixelSize: 14
                     color: Theme.fg
                 }

@@ -15,7 +15,7 @@ OverlayPanel {
     readonly property alias history: history
     readonly property var results: history.entries.filter(
         entry => entry.label.toLowerCase().includes(query.toLowerCase()))
-    readonly property string emptyText: !history.on ? "История выключена: Alt+F2 → Функции → «История буфера обмена»"
+    readonly property string emptyText: !history.on ? "История выключена: Alt+F2 → Функции → \"История буфера обмена\""
                                       : query ? "Ничего не нашлось" : "История пуста"
 
     onResultsChanged: select(current)
@@ -175,7 +175,7 @@ OverlayPanel {
 
             Text {
                 anchors { left: parent.left; leftMargin: 8; verticalCenter: parent.verticalCenter }
-                text: "Enter — скопировать · Delete — удалить"
+                text: "Enter скопировать · Delete удалить"
                 font.family: Theme.bodyFont; font.pixelSize: 12
                 color: Theme.muted
             }

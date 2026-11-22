@@ -137,7 +137,7 @@ OverlayPanel {
 
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "буквы или ← →, Enter — выбрать, Esc — отмена"
+            text: "буквы или ← →, Enter выбрать, Esc отмена"
             font.family: Theme.bodyFont; font.pixelSize: 14
             color: Theme.muted
         }
