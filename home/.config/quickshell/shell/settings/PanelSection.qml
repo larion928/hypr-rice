@@ -119,10 +119,10 @@ Item {
     }
     Text {
         id: panelHint
-        anchors { left: parent.left; top: panelTop.bottom; topMargin: 14 }
-        text: "Перетаскивай модули: по панели, чтобы переставить, с панели вниз, чтобы убрать, из набора снизу на панель, "
-              + "чтобы добавить. Значки меняются во вкладке \"Значки модулей\" или нажатием на модуль."
-              + (themeEdit.presenceReading ? "   · проверяю, какие модули есть на этой машине…" : "")
+        anchors { left: parent.left; right: parent.right; top: panelTop.bottom; topMargin: 14 }
+        text: "Перетаскивай модули по панели, вниз, чтобы убрать, или снизу на панель. Нажми на модуль, чтобы сменить значок."
+              + (themeEdit.presenceReading ? " Проверяю, какие модули есть на этой машине..." : "")
+        wrapMode: Text.Wrap
         font.family: Theme.bodyFont; font.pixelSize: 13
         color: Theme.muted
     }
