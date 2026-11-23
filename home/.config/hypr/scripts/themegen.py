@@ -20,7 +20,7 @@ from apptheme.desktop import bar_preview, battery, css_palette, hypr, hyprlock, 
 from apptheme.files import write
 from apptheme.icons import glyphs, icon_theme, icon_themes
 from apptheme.paths import HOME, HYPR, THEMES
-from apptheme.themes import factory_reset, removed_themes, user_themes
+from apptheme.themes import catalog, factory_reset, removed_themes, user_themes
 from apptheme.themes.theme import all_names, load
 from apptheme.wallpapers import animated, frames, wallpaper_engine, wallpaper_still
 
@@ -169,7 +169,9 @@ def delete_theme(name):
     current = current_theme()
     if current and current.name == name:
         raise ValueError("эта тема сейчас включена: сначала включи другую")
-    if user_themes.is_user_theme(name):
+    if catalog.is_catalog_theme(name):
+        catalog.remove(name)
+    elif user_themes.is_user_theme(name):
         user_themes.delete(name)
     else:
         removed_themes.remove(name)
@@ -292,6 +294,15 @@ COMMANDS = {
         "the theme as the rice ships it: no edits, its files again", ARCHIVE_ERRORS),
     "removed-themes": Command(
         printing_json(removed_themes.listing), "", "the removed themes of the rice, as JSON"),
+    "catalog": Command(
+        printing_json(catalog.listing), "",
+        "the theme catalog's packs and themes, each with its state here, as JSON (fetches the catalog)", ARCHIVE_ERRORS),
+    "catalog-install": Command(
+        rebuilding_themes(catalog.install), "<theme-or-pack>",
+        "a theme of the catalog, or a whole pack, downloaded and checked; prints the names installed", ARCHIVE_ERRORS),
+    "catalog-update": Command(
+        rebuilding_themes(catalog.update_installed), "",
+        "the installed catalog themes the catalog has changed, downloaded again", ARCHIVE_ERRORS),
     "promote": Command(
         rebuilding_themes(user_themes.promote), "<theme>",
         "makes a theme of the user's own part of the rice (~/.config/hypr/themes, which sync.sh publishes)",

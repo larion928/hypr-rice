@@ -2,7 +2,7 @@
 """theme-list.py — print every theme as JSON for the theme picker, the launcher and the settings window
 (the menus shell runs it): name, folder, palette.json and ui.json with the user's edits in place, the edits themselves
 and the theme's own fonts and colours, its wallpapers, its waybar layout, a thumbnail, whether it is
-current and whether it is one of the user's own (~/.config/hypr-rice/themes).
+current, whether it is one of the user's own (~/.config/hypr-rice/themes) and whether it came from the catalog.
 Thumbnails are cached in ~/.cache/theme-thumbs and rebuilt only when the wallpaper is newer."""
 import hashlib
 import json
@@ -14,6 +14,7 @@ from PIL import Image
 # themegen's loader, so each theme comes with the user's edits.
 sys.path.insert(0, str(Path.home() / ".config/hypr/scripts"))
 from apptheme.desktop import waybar, windows
+from apptheme.themes.catalog import is_catalog_theme
 from apptheme.themes.theme import all_names, load
 from apptheme.themes.user_themes import is_user_theme
 from apptheme.wallpapers import wallpaper_still
@@ -43,7 +44,7 @@ def main():
     for theme in map(load, all_names()):
         added = [Path(path) for path in theme.edits.get("wallpapers", {}).get("added", []) if Path(path).is_file()]
         themes.append({"name": theme.name, "dir": str(theme.dir), "current": theme.name == current,
-                       "user": is_user_theme(theme.name),
+                       "user": is_user_theme(theme.name), "catalog": is_catalog_theme(theme.name),
                        "thumb": thumbnail(theme.wallpapers[0]) if theme.wallpapers else "",
                        "pal": theme.palette, "ui": theme.ui, "edits": theme.edits, "own": theme.own,
                        "wallpapers": [{"path": str(path), "thumb": thumbnail(path), "added": path in added,
