@@ -162,7 +162,7 @@ OverlayPanel {
                 wrapMode: Text.WordWrap
                 visible: list.count === 0
                 text: menu.emptyText
-                font.family: Theme.titleFont; font.pixelSize: Theme.titleSize(16); font.italic: Theme.italicTitle
+                font.family: Theme.titleFont; font.pixelSize: 16; font.italic: Theme.italicTitle
                 color: Theme.muted
             }
         }

@@ -55,7 +55,7 @@ Row {
         anchors.verticalCenter: parent.verticalCenter
         text: header.icon || Theme.ui.headerGlyph || header.fallbackGlyph
         font.family: header.icon ? Theme.glyphFont : Theme.titleFont
-        font.pixelSize: header.icon ? header.markSize : Theme.titleSize(header.markSize)
+        font.pixelSize: header.markSize
         font.bold: !header.icon
         color: Theme.accent
     }
@@ -64,7 +64,7 @@ Row {
         anchors.verticalCenter: parent.verticalCenter
         text: Theme.title(header.text)
         font.family: Theme.titleFont
-        font.pixelSize: Theme.titleSize(header.size)
+        font.pixelSize: header.size
         font.italic: Theme.italicTitle
         color: Theme.fg
     }

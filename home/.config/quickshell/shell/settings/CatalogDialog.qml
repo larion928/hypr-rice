@@ -61,7 +61,7 @@ Rectangle {
                         spacing: 10
                         Row {
                             spacing: 14
-                            SectionTitle { text: pack.modelData.label; font.pixelSize: Theme.titleSize(18) }
+                            SectionTitle { text: pack.modelData.label; font.pixelSize: 18 }
                             Chip {
                                 visible: pack.modelData.themes.some(theme => theme.state === "absent")
                                 text: "Поставить все"
@@ -133,7 +133,7 @@ Rectangle {
             width: parent.width - 36 - action.width
             elide: Text.ElideRight
             text: offer.modelData.label
-            font.family: Theme.titleFont; font.pixelSize: Theme.titleSize(20)
+            font.family: Theme.titleFont; font.pixelSize: 20
             color: Theme.fg
         }
         Chip {

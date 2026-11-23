@@ -132,14 +132,12 @@ class CatalogTest(unittest.TestCase):
         self.assertIn("лишний файл: run.sh", result.stderr)
         self.assertFalse(self.theme_folder("dawn").exists())
 
-    def test_a_theme_may_carry_a_cover_an_animated_header_and_a_font(self):
-        extra = {"assets/cover.jpg": b"", "assets/head.webp": b"", "assets/head.gif": b"",
-                 "assets/Pixel.ttf": b"", "assets/OFL.txt": b""}
+    def test_a_theme_may_carry_a_cover_and_an_animated_header(self):
+        extra = {"assets/cover.jpg": b"", "assets/head.webp": b"", "assets/head.gif": b""}
         self.publish({"pack": {"dawn": self.archive("dawn", extra)}})
         result = self.themegen("catalog-install", "dawn")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue((self.theme_folder("dawn") / "assets" / "head.gif").is_file())
-        self.assertTrue((self.theme_folder("dawn") / "assets" / "Pixel.ttf").is_file())
 
     def test_added_themes_come_after_the_rices_own_in_the_order_they_came(self):
         self.publish({"pack": {"dawn": self.archive("dawn"), "dusk": self.archive("dusk")}})

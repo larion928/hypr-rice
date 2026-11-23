@@ -131,7 +131,7 @@ OverlayPanel {
             id: sectionLabel
             anchors { left: parent.left; leftMargin: 24; top: field.bottom; topMargin: 14 }
             text: menu.query ? "Результаты" : "Часто запускаемые"
-            font.pixelSize: Theme.titleSize(13)
+            font.pixelSize: 13
         }
 
         ListView {
@@ -187,7 +187,7 @@ OverlayPanel {
                         spacing: 2
                         Text {
                             text: row.modelData.name
-                            font.family: Theme.titleFont; font.pixelSize: Theme.titleSize(16)
+                            font.family: Theme.titleFont; font.pixelSize: 16
                             color: row.modelData.danger ? Theme.crit : Theme.fg
                         }
                         Text {
@@ -213,7 +213,7 @@ OverlayPanel {
                 anchors.centerIn: parent
                 visible: list.count === 0
                 text: "Ничего не нашлось"
-                font.family: Theme.titleFont; font.pixelSize: Theme.titleSize(16); font.italic: Theme.italicTitle
+                font.family: Theme.titleFont; font.pixelSize: 16; font.italic: Theme.italicTitle
                 color: Theme.muted
             }
         }

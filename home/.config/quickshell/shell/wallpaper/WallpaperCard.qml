@@ -65,7 +65,7 @@ OverlayPanel {
                 horizontalAlignment: Text.AlignHCenter
                 elide: Text.ElideRight
                 text: menu.track.title || "Обои"
-                font.family: Theme.titleFont; font.pixelSize: Theme.titleSize(26); font.italic: Theme.italicTitle
+                font.family: Theme.titleFont; font.pixelSize: 26; font.italic: Theme.italicTitle
                 color: Theme.fg
             }
             Text {

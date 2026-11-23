@@ -59,7 +59,6 @@ PATHS=(
     ".config/Code - OSS/User/keybindings.json"
     .config/gtk-3.0/settings.ini
     .config/gtk-4.0/settings.ini
-    .config/fontconfig/conf.d/60-hypr-rice-themes.conf
     .icons/default/index.theme
     .local/share/icons/WhiteCat
     .local/bin/changetheme

@@ -5,7 +5,6 @@ import Quickshell
 import qs.common
 import qs.services
 import "../common/keys.js" as KeyName
-import "../common/titles.js" as Titles
 
 OverlayPanel {
     id: menu
@@ -78,7 +77,7 @@ OverlayPanel {
         anchors { horizontalCenter: parent.horizontalCenter; bottom: cards.top; bottomMargin: 60 }
         text: "Тема оформления"
         font.family: menu.cur.pal.display || "serif"
-        font.pixelSize: Titles.titleSize(40, menu.cur.ui)
+        font.pixelSize: 40
         color: Theme.fg
     }
 

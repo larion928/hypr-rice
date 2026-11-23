@@ -10,12 +10,7 @@ import threading
 import time
 import unittest
 
-from fontTools.ttLib import TTFont
-
-from harness import CURRENT_THEME, KEY, MENUS, SOURCE_HOME, MenuSandbox, resident
-
-# Any font the system has; the test gives a copy of it a family name no font has.
-SYSTEM_FONT = "/usr/share/fonts/TTF/JetBrainsMono-Regular.ttf"
+from harness import KEY, MENUS, SOURCE_HOME, MenuSandbox, resident
 
 needs_quickshell = unittest.skipUnless(shutil.which("quickshell"), "quickshell is not installed")
 
@@ -67,26 +62,6 @@ class EveryMenu(MenuTest):
         self.sandbox.write_theme(palette, {"powerStyle": "terminal", "upperTitle": True})
         self.sandbox.wait_for("power", self.theme_expression("accent"), "#123456")
         self.sandbox.wait_for("power", "menu.terminal", True)
-
-    def test_a_font_the_theme_brings_is_loaded_while_the_shell_runs(self):
-        family = "Rice Theme Test"
-        self.open("power")
-        assets = self.sandbox.home / ".config/hypr/themes" / CURRENT_THEME / "assets"
-        assets.mkdir()
-        font = TTFont(SYSTEM_FONT)
-        for record in font["name"].names:
-            if record.nameID in (1, 4, 16):
-                record.string = family
-        font.save(assets / "test.ttf")
-        self.sandbox.write_theme(self.sandbox.palette, {"fonts": ["assets/test.ttf"]})
-        self.sandbox.wait_for("power", f"Qt.fontFamilies().indexOf('{family}') >= 0", True)
-
-    def test_a_pixel_font_theme_gets_its_title_sizes_scaled_onto_its_grid(self):
-        value = self.open("power")
-        self.sandbox.write_theme(self.sandbox.palette, {"titleScale": 0.65, "titleGrid": 8})
-        self.sandbox.wait_for("power", "Theme.titleSize(24)", 16)
-        self.assertEqual(value("Theme.titleSize(16)"), 8)
-        self.assertEqual(value("Theme.titleSize(40)"), 24)
 
 
 class Launcher(MenuTest):

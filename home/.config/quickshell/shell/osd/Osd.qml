@@ -124,7 +124,7 @@ Scope {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: osd.pct
-                        font.family: Theme.titleFont; font.pixelSize: Theme.titleSize(20); font.italic: Theme.italicTitle
+                        font.family: Theme.titleFont; font.pixelSize: 20; font.italic: Theme.italicTitle
                         color: Theme.fg
                     }
                 }
@@ -248,7 +248,7 @@ Scope {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: String(osd.pct).padStart(3, " ") + "%"
-                        font.family: Theme.titleFont; font.pixelSize: Theme.titleSize(18); font.bold: true
+                        font.family: Theme.titleFont; font.pixelSize: 18; font.bold: true
                         color: Theme.fg
                     }
                 }
@@ -315,13 +315,13 @@ Scope {
                         anchors.verticalCenter: parent.verticalCenter
                         width: parent.width - 120
                         text: osd.label
-                        font.family: Theme.titleFont; font.pixelSize: Theme.titleSize(17); font.bold: true
+                        font.family: Theme.titleFont; font.pixelSize: 17; font.bold: true
                         color: Theme.fg
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: osd.pct
-                        font.family: Theme.titleFont; font.pixelSize: Theme.titleSize(22); font.bold: true
+                        font.family: Theme.titleFont; font.pixelSize: 22; font.bold: true
                         color: Theme.fg
                     }
                 }

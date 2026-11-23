@@ -6,8 +6,6 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import "titles.js" as Titles
-import "url.js" as Url
 
 Singleton {
     id: theme
@@ -52,11 +50,6 @@ Singleton {
         return Math.min(ui.radius ?? 14, max);
     }
 
-    // A size given for titles, as the theme's title font needs it (titles.js).
-    function titleSize(px) {
-        return Titles.titleSize(px, ui);
-    }
-
     // A title as the theme writes titles: some themes in upper case.
     function title(text) {
         return ui.upperTitle ? String(text).toUpperCase() : text;
@@ -72,16 +65,6 @@ Singleton {
             return JSON.parse(text);
         } catch (e) {
             return fallback;
-        }
-    }
-
-    // A theme may bring its fonts (ui.json "fonts": files in its folder). fontconfig shows them to every other
-    // program, but a running Qt reads the font list once, at start: the shell loads them itself.
-    Instantiator {
-        model: theme.ui.fonts || []
-        delegate: FontLoader {
-            required property string modelData
-            source: Url.fromPath(theme.dir + "/" + modelData)
         }
     }
 

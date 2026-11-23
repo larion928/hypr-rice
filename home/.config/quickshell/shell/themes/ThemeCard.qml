@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Effects
 import Quickshell.Widgets
 import qs.common
-import "../common/titles.js" as Titles
 import "../common/url.js" as Url
 
 // One theme in its own colours and fonts: its wallpaper, its mark and name, its palette and the window border
@@ -91,7 +90,7 @@ Item {
             }
             Text {
                 text: card.entry.ui.upperTitle ? card.entry.pal.label.toUpperCase() : card.entry.pal.label
-                font.family: card.entry.pal.display; font.pixelSize: Titles.titleSize(26, card.entry.ui)
+                font.family: card.entry.pal.display; font.pixelSize: 26
                 font.italic: !!card.entry.ui.italicTitle
                 color: card.c.fg
                 anchors.verticalCenter: parent.verticalCenter

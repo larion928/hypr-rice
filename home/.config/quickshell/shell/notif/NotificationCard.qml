@@ -101,7 +101,7 @@ Rectangle {
             wrapMode: Text.Wrap
             maximumLineCount: card.expanded ? 6 : 2
             elide: Text.ElideRight
-            font.family: Theme.titleFont; font.pixelSize: Theme.titleSize(15); font.bold: true
+            font.family: Theme.titleFont; font.pixelSize: 15; font.bold: true
             color: card.critical ? Theme.crit : Theme.fg
         }
         Text {
