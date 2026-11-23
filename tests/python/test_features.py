@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from rice_sandbox import LIVE_HOME, LIVE_SCRIPTS, Sandbox
@@ -153,6 +154,19 @@ class MissingPackageTest(unittest.TestCase):
         with self.pacman_says_missing([]):
             features.switch("needy", True)
         self.assertTrue(features.state()["needy"])
+
+
+class ReadmeTest(unittest.TestCase):
+    """README.md lists every feature with the name and text the Функции tab shows: a feature added or reworded
+    in features.py fails here until the README says the same."""
+
+    def test_every_feature_is_described_as_in_the_catalog(self):
+        readme = (Path(__file__).resolve().parents[2] / "README.md").read_text()
+        for item in features.FEATURES:
+            with self.subTest(item.id):
+                # Not assertIn: its message would print the whole README.
+                self.assertTrue(f"- **{item.name}** (" in readme, f"README.md has no item for {item.name}")
+                self.assertTrue(f"{item.about}." in readme, f"README.md does not say: {item.about}")
 
 
 class GrantTest(unittest.TestCase):

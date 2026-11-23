@@ -68,9 +68,9 @@ Programs follow the theme:
 - **The rest.** Code-OSS, AyuGram and Telegram, Discord (Vesktop), Obsidian, kitty, GTK and Thunar,
   drift, neoHtop.
 
-Any theme can be adjusted: Alt+F2 → Тема → a theme → «Изменить». Fonts, colours (and the Papirus folder
+Any theme can be adjusted: Alt+F2 → Тема → a theme → "Изменить". Fonts, colours (and the Papirus folder
 colour), wallpapers, the bar layout, the icon theme and the battery drawing, the cursor, windows (gaps,
-border, rounding, opacity, blur, animation speed). Only what differs from the theme is saved, and «Сбросить»
+border, rounding, opacity, blur, animation speed). Only what differs from the theme is saved, and "Сбросить"
 brings the theme back as it was. Themes can be copied, exported to a file and imported.
 
 **Wallpapers.** A theme has several; they can be added, switched off and removed. Wallpapers can be
@@ -95,7 +95,7 @@ The bar's modules are clickable:
 | camera | screenshot gallery |
 | gear, "?", palette, power button | settings, help, theme picker, exit menu |
 
-Rearrange the bar by dragging: Alt+F2 → Тема → a theme → «Изменить» → Панель. Modules that are not on
+Rearrange the bar by dragging: Alt+F2 → Тема → a theme → "Изменить" → Панель. Modules that are not on
 the bar by default (tray, Bluetooth, brightness and more), module icons and the bar at the top or bottom
 are there too. A layout is saved for one theme or for all of them.
 
@@ -137,36 +137,67 @@ animation and sound.
 The settings window opens with Alt+F2, the gear on the bar or from the launcher.
 
 - **Monitors.** Arrange by dragging, resolution, refresh rate, scale, on/off. Applied at once; unless you
-  press «Оставить» within 15 seconds, everything goes back. Saved to `~/.config/hypr/monitors.lua`.
-- **Keys.** Change any hotkey («Изменить», then press the new combo), disable or reset it, add your own
+  press "Оставить" within 15 seconds, everything goes back. Saved to `~/.config/hypr/monitors.lua`.
+- **Keys.** Change any hotkey ("Изменить", then press the new combo), disable or reset it, add your own
   "combo → command", switch the main modifier Alt ↔ Super. Taken combos are highlighted. Your changes
   live in `~/.config/hypr/binds-user.lua`.
 - **Theme.** Every theme, editing a theme (see Themes), import, copy, export, reset, delete.
-- **Features.** Parts of the rice that can be switched off. When a feature needs a package, the window
-  offers to install it. The input and experimental features are switched on after a warning that they may
-  get in the way, and how to switch them off. The same from a terminal: `rice features`.
-
-| Feature | Default |
-|---|---|
-| Window animations | on |
-| Screenshot animation, shutter sound | on |
-| Text recognition, colour picker | on |
-| Three-finger swipe on the touchpad: the next workspace | on |
-| Blur under menus | on |
-| Pausing animated wallpapers under fullscreen windows | on |
-| Daily system check (`rice doctor`, a notification about what it found) | on |
-| Mounting USB disks automatically (an icon in the tray; eject from it or in Thunar) | on |
-| Disk notifications | off |
-| Phone (KDE Connect): the menu and the charge on the bar; when ufw closes ports 1714–1764, the window offers to open them | off |
-| Clipboard history (erased when switched off) | off |
-| Layout fix: Alt+Shift+Space types the last word again in the other layout (again: back), Alt+Ctrl+Space the selected text; needs the `input` group, the window offers to add it | off |
-| Automatic layout fix: a word in the wrong layout is fixed after the space by the dictionaries (Russian, English); not in fullscreen windows nor in the programs under `exclude` in `~/.config/hypr-rice/layout-fix.json` | off |
-| Typo fix, experimental: Alt+Shift+Space on a word that is in neither the Russian nor the English dictionary gives the other layout first, then the dictionary's suggestions (up to 5: the words you type most first, then the language's most frequent), then the word as typed. For that the typed words the dictionary knows are counted in `~/.config/hypr-rice/words-ru-used.json` / `words-en-used.json` (a password gets there only if it is a dictionary word itself). Alt+Shift+Enter learns the last word into `~/.config/hypr-rice/words-ru.dic` / `words-en.dic`; a word the dictionary did not know that is left after Alt+Shift+Space is learnt by itself (add your own there too; `word/model` declines like model: `горутина/машина`) | off |
-| Scrolling windows, experimental: columns on an endless tape, as in niri; Alt+P is the column width, Alt+Shift+P fits the visible ones; three fingers move the tape, four the workspace | off |
-
-- **Dictionary** (while the typo fix or the automatic layout fix is on). Your own words, which the typo fix and the automatic layout fix know besides the
-  dictionary: add one (`word` or `word/model`), remove one. Alt+Shift+Enter adds there too. Kept in
+- **Features.** Parts of the rice that can be switched off (list below). When a feature needs a package, the
+  window offers to install it. The input and experimental features are switched on after a warning that they
+  may get in the way, and how to switch them off. The same from a terminal: `rice features`,
+  `rice features on|off <id>`.
+- **Dictionary** (while the typo fix or the automatic layout fix is on). Your own words, which the typo fix and
+  the automatic layout fix know besides the dictionary: add one (`word` or `word/model`, then the word declines
+  like the model: `горутина/машина`), remove one. Alt+Shift+Enter adds there too. Kept in
   `~/.config/hypr-rice/words-ru.dic` and `words-en.dic`.
+
+### Features
+
+Each one with its name in the Функции tab and whether it is on right after the install.
+
+**Animations**
+
+- **Window animations** (Анимации окон, on). Windows, workspaces and menus appear and disappear smoothly.
+- **Screenshot animation** (Анимация скриншота, on). After a screenshot the theme's animation plays. Without it the screen can be used at once.
+
+**Sound**
+
+- **Shutter sound** (Звук затвора, on). A click on a screenshot, each theme has its own.
+
+**Screenshots**
+
+- **Text recognition** (Распознавание текста, on). Alt+Shift+Print: select an area, and its text (Russian or English) is copied to the clipboard.
+- **Colour picker** (Пипетка, on). Alt+Shift+C: a magnifier appears, a click copies the colour of the point as #rrggbb.
+
+**Input**
+
+- **Three-finger swipe** (Свайп тремя пальцами, on). Three fingers left or right on the touchpad switch the workspace. With scrolling windows three fingers move the tape and four switch the workspace.
+- **Clipboard history** (История буфера обмена, off). Alt+Shift+V: the last 100 copied entries (up to 100 MB). Switching it off deletes the history.
+- **Layout fix** (Исправление раскладки, off). Alt+Shift+Space types the last word again in the other layout, pressing it again brings the word back. Alt+Ctrl+Space does the same with the selected text. Keystrokes are not recorded anywhere, only the current word is kept in memory. Needs the `input` group, the window offers to add it.
+- **Automatic layout fix** (Автоисправление раскладки, off). A word typed in the wrong layout is fixed by itself after the space. Undo: Alt+Shift+Space. Not in fullscreen windows. Works only together with the layout fix. Programs where it is not wanted: `exclude` in `~/.config/hypr-rice/layout-fix.json`.
+- **Typo fix** (Исправление опечаток, off, experimental). Alt+Shift+Space on a word with a typo: the first press changes the layout, the next ones go through the suggestions, after the last one the word as typed comes back. The words you type most come first: for that the rice counts which dictionary words you type (in ~/.config/hypr-rice; a password gets there only if it is an ordinary word). Alt+Shift+Enter adds the last word to your words, and an unknown word left after going through the suggestions is added by itself. The list is on the Словарь tab. Works only together with the layout fix. The counts are kept in `~/.config/hypr-rice/words-ru-used.json` and `words-en-used.json`, your words in `words-ru.dic` and `words-en.dic`.
+
+**Windows**
+
+- **Scrolling windows** (Прокрутка окон, off, experimental). Windows line up in columns on an endless tape, as in niri. Alt+P changes the column width, Alt+Shift+P fits the visible columns on the screen.
+
+**Look**
+
+- **Blur under menus** (Размытие под меню, on). The background under the launcher, notifications and other menus is blurred. Without blur the graphics card has less work.
+
+**Wallpapers**
+
+- **Pausing animated wallpapers** (Пауза анимированных обоев, on). The wallpaper stops while a fullscreen window covers it entirely. Less load in games and when watching videos.
+
+**System**
+
+- **Daily system check** (Ежедневная проверка системы, on). Once a day checks the system (rice doctor) and sends a notification if it found something.
+
+**Devices**
+
+- **Mounting USB disks automatically** (Автомонтирование USB-дисков, on). USB sticks and memory cards are mounted by themselves. While a disk is plugged in, its icon is on the bar (Тема → Панель → Трей). Eject it from the icon or in Thunar.
+- **Disk notifications** (Уведомления о дисках, off). A notification when a disk is mounted (with an "Открыть" button) and when it is removed. Works only together with automatic mounting.
+- **Phone (KDE Connect)** (Телефон (KDE Connect), off). The phone's charge on the bar (Тема → Панель → Телефон), a click opens the menu: find the phone, send files and the clipboard, open the phone's files. Thunar gets the item "Отправить через KDE Connect". When ufw closes ports 1714-1764, the window offers to open them.
 
 ## Games
 
