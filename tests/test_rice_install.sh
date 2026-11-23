@@ -190,9 +190,13 @@ test_update_removes_stale_rice_files() {
     echo ".local/bin/renamed-script" >> "$MANIFEST"  # shipped by the previous version
     echo old > "$HOME/.local/bin/renamed-script"
     echo mine > "$HOME/.local/bin/my-script"
+    echo ".config/fish/fish_variables" >> "$MANIFEST"  # shipped by versions before 2026-11, fish writes it since
+    mkdir -p "$HOME/.config/fish"
+    echo 'SETUVAR mine:1' > "$HOME/.config/fish/fish_variables"
     copy_rice_files >/dev/null 2>&1
     [ ! -e "$HOME/.local/bin/renamed-script" ] || fail "остался файл прежней версии"
     [ -e "$HOME/.local/bin/my-script" ] || fail "удалён свой файл"
+    grep -qx 'SETUVAR mine:1' "$HOME/.config/fish/fish_variables" || fail "удалены переменные fish пользователя"
     ! grep -qx '.local/bin/renamed-script' "$MANIFEST" || fail "убранный файл остался в списке"
 }
 

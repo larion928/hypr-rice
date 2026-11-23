@@ -1,4 +1,5 @@
-# ~/.config/fish/conf.d/idle_drift.fish
+# After two idle minutes at the prompt the terminal runs the drift screensaver (`rice` → Программы → drift).
+command -q drift; or return
 
 set -g __drift_idle_seconds 120
 set -g __drift_runtime (set -q XDG_RUNTIME_DIR; and echo $XDG_RUNTIME_DIR; or echo /tmp)

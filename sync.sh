@@ -99,6 +99,7 @@ EXCLUDES=(
     --exclude=.config/hypr/binds-user.lua
     --exclude=.config/hypr/user.lua
     --exclude=.config/fish/user.fish
+    --exclude=.config/fish/fish_variables  # fish's own store of universal variables, this machine's
     --exclude='*.rice-backup'
     --exclude=.config/hypr/palette.lua
     --exclude=.config/hypr/palette.json

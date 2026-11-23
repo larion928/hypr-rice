@@ -148,10 +148,16 @@ put_merged_file() {  # put_merged_file PATH: ~/PATH.rice-tmp in place of ~/PATH,
     mv "$user.rice-tmp" "$user"
 }
 
+# Files the rice once shipped that a program has been writing to since: they are the user's now and
+# stay when the rice stops shipping them. fish keeps every universal variable in fish_variables (the
+# user's set -U, abbreviations, colours).
+OWNED_BY_USER_NOW=(.config/fish/fish_variables)
+
 remove_stale_files() {  # what the previous version put in ~ and this one no longer ships
     local path
     [ -f "$MANIFEST" ] || return 0
     while IFS= read -r path; do
+        printf '%s\n' "${OWNED_BY_USER_NOW[@]}" | grep -qxF "$path" && continue
         if [ ! -e "$SRC/home/$path" ] && [ ! -L "$SRC/home/$path" ]; then
             rm -f "$HOME/$path"
         fi
