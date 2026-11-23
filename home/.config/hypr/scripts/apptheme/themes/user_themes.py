@@ -10,9 +10,10 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+from ..files import write
 from ..paths import HOME, RICE_CONF, THEMES
 from . import bake
-from .theme import COLOR, WALLPAPER_SUFFIXES, forget_edits, load
+from .theme import ADDED_ORDER, COLOR, WALLPAPER_SUFFIXES, added_order, forget_edits, load
 
 USER_THEMES = RICE_CONF / "themes"
 NEEDED_FILES = ("palette.json", "hypr.lua", "style.css")
@@ -38,6 +39,15 @@ def link():
             print(f"{folder}: в райсе есть тема с тем же именем, твоя скрыта; переименуй папку", file=sys.stderr)
             continue
         target.symlink_to(folder)
+    keep_added_order()
+
+
+def keep_added_order():
+    """A theme linked since the last time goes after the ones already there; an unlinked one leaves the list."""
+    linked = {entry.name for entry in THEMES.iterdir() if entry.is_symlink()}
+    order = [name for name in added_order() if name in linked]
+    order += sorted(linked - set(order))
+    write(ADDED_ORDER, json.dumps(order, ensure_ascii=False) + "\n")
 
 
 def is_user_theme(name):

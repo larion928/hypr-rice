@@ -141,6 +141,14 @@ class CatalogTest(unittest.TestCase):
         self.assertTrue((self.theme_folder("dawn") / "assets" / "head.gif").is_file())
         self.assertTrue((self.theme_folder("dawn") / "assets" / "Pixel.ttf").is_file())
 
+    def test_added_themes_come_after_the_rices_own_in_the_order_they_came(self):
+        self.publish({"pack": {"dawn": self.archive("dawn"), "dusk": self.archive("dusk")}})
+        for name in ("dusk", "dawn"):
+            result = self.themegen("catalog-install", name)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        names = "from apptheme.themes.theme import all_names; print(' '.join(all_names()))"
+        self.assertEqual(self.sandbox.python(names).stdout.split(), ["night", "dusk", "dawn"])
+
     def test_a_pack_installs_every_theme_of_it(self):
         self.publish({"pack": {"dawn": self.archive("dawn"), "dusk": self.archive("dusk")}})
         result = self.themegen("catalog-install", "pack")

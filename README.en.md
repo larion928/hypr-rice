@@ -63,7 +63,8 @@ checksum match, and `rice update` keeps it current. A theme may bring its own fo
 package, and goes away with the theme.
 
 Switch with Alt+Shift+T (theme cards in their own colours), the launcher ("Тема …") or
-`changetheme <theme>` in a terminal.
+`changetheme <theme>` in a terminal. The lists show the rice's eight themes first, then the user's own and the
+catalog's, in the order they came.
 
 Programs follow the theme:
 

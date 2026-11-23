@@ -142,5 +142,17 @@ def forget_edits(name):
         write(EDITS.resolve(), json.dumps(every_edit, indent=2, ensure_ascii=False) + "\n")
 
 
+# The themes added to the rice's own (the user's, the catalog's), in the order they came: user_themes.link keeps it.
+ADDED_ORDER = RICE_CONF / "themes-added.json"
+
+
 def all_names():
-    return sorted(p.parent.name for p in THEMES.glob("*/palette.json"))
+    """The rice's themes by name, then the added ones in the order they came."""
+    names = {p.parent.name for p in THEMES.glob("*/palette.json")}
+    rice = sorted(name for name in names if not (THEMES / name).is_symlink())
+    added = [name for name in added_order() if name in names]
+    return rice + added + sorted(names - set(rice) - set(added))
+
+
+def added_order():
+    return json.loads(ADDED_ORDER.read_text()) if ADDED_ORDER.exists() else []
