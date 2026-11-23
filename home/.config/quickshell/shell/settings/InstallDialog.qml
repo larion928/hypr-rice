@@ -7,6 +7,20 @@ Rectangle {
     id: dialog
     required property PackageInstall install
 
+    // Where the packages come from; a feature may need several, then the text is in the plural.
+    function origin(item) {
+        const several = item.packages.length > 1;
+        const built = (several ? "соберутся" : "соберётся") + " на этой машине, это может занять пару минут";
+        if (item.source === "aur") {
+            return "Из AUR: " + (several ? "пакеты " : "пакет ") + built + ". ";
+        }
+        if (item.source === "repo") {
+            return "Из репозитория Arch. ";
+        }
+        return several ? "Из репозитория Arch, а каких там нет, из AUR (они " + built + "). "
+                       : "Из репозитория Arch, а если его там нет, из AUR (тогда пакет " + built + "). ";
+    }
+
     color: Theme.alpha(Theme.bg, 0.92)
     MouseArea { anchors.fill: parent }
     Rectangle {
@@ -26,10 +40,7 @@ Rectangle {
                 width: parent.width
                 wrapMode: Text.WordWrap
                 text: !install.item ? ""
-                      : (install.item.source === "aur" ? "Из AUR: пакет соберётся на этой машине, это может занять пару минут. "
-                         : install.item.source === "repo" ? "Из репозитория Arch. "
-                         : "Из репозитория Arch, а если его там нет, из AUR (тогда пакет соберётся на этой машине, "
-                           + "это может занять пару минут). ")
+                      : dialog.origin(install.item)
                         + "Нужен пароль администратора (sudo): он передаётся установщику напрямую и нигде не сохраняется."
                 font.family: Theme.bodyFont; font.pixelSize: 14
                 color: Theme.fg
