@@ -2,8 +2,8 @@
 Description=histuid notification daemon
 Documentation=https://github.com/jmylchreest/histui
 After=graphical-session.target
-# no PartOf/WantedBy=graphical-session.target: that target refuses manual start
-# and never activates under Hyprland, so the daemon never autostarted.
+# Not WantedBy=graphical-session.target: that target comes up under any desktop, and the daemon is
+# started only from Hyprland (hyprland.lua), see ExecStartPre.
 StartLimitIntervalSec=0
 
 [Service]

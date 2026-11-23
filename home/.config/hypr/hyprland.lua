@@ -36,7 +36,6 @@ hl.on("hyprland.start", function()
     -- D-Bus-activated before the Wayland env reached systemd, so restart them after the import.
     hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE"
         .. " && systemctl --user restart xdg-desktop-portal-hyprland.service xdg-desktop-portal.service xdg-desktop-portal-gtk.service")
-    hl.exec_cmd("systemctl --user start graphical-session.target")
     hl.exec_cmd("~/.local/bin/waybar-start")
     -- Apps installed or first started since the last theme change get the theme too.
     hl.exec_cmd("python3 ~/.config/hypr/scripts/themegen.py refresh")
