@@ -36,6 +36,7 @@ esac
 PATHS=(
     .config/hypr
     .config/hypr-rice/waybar/config.base.json
+    .config/hypr-rice/waybar/rice.css
     .config/hypr-rice/waybar/scripts
     .config/quickshell
     .config/hypr-rice/kitty/kitty.conf

@@ -19,17 +19,13 @@ LOG_KEPT_LINES=300  # a log of every failure ever would grow without end; the re
 exec {lock}>"${XDG_RUNTIME_DIR:-/tmp}/hypr-rice-waybar-start.lock"
 flock -w 60 "$lock" || { echo "waybar-start: другой запуск не закончился за минуту" >&2; exit 1; }
 
-# On top of the theme's style.css: fonts.css (the font picked for the theme in the settings, written
-# by themegen) and user.css (the user's own, not part of the rice). The combined file stays next to
-# style.css so its relative @import keeps working.
+# On top of the theme's style.css: rice.css (what every bar shows, such as a workspace asking for
+# attention), fonts.css (the font picked for the theme in the settings, written by themegen) and
+# user.css (the user's own, not part of the rice). The combined file stays next to style.css so its
+# relative @import keeps working.
 style() {
-    if [ -s "$CONF/fonts.css" ] || [ -f "$CONF/user.css" ]; then
-        cat "$CONF/style.css" "$CONF/fonts.css" "$CONF/user.css" 2>/dev/null > "$CONF/style.run.css"
-        echo "$CONF/style.run.css"
-    else
-        rm -f "$CONF/style.run.css"
-        echo "$CONF/style.css"
-    fi
+    cat "$CONF/style.css" "$CONF/rice.css" "$CONF/fonts.css" "$CONF/user.css" 2>/dev/null > "$CONF/style.run.css"
+    echo "$CONF/style.run.css"
 }
 
 start() {

@@ -1,0 +1,7 @@
+/* What every theme's bar shows even when the theme does not style it: a workspace whose window asks for
+   attention. The selector is weaker than a theme's "#workspaces button.urgent", so a theme's own look wins;
+   background-color, not background, keeps a theme's background-image (claude draws its workspaces so). */
+#workspaces .urgent {
+    color: @crit;
+    background-color: alpha(@crit, 0.25);
+}
