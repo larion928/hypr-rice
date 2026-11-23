@@ -10,10 +10,15 @@ from . import drawing
 
 def frames(theme):
     """The theme's own drawing, or the one picked for it in the settings, in the theme's colours."""
-    source = THEMES / battery_theme(theme.name, theme.edits) / "battery.py"
+    return drawing_of(battery_theme(theme.name, theme.edits), theme)
+
+
+def drawing_of(name, theme):
+    """The frames of the theme name's battery.py in the colours of theme; none without one."""
+    source = THEMES / name / "battery.py"
     if not source.exists():
         return []
-    spec = importlib.util.spec_from_file_location(f"battery_{theme.name}", source)
+    spec = importlib.util.spec_from_file_location(f"battery_{name}", source)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module.frames(theme.colors, drawing)
@@ -27,3 +32,7 @@ def build(themes):
             old.unlink()
         for number, frame in enumerate(frames(theme)):
             (assets / f"battery-{number}.svg").write_text(frame)
+        # The settings offer every theme's own drawing, whichever one the theme wears now.
+        own = drawing_of(theme.name, theme)
+        if own:
+            (assets / "battery-own.svg").write_text(own[0])
