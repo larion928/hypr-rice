@@ -10,7 +10,12 @@ import threading
 import time
 import unittest
 
-from harness import KEY, MENUS, SOURCE_HOME, MenuSandbox, resident
+from fontTools.ttLib import TTFont
+
+from harness import CURRENT_THEME, KEY, MENUS, SOURCE_HOME, MenuSandbox, resident
+
+# Any font the system has; the test gives a copy of it a family name no font has.
+SYSTEM_FONT = "/usr/share/fonts/TTF/JetBrainsMono-Regular.ttf"
 
 needs_quickshell = unittest.skipUnless(shutil.which("quickshell"), "quickshell is not installed")
 
@@ -62,6 +67,19 @@ class EveryMenu(MenuTest):
         self.sandbox.write_theme(palette, {"powerStyle": "terminal", "upperTitle": True})
         self.sandbox.wait_for("power", self.theme_expression("accent"), "#123456")
         self.sandbox.wait_for("power", "menu.terminal", True)
+
+    def test_a_font_the_theme_brings_is_loaded_while_the_shell_runs(self):
+        family = "Rice Theme Test"
+        self.open("power")
+        assets = self.sandbox.home / ".config/hypr/themes" / CURRENT_THEME / "assets"
+        assets.mkdir()
+        font = TTFont(SYSTEM_FONT)
+        for record in font["name"].names:
+            if record.nameID in (1, 4, 16):
+                record.string = family
+        font.save(assets / "test.ttf")
+        self.sandbox.write_theme(self.sandbox.palette, {"fonts": ["assets/test.ttf"]})
+        self.sandbox.wait_for("power", f"Qt.fontFamilies().indexOf('{family}') >= 0", True)
 
 
 class Launcher(MenuTest):

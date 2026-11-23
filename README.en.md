@@ -59,7 +59,8 @@ When another rice or desktop is found (niri, KDE, GNOME, another Hyprland rice, 
 More themes, in packs, are in the [catalog](https://github.com/larion928/hypr-rice-themes) (`mr-robot` in the
 "hacker+" pack, for one): Alt+F2 → Тема → "Каталог…", `rice themes` or "Темы из каталога" in the `rice` menu.
 The rice's author has read and signed every catalog theme; one is installed only when the signature and the
-checksum match, and `rice update` keeps it current.
+checksum match, and `rice update` keeps it current. A theme may bring its own font: it works at once, with no
+package, and goes away with the theme.
 
 Switch with Alt+Shift+T (theme cards in their own colours), the launcher ("Тема …") or
 `changetheme <theme>` in a terminal.

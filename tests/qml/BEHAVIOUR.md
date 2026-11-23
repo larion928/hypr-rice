@@ -184,6 +184,8 @@ offscreen (see the end of this file); everything else is checked by hand on the 
   the wallpaper has no sound or the shell is down. Signalled (13) on every change; never starts the shell.
 - A theme's ui.json "headerIcon" may be an animated GIF or WebP: it plays once when a menu opens, then rests on
   its first frame.
+- A theme's ui.json "fonts" (files in its folder) are in the menus as soon as the theme is the current one, with no
+  restart of the shell.
 
 ## Administrator password — polkit, always running
 
