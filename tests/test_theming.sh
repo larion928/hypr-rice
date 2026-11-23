@@ -137,8 +137,9 @@ assert len(frames) == 7, len(frames)                                  # night's 
 assert coffee.colors["fg"] in frames[0], "drawn in coffee's colours"
 assert coffee.ui.get("batteryAnim") == "pingpong", coffee.ui.get("batteryAnim")  # night's animation
 battery.build([coffee])
-own = (coffee.dir / "assets/battery-own.svg").read_text()
+own = (coffee.dir / "assets/own-battery.svg").read_text()
 assert own == battery.drawing_of("coffee", coffee)[0] != frames[0], "the settings show coffee's own drawing"
+assert len(list((coffee.dir / "assets").glob("battery-*.svg"))) == 7, "the bar counts only the frames"
 assert coffee.ui["folders"] == "teal"
 assert icon_theme.current(coffee) == "breeze-dark"
 icon_theme.apply(coffee)

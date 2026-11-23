@@ -24,15 +24,19 @@ def drawing_of(name, theme):
     return module.frames(theme.colors, drawing)
 
 
+# The settings offer every theme's own drawing, whichever one the theme wears now. Not battery-*.svg: those
+# are the frames the bar counts.
+OWN = "own-battery.svg"
+
+
 def build(themes):
     for theme in themes:
         assets = theme.dir / "assets"
         assets.mkdir(parents=True, exist_ok=True)
-        for old in assets.glob("battery-*.svg"):
-            old.unlink()
+        for old in [*assets.glob("battery-*.svg"), assets / OWN]:
+            old.unlink(missing_ok=True)
         for number, frame in enumerate(frames(theme)):
             (assets / f"battery-{number}.svg").write_text(frame)
-        # The settings offer every theme's own drawing, whichever one the theme wears now.
         own = drawing_of(theme.name, theme)
         if own:
-            (assets / "battery-own.svg").write_text(own[0])
+            (assets / OWN).write_text(own[0])

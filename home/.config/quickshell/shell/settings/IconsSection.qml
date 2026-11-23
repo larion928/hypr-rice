@@ -121,7 +121,7 @@ Item {
                     anchors { horizontalCenter: parent.horizontalCenter; top: parent.top; topMargin: 12 }
                     width: 40; height: 40
                     sourceSize: Qt.size(80, 80)
-                    source: Url.fromPath(batteryCell.modelData.dir + "/assets/battery-own.svg")
+                    source: Url.fromPath(batteryCell.modelData.dir + "/assets/own-battery.svg")
                 }
                 Text {
                     anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 10 }
