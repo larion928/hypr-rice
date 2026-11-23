@@ -41,6 +41,7 @@ cmd_apply_update() {
     step "Новые пакеты райса"
     install_missing_packages
     apply_rice "$(current_theme)"
+    update_catalog_themes
     rerun_installed_hooks
     finish
 }

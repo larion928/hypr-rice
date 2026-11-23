@@ -5,6 +5,7 @@
 #   rice install      install or reinstall the rice (what install.sh runs)
 #   rice apps         pick programs to install
 #   rice remove       remove programs installed from the catalog
+#   rice themes       themes from the theme catalog; rice themes install|remove <theme or pack>...
 #   rice update       fetch the latest rice from GitHub and apply it (keeps theme and machine files)
 #   rice upgrade      update the system, the hypr-rice repo and AUR programs
 #   rice proton       pick the Proton version that runs .exe files
@@ -41,11 +42,12 @@ done
 # stays on screen until Enter. Each action is a rice of its own, so its errors (die) end only it.
 menu() {
     local choice
-    have_tty || die "меню нужен терминал; команды: rice install|apps|remove|update|upgrade|proton|games|repair|report|doctor|features|mouse-test|uninstall"
+    have_tty || die "меню нужен терминал; команды: rice install|apps|remove|themes|update|upgrade|proton|games|repair|report|doctor|features|mouse-test|uninstall"
     # Here, not in choose_one's $(...): a failed download is then neither repeated nor announced each round.
     fetch_gum || true
     while choice=$(choose_one "hypr-rice — что сделать?" \
-            "Установить программы=apps" "Удалить программы=remove" "Обновить райс=update" \
+            "Установить программы=apps" "Удалить программы=remove" "Темы из каталога=themes" \
+            "Обновить райс=update" \
             "Обновить систему и программы=upgrade" "Proton для .exe: версия=proton" \
             "Игры: оптимизация=games" \
             "Проверить систему=doctor" "Мышь: угол датчика, DPI=mouse-test" \
@@ -84,6 +86,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
         apply-update) run apply_update ;;  # run by `rice update` from the freshly fetched script
         doctor) shift; cmd_doctor "$@" ;;
         features) shift; cmd_features "$@" ;;
+        themes) shift; cmd_themes "$@" ;;
         mouse-test) cmd_mouse_test ;;
         ""|menu) menu ;;
         -h|--help|help) sed -n '2,/^# Environment/{/^# Environment/!s/^# \{0,1\}//p}' "$0" ;;
