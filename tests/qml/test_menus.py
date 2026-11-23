@@ -152,6 +152,17 @@ class Settings(MenuTest):
         edits = json.loads((self.sandbox.home / ".config/hypr-rice/theme-edits.json").read_text())
         self.assertEqual(edits["themes"]["coffee"], {"fonts": {"font": "Iosevka"}})
 
+    def test_panel_modules_are_their_icons_not_what_they_show_now(self):
+        value = self.open("settings", "theme:coffee:waybar")
+        time.sleep(0.6)
+        self.assertIn("themegen.py bar-presence coffee", self.sandbox.recorded())
+        self.assertEqual(value("themeEdit.iconOf('clock')"), "", "a clock has no icon: the chip shows its name")
+        sample = value("themeEdit.editing.waybar.preview['cpu']")
+        self.assertGreater(ord(sample[0]), 0xFFFF, "coffee's cpu icon lies past U+FFFF, which Array.from splits in two")
+        self.assertEqual(value("themeEdit.iconOf('cpu')"), sample[0])
+        value("themeEdit.setIcon('cpu', '\\u{f0ee0}')")
+        self.assertEqual(value("themeEdit.iconOf('cpu')"), "\U000f0ee0")
+
 
 @unittest.skipUnless(resident(), "the per-panel menus have no features page")
 class OwnWords(MenuTest):

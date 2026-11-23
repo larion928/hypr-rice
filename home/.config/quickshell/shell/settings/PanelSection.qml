@@ -122,7 +122,7 @@ Item {
         anchors { left: parent.left; top: panelTop.bottom; topMargin: 14 }
         text: "Перетаскивай модули: по панели, чтобы переставить, с панели вниз, чтобы убрать, из набора снизу на панель, "
               + "чтобы добавить. Значки меняются во вкладке \"Значки модулей\" или нажатием на модуль."
-              + (themeEdit.liveReading ? "   · обновляю данные панели…" : "")
+              + (themeEdit.presenceReading ? "   · проверяю, какие модули есть на этой машине…" : "")
         font.family: Theme.bodyFont; font.pixelSize: 13
         color: Theme.muted
     }
@@ -289,16 +289,16 @@ Item {
         id: ghost
         visible: panelEditor.drag !== null
         z: 10
-        width: ghostText.implicitWidth + 24; height: 38
+        width: ghostLabel.implicitWidth + 24; height: 38
         radius: 8
         color: Theme.alpha(Theme.bg2, 0.95)
         border.color: Theme.accent
-        Text {
-            id: ghostText
+        ModuleLabel {
+            id: ghostLabel
             anchors.centerIn: parent
-            text: panelEditor.drag ? (themeEdit.preview(panelEditor.drag.module) || themeEdit.moduleName(panelEditor.drag.module)) : ""
-            font.family: Theme.font; font.pixelSize: 16
-            color: Theme.fg
+            themeEdit: panelEditor.themeEdit
+            module: panelEditor.drag ? panelEditor.drag.module : ""
+            showName: true
         }
     }
 }

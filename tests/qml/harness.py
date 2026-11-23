@@ -101,7 +101,7 @@ elif sys.argv[1] == "steam":
 THEMEGEN_PY = """import json, os, sys
 open(os.environ["CALLS"], "a").write("themegen.py " + " ".join(sys.argv[1:]) + "\\n")
 answers = {"icon-themes": {"installed": [], "downloadable": []}, "cursor-themes": {"installed": [], "downloadable": []},
-           "removed-themes": [], "icons": [], "bar-preview": {}}
+           "removed-themes": [], "icons": [], "bar-presence": {}}
 if sys.argv[1] in answers:
     print(json.dumps(answers[sys.argv[1]]))
 """

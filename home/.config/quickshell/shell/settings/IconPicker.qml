@@ -28,7 +28,7 @@ Rectangle {
         Text {
             anchors.verticalCenter: parent.verticalCenter
             text: (themeEdit.iconOf(themeEdit.iconFor) || "·") + "  →  "
-                  + (themeEdit.iconChoice || (themeEdit.editing ? (Array.from(themeEdit.editing.waybar.preview[themeEdit.iconFor] || "")[0] || "·") : ""))
+                  + (themeEdit.iconChoice || themeEdit.ownIcon(themeEdit.iconFor) || "·")
             font.family: Theme.glyphFont; font.pixelSize: 24
             color: Theme.accent
         }

@@ -16,7 +16,7 @@ from pathlib import Path
 from command_table import Command, printing, printing_json, run
 from apptheme.apps import chromium, drift, firefox, gtk, kitty, obsidian, telegram, vesktop, vscode
 from apptheme.cursors import cursor_install, cursor_theme, cursor_themes
-from apptheme.desktop import bar_preview, battery, css_palette, hypr, hyprlock, system, waybar, windows
+from apptheme.desktop import bar_presence, battery, css_palette, hypr, hyprlock, system, waybar, windows
 from apptheme.files import write
 from apptheme.icons import glyphs, icon_theme, icon_themes
 from apptheme.paths import HOME, HYPR, THEMES
@@ -227,9 +227,9 @@ COMMANDS = {
     "offer": Command(
         lambda name: telegram.offer(load(name)), "<theme>",
         "offer the theme to a running Telegram / AyuGram, which opens its full-screen preview"),
-    "bar-preview": Command(
-        printing_json(lambda name: bar_preview.preview(load(name))), "<theme>",
-        "what each waybar module shows on this machine now, as JSON, for the bar in the settings window"),
+    "bar-presence": Command(
+        printing_json(lambda name: bar_presence.presence(load(name))), "<theme>",
+        "whether each waybar module is on the bar on this machine, as JSON, for the bar in the settings window"),
     "icons": Command(
         printing_json(glyphs.all_icons), "",
         "every icon of the Nerd Font with its name, as JSON, for the icon picker in the settings window"),

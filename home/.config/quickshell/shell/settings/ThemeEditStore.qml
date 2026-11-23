@@ -73,12 +73,12 @@ Scope {
     property var iconThemes: ({ installed: [], downloadable: [] })
     // Installed cursor themes with pictures of a few cursors, and the ones to install (themegen.py cursor-themes).
     property var cursorThemes: ({ installed: [], downloadable: [] })
-    // What each module shows on this machine now (themegen.py bar-preview): {module: {text, state, note}}; state is
-    // shown, sometimes or missing. Asked for when the «Панель» section opens; until it comes, the modules show
-    // samples.
-    property var live: ({})
-    property string liveFor: ""
-    readonly property bool liveReading: barPreviewProc.running
+    // Whether each module is on the bar on this machine (themegen.py bar-presence): {module: {state, note}}; state is
+    // shown, sometimes or missing. Asked for when the «Панель» section opens; until it comes, every module counts
+    // as shown.
+    property var presence: ({})
+    property string presenceFor: ""
+    readonly property bool presenceReading: barPresenceProc.running
     // Every icon of the Nerd Font, [[glyph, name], ...] (themegen.py icons), asked for on first use.
     property var allIcons: []
     property string fontSlot: "font"
@@ -95,7 +95,7 @@ Scope {
     readonly property alias install: install
 
     onSectionChanged: {
-        askLive();
+        askPresence();
         if (section === "icons" && !iconThemes.installed.length) {
             iconThemesProc.running = true;
         }
@@ -104,14 +104,14 @@ Scope {
         }
     }
 
-    function askLive() {
-        if (section !== "waybar" || !editing || liveFor === editing.name) {
+    function askPresence() {
+        if (section !== "waybar" || !editing || presenceFor === editing.name) {
             return;
         }
-        live = {};
-        liveFor = editing.name;
-        barPreviewProc.command = ["python3", Files.themegen, "bar-preview", editing.name];
-        barPreviewProc.running = true;
+        presence = {};
+        presenceFor = editing.name;
+        barPresenceProc.command = ["python3", Files.themegen, "bar-presence", editing.name];
+        barPresenceProc.running = true;
     }
 
     function open(entry) {
@@ -137,7 +137,7 @@ Scope {
         fontSlot = "font";
         fontQuery = "";
         editing = entry;
-        askLive();
+        askPresence();
         if (!installedFonts.length) {
             fontsProc.running = true;
         }
@@ -248,21 +248,6 @@ Scope {
     function moduleName(module) {
         return moduleNames[module] || module;
     }
-    function preview(module) {
-        const now = live[module];
-        const text = (now && now.text) || (editing && editing.waybar.preview[module]) || "";
-        return withIcon(module, text) || moduleName(module);
-    }
-    // text with the icon picked for module in front, in place of the one it starts with.
-    function withIcon(module, text) {
-        const glyph = edit.icons ? edit.icons[module] : "";
-        if (!glyph) {
-            return text;
-        }
-        const characters = Array.from(text);
-        const startsWithIcon = characters.length && characters[0].codePointAt(0) >= 0xE000;
-        return glyph + (startsWithIcon ? characters.slice(1).join("") : " " + text);
-    }
     function iconEditable(module) {
         return !!editing && editing.waybar.iconEditable.includes(module);
     }
@@ -287,16 +272,21 @@ Scope {
         setIcon(iconFor, iconChoice);
         iconFor = "";
     }
-    // The module's icon as the bar shows it now: the first character of its text.
+    // The module's icon on the bar: the one picked for it, else the theme's own.
     function iconOf(module) {
-        const characters = Array.from(preview(module));
-        return characters.length && characters[0].codePointAt(0) >= 0xE000 ? characters[0] : "";
+        return (edit.icons && edit.icons[module]) || ownIcon(module);
+    }
+    // The glyph the theme's sample text for module starts with; "" when it has none (a clock, a window title).
+    function ownIcon(module) {
+        // Read as a code point: Array.from here splits a string into UTF-16 halves, and most icons lie past U+FFFF.
+        const first = ((editing && editing.waybar.preview[module]) || "").codePointAt(0);
+        return first >= 0xE000 ? String.fromCodePoint(first) : "";
     }
     function moduleState(module) {
-        return (live[module] || {}).state || "shown";
+        return (presence[module] || {}).state || "shown";
     }
     function moduleNote(module) {
-        return (live[module] || {}).note || "";
+        return (presence[module] || {}).note || "";
     }
     function setPosition(position) {
         change("waybar", Object.assign(panelCopy(), { position: position }));
@@ -530,13 +520,13 @@ Scope {
         }
     }
     Process {
-        id: barPreviewProc
+        id: barPresenceProc
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
-                    themeEdit.live = JSON.parse(this.text);
+                    themeEdit.presence = JSON.parse(this.text);
                 } catch (e) {
-                    themeEdit.live = {};
+                    themeEdit.presence = {};
                 }
             }
         }
