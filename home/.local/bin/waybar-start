@@ -22,9 +22,14 @@ flock -w 60 "$lock" || { echo "waybar-start: другой запуск не за
 # On top of the theme's style.css: rice.css (what every bar shows, such as a workspace asking for
 # attention), fonts.css (the font picked for the theme in the settings, written by themegen) and
 # user.css (the user's own, not part of the rice). The combined file stays next to style.css so its
-# relative @import keeps working.
+# relative @import keeps working. Last, clip-colours.css: the palette turned grey while the theme's
+# wallpaper clip is grey, written by the shell (services/ClipColour.qml), empty otherwise; waybar rereads
+# the style when it changes (config "reload_style_on_change"), without restarting its modules. Imported by
+# its full path: waybar looks for a relative import among its own config folders, so it would not watch it.
 style() {
-    cat "$CONF/style.css" "$CONF/rice.css" "$CONF/fonts.css" "$CONF/user.css" 2>/dev/null > "$CONF/style.run.css"
+    [ -e "$CONF/clip-colours.css" ] || : > "$CONF/clip-colours.css"
+    { cat "$CONF/style.css" "$CONF/rice.css" "$CONF/fonts.css" "$CONF/user.css" 2>/dev/null
+      echo "@import url(\"$CONF/clip-colours.css\");"; } > "$CONF/style.run.css"
     echo "$CONF/style.run.css"
 }
 

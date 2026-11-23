@@ -186,8 +186,10 @@ offscreen (see the end of this file); everything else is checked by hand on the 
   its first frame.
 - Theme lists: the rice's own themes by name, then the user's and the catalog's in the order they were added.
 - A theme's ui.json "clipColour" {clip, track} (track = `themegen.py clip-colour <clip>`, 0..1 per second): while
-  that clip is the wallpaper, everything the shell draws turns grey where the clip does, over 1.2 s; good, warn
-  and crit keep their colour; another wallpaper on the theme keeps the full palette. `[auto]`
+  that clip is the wallpaper, everything the shell draws turns grey where the clip does, over 1.2 s, and so do the
+  bar (waybar rereads ~/.config/hypr-rice/waybar/clip-colours.css) and the window borders (hyprctl eval), in 8
+  steps; good, warn and crit keep their colour; another wallpaper on the theme keeps the full palette; leaving
+  the clip gives the bar and the borders their colours back at once. `[auto]`
 
 ## Administrator password — polkit, always running
 

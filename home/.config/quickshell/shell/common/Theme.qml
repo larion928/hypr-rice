@@ -65,17 +65,23 @@ Singleton {
         return "#" + ("0" + Math.round(opacity * 255).toString(16)).slice(-2) + String(colour || "#888888").slice(1);
     }
 
-    // colour ("#RRGGBB") moved towards the grey of its own brightness as far as colourfulness is below 1.
+    // colour as this palette draws it: as grey as colourfulness says.
     function greyed(colour) {
-        if (colourfulness >= 1) {
+        return towardsGrey(colour, colourfulness);
+    }
+
+    // colour ("#RRGGBB", maybe with an alpha after it) moved towards the grey of its own brightness: all the way at
+    // share 0, not at all at 1.
+    function towardsGrey(colour, share) {
+        if (share >= 1) {
             return colour;
         }
         const channels = [1, 3, 5].map(start => parseInt(colour.slice(start, start + 2), 16));
         const grey = 0.299 * channels[0] + 0.587 * channels[1] + 0.114 * channels[2];
         return "#" + channels.map(channel => {
-            const mixed = Math.round(grey + (channel - grey) * colourfulness);
+            const mixed = Math.round(grey + (channel - grey) * share);
             return ("0" + mixed.toString(16)).slice(-2);
-        }).join("");
+        }).join("") + colour.slice(7);
     }
 
     function parse(text, fallback) {

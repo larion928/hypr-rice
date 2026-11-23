@@ -493,9 +493,21 @@ class ClipColour(MenuTest):
         self.assertTrue(red == green == blue, value("Theme.accent"))
         self.assertEqual(value("Theme.crit").lower(), self.sandbox.palette["colors"]["crit"].lower(), "crit says something")
 
+        bar = (self.sandbox.home / ".config/hypr-rice/waybar/clip-colours.css").read_text()
+        accent = next(line.split()[2].rstrip(";") for line in bar.splitlines() if line.startswith("@define-color accent "))
+        self.assertTrue(accent[1:3] == accent[3:5] == accent[5:7], bar)
+        self.assertNotIn("crit", bar)
+        borders = [call for call in self.sandbox.recorded() if call.startswith("hyprctl eval")]
+        self.assertIn('active_border={colors={"#b0b0b0ff","#e4e4e4ff"},angle=45},inactive_border={colors={"#767676ab"}',
+                      borders[-1])
+
         self.player.ANSWERS = {**self.player.ANSWERS, "time-pos": 30.0}
         self.sandbox.wait_for("player", "Theme.colourfulness", 1)
         self.assertEqual(value("Theme.accent").lower(), self.sandbox.palette["colors"]["accent"].lower())
+        self.assertEqual((self.sandbox.home / ".config/hypr-rice/waybar/clip-colours.css").read_text(), "")
+        borders = [call for call in self.sandbox.recorded() if call.startswith("hyprctl eval")]
+        self.assertEqual(borders[-1], 'hyprctl eval hl.config({general={col={active_border={colors={"#e3a857ff","#f3e3c0ff"},'
+                                      'angle=45},inactive_border={colors={"#7d746aab"},angle=0}}}})')
 
     def test_another_clip_on_the_same_theme_keeps_the_palette(self):
         self.player.ANSWERS = {**self.player.ANSWERS, "path": "/elsewhere/clip.mp4"}

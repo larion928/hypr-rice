@@ -75,6 +75,8 @@ esac""",
     "binds -j") cat "$FIXTURES/binds.json" ;;
     "globalshortcuts -j"|"clients -j") echo "[]" ;;
     submap) echo default ;;
+    "-j getoption general:col.active_border") echo '{"option": "general:col.active_border", "gradient": "ffe3a857 fff3e3c0 45deg", "set": true }' ;;
+    "-j getoption general:col.inactive_border") echo '{"option": "general:col.inactive_border", "gradient": "ab7d746a 0deg", "set": true }' ;;
 esac""",
     "histui": """case "$*" in
     "get --format json --limit 300") cat "$RUNTIME/notifications.json" ;;
