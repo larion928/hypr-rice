@@ -4,13 +4,13 @@
 // with another theme's screenshot.qml.
 // The frozen frame, mouse/keyboard handling and saving live here; every theme provides
 // themes/<name>/screenshot.qml that only draws the selection and the capture animation.
-// The capture animation and the shutter sound are features (Alt+F2 → Функции): without the animation the
-// overlay closes as soon as the shot is saved.
+// The capture animation and the shutter sound are features (Alt+F2 → Функции). Both start at the click, while
+// the shot is being saved; the overlay closes once the shot is saved and the animation is over.
 //
 // Theme contract: the root Item gets `ctx` (the QtObject inside each window below) and should
 //   - draw dimming/selection from ctx.sel (or ctx.hover while nothing is selected),
-//   - start its capture animation when ctx.phase becomes "capture",
-//   - call ctx.finish() when the animation is over (the overlay then closes).
+//   - start its capture animation when ctx.phase becomes "capture" (at the click, with the shutter sound),
+//   - call ctx.finish() when the animation is over.
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -36,7 +36,11 @@ Scope {
     // Selection is shared: only one screen owns it at a time.
     property string selScreen: ""
     property rect sel: Qt.rect(0, 0, 0, 0)
-    property string phase: "select" // select -> saving -> capture
+    // select -> capture (the theme's animation) or saving (no animation; text recognition)
+    property string phase: "select"
+    // Closing ends crop.py with the overlay, so the overlay waits for the saved shot even after the animation.
+    property bool saved: false
+    property bool animating: false
 
     signal dismissed()
 
@@ -46,6 +50,17 @@ Scope {
         }
         closing = true;
         dismissed();
+    }
+
+    function closeWhenDone() {
+        if (saved && !animating) {
+            close();
+        }
+    }
+
+    function animationOver() {
+        animating = false;
+        closeWhenDone();
     }
 
     FileView { id: monitorsFile; path: overlay.run + "/monitors.json"; blockLoading: true }
@@ -82,12 +97,14 @@ Scope {
         }
         selScreen = screenName;
         sel = rect;
-        phase = "saving";
         const screen = Quickshell.screens.find(s => s.name === screenName);
         const region = [`${run}/${screenName}.png`, rect.x, rect.y, rect.width, rect.height, screen.width, screen.height];
         if (mode === "ocr") {
+            phase = "saving";
             readText(region);
         } else {
+            animating = Features.on("shot-animation");
+            phase = animating ? "capture" : "saving";
             save(region);
         }
     }
@@ -109,11 +126,9 @@ Scope {
     Process {
         id: cropProc
         onExited: code => {
-            if (code === 0 && !Features.on("shot-animation")) {
-                overlay.close();
-            } else if (code === 0) {
-                overlay.phase = "capture";
-                quitGuard.start();
+            if (code === 0) {
+                overlay.saved = true;
+                overlay.closeWhenDone();
             } else {
                 Quickshell.execDetached(["notify-send", "-u", "critical", "Скриншот", "Не удалось сохранить снимок"]);
                 overlay.close();
@@ -122,7 +137,7 @@ Scope {
     }
 
     // In case a theme never calls finish().
-    Timer { id: quitGuard; interval: 6000; onTriggered: overlay.close() }
+    Timer { running: overlay.animating; interval: 6000; onTriggered: overlay.animationOver() }
 
     Region { id: noInput }
 
@@ -164,7 +179,7 @@ Scope {
                 property real frozenOpacity: 1
                 // Hides the whole overlay on screens that do not own the shot.
                 property real overlayOpacity: owner || overlay.phase === "select" ? 1 : 0
-                function finish() { overlay.close(); }
+                function finish() { overlay.animationOver(); }
             }
 
             Item {
@@ -202,7 +217,7 @@ Scope {
                     Connections {
                         target: overlay
                         enabled: fallback.visible
-                        function onPhaseChanged() { if (overlay.phase === "capture") overlay.close(); }
+                        function onPhaseChanged() { if (overlay.phase === "capture") overlay.animationOver(); }
                     }
                 }
             }
