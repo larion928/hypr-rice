@@ -116,9 +116,15 @@ def fetched():
 
 def git(where, *arguments):
     command = ["git", *(["-C", str(where)] if where else []), *arguments]
-    result = subprocess.run(command, capture_output=True, text=True)
+    # Never a login prompt: GitHub answers "authorization needed" for a repository that is not there.
+    result = subprocess.run(command, capture_output=True, text=True, env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
     if result.returncode != 0:
-        raise ValueError(f"каталог тем не скачался: {result.stderr.strip() or result.returncode}")
+        reason = result.stderr.strip() or str(result.returncode)
+        if "couldn't find remote ref" in reason:
+            reason = "автор его ещё не опубликовал"
+        elif "could not read Username" in reason:
+            reason = f"нет открытого репозитория {REPOSITORY} (аккаунт GitHub для каталога не нужен)"
+        raise ValueError(f"каталог тем не скачался: {reason}")
 
 
 def signed_by_author(revision):

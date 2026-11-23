@@ -101,6 +101,13 @@ class CatalogTest(unittest.TestCase):
         listing = json.loads(self.themegen("catalog").stdout)
         self.assertEqual(listing[0]["themes"][0]["state"], "installed")
 
+    def test_an_empty_catalog_says_so(self):
+        self.git("-C", self.origin, "commit", "-q", "--allow-empty", "-m", "start")
+        self.git("-C", self.origin, "branch", "-m", "other")
+        result = self.themegen("catalog")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("автор его ещё не опубликовал", result.stderr)
+
     def test_an_unsigned_catalog_installs_nothing(self):
         self.publish({"pack": {"dawn": self.archive("dawn")}}, signed=False)
         result = self.themegen("catalog-install", "dawn")
