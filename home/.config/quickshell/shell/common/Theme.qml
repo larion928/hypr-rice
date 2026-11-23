@@ -17,15 +17,20 @@ Singleton {
     readonly property var pal: parse(paletteFile.text(), { colors: {} })
     readonly property var ui: parse(uiFile.text(), {})
 
+    // How colourful the palette is drawn, 0..1: below 1 it turns grey. A theme whose ui.json has "clipColour"
+    // follows its wallpaper clip with it (services/ClipColour.qml sets it); good, warn and crit keep their colour,
+    // since they say something.
+    property real colourfulness: 1
+
     // A theme without one of these colours gets the stand-in, so a menu never draws with an undefined colour.
     readonly property var colors: pal.colors || {}
-    readonly property string bg: colors.bg || "#000000"
-    readonly property string bg2: colors.bg2 || "#202020"
-    readonly property string fg: colors.fg || "#ffffff"
-    readonly property string muted: colors.muted || "#808080"
-    readonly property string accent: colors.accent || "#ffffff"
-    readonly property string accent2: colors.accent2 || accent
-    readonly property string accent3: colors.accent3 || accent
+    readonly property string bg: greyed(colors.bg || "#000000")
+    readonly property string bg2: greyed(colors.bg2 || "#202020")
+    readonly property string fg: greyed(colors.fg || "#ffffff")
+    readonly property string muted: greyed(colors.muted || "#808080")
+    readonly property string accent: greyed(colors.accent || "#ffffff")
+    readonly property string accent2: colors.accent2 ? greyed(colors.accent2) : accent
+    readonly property string accent3: colors.accent3 ? greyed(colors.accent3) : accent
     readonly property string good: colors.good || "#00c000"
     readonly property string warn: colors.warn || "#e0c000"
     readonly property string crit: colors.crit || "#ff0000"
@@ -58,6 +63,19 @@ Singleton {
     // colour ("#RRGGBB") at the given opacity (0..1), in Qt's "#AARRGGBB" form.
     function alpha(colour, opacity) {
         return "#" + ("0" + Math.round(opacity * 255).toString(16)).slice(-2) + String(colour || "#888888").slice(1);
+    }
+
+    // colour ("#RRGGBB") moved towards the grey of its own brightness as far as colourfulness is below 1.
+    function greyed(colour) {
+        if (colourfulness >= 1) {
+            return colour;
+        }
+        const channels = [1, 3, 5].map(start => parseInt(colour.slice(start, start + 2), 16));
+        const grey = 0.299 * channels[0] + 0.587 * channels[1] + 0.114 * channels[2];
+        return "#" + channels.map(channel => {
+            const mixed = Math.round(grey + (channel - grey) * colourfulness);
+            return ("0" + mixed.toString(16)).slice(-2);
+        }).join("");
     }
 
     function parse(text, fallback) {

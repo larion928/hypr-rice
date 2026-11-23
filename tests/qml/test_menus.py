@@ -470,6 +470,43 @@ class FakeMpv:
 
 
 @unittest.skipUnless(resident(), "the per-panel menus have no resident shell")
+class ClipColour(MenuTest):
+    """A theme with ui.json "clipColour" turns the shell's palette grey where its clip is grey."""
+
+    def setUp(self):
+        super().setUp()
+        theme = self.sandbox.home / ".config/hypr/themes/claude"
+        (theme / "assets").mkdir(exist_ok=True)
+        (theme / "assets/clip-colour.json").write_text(json.dumps([1] * 12 + [0] * 8 + [1] * 80))
+        ui = json.loads((self.sandbox.home / ".config/hypr/ui.json").read_text())
+        self.sandbox.write_theme(self.sandbox.palette,
+                                 {**ui, "clipColour": {"clip": "clip.mp4", "track": "assets/clip-colour.json"}})
+        self.player = FakeMpv(self.sandbox.runtime / "hypr-rice-wallpaper.sock")
+        self.player.ANSWERS = {**FakeMpv.ANSWERS, "path": str(theme / "clip.mp4")}
+        self.addCleanup(self.player.close)
+
+    def test_the_palette_greys_where_the_clip_does_and_comes_back(self):
+        value = self.open("player")
+        self.sandbox._ipc(self.sandbox.processes["shell"], "wallpaper", "hidden", "false")
+        self.sandbox.wait_for("player", "Theme.colourfulness", 0)  # 12.5 s into the clip
+        red, green, blue = (value(f"parseInt(Theme.accent.slice({start}, {start + 2}), 16)") for start in (1, 3, 5))
+        self.assertTrue(red == green == blue, value("Theme.accent"))
+        self.assertEqual(value("Theme.crit").lower(), self.sandbox.palette["colors"]["crit"].lower(), "crit says something")
+
+        self.player.ANSWERS = {**self.player.ANSWERS, "time-pos": 30.0}
+        self.sandbox.wait_for("player", "Theme.colourfulness", 1)
+        self.assertEqual(value("Theme.accent").lower(), self.sandbox.palette["colors"]["accent"].lower())
+
+    def test_another_clip_on_the_same_theme_keeps_the_palette(self):
+        self.player.ANSWERS = {**self.player.ANSWERS, "path": "/elsewhere/clip.mp4"}
+        value = self.open("player")
+        self.sandbox._ipc(self.sandbox.processes["shell"], "wallpaper", "hidden", "false")
+        self.sandbox.wait_for("player", "Wallpaper.path", "/elsewhere/clip.mp4")
+        time.sleep(0.8)
+        self.assertEqual(value("Theme.colourfulness"), 1)
+
+
+@unittest.skipUnless(resident(), "the per-panel menus have no resident shell")
 class WallpaperSound(MenuTest):
     def setUp(self):
         super().setUp()

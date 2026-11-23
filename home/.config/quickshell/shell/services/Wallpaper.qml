@@ -42,10 +42,12 @@ Singleton {
     readonly property string barJson: barState()
 
     // What the player says about its clip.
+    property string path: ""  // the file as mpvpaper was given it
     property bool hasSound: false
     property real duration: 0
     property real position: 0
-    // Menus that show the position (the wallpaper card) count themselves here while they are open.
+    // Whatever follows the position counts itself here while it does: the wallpaper card while it is open,
+    // ClipColour while the theme's own clip plays.
     property int positionWatchers: 0
 
     // The share of volume mpv plays at; fader moves it.
@@ -137,7 +139,7 @@ Singleton {
 
     // The player's properties asked here; an answer comes back with the request_id it was asked with (index + 1:
     // mpv answers commands sent without one with 0).
-    readonly property var asked: ["track-list", "duration", "time-pos"]
+    readonly property var asked: ["track-list", "duration", "time-pos", "path"]
 
     function ask(name) {
         send(["get_property", name], asked.indexOf(name) + 1);
@@ -161,6 +163,8 @@ Singleton {
             hasSound = (data || []).some(track => track.type === "audio");
         } else if (name === "duration") {
             duration = data || 0;
+        } else if (name === "path") {
+            path = data || "";
         } else {
             position = data || 0;
         }
@@ -170,6 +174,7 @@ Singleton {
     function greet() {
         ask("track-list");
         ask("duration");
+        ask("path");
         applyPause();
     }
 
@@ -177,6 +182,7 @@ Singleton {
         fader.stop();
         leaving = false;
         level = 0;
+        path = "";
         hasSound = false;
         duration = 0;
         position = 0;

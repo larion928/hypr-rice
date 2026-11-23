@@ -43,6 +43,8 @@ ShellRoot {
     readonly property var phones: Phones
     // Made at start too: it gives a new wallpaper player its sound and answers wallpaper-hidden.
     readonly property var wallpaper: Wallpaper
+    // Made at start too: the palette follows the theme's wallpaper clip whether a menu is open or not.
+    readonly property var clipColour: ClipColour
 
     function slot(name) {
         const found = slots[name];

@@ -30,6 +30,16 @@ assert path.read_text() == "new" and (path.stat().st_mode & 0o777) == 0o600, oct
 assert sorted(p.name for p in path.parent.iterdir()) == ["settings.json"], list(path.parent.iterdir())
 """)
 
+    def test_clip_colour_tells_grey_from_dark_and_judges_against_the_clips_usual_colour(self):
+        self.check("""
+from apptheme.wallpapers import clip_colour
+amber, grey, dark_amber, black = bytes((227, 168, 87)), bytes((150, 150, 150)), bytes((60, 40, 20)), bytes(3)
+assert clip_colour.frame_chroma(grey * 10) == 0
+assert clip_colour.frame_chroma(amber * 5 + black * 5) == clip_colour.frame_chroma(amber * 10), "black pixels do not count"
+assert abs(clip_colour.frame_chroma(dark_amber * 10) - clip_colour.frame_chroma(amber * 10)) < 0.05, "dark is not grey"
+assert [clip_colour.blend(share) for share in (0.5, 0.6, 0.75, 0.9, 1.2)] == [0, 0, 0.5, 1, 1]
+""")
+
     def test_a_failed_write_leaves_the_old_file(self):
         self.check("""
 import os

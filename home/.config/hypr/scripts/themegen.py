@@ -22,7 +22,7 @@ from apptheme.icons import glyphs, icon_theme, icon_themes
 from apptheme.paths import HOME, HYPR, THEMES
 from apptheme.themes import catalog, factory_reset, removed_themes, user_themes
 from apptheme.themes.theme import all_names, load
-from apptheme.wallpapers import animated, frames, wallpaper_engine, wallpaper_still
+from apptheme.wallpapers import animated, clip_colour, frames, wallpaper_engine, wallpaper_still
 
 
 def switch(name, keep_wallpaper, offline):
@@ -266,6 +266,10 @@ COMMANDS = {
     "wallpaper-needs": Command(
         printing(animated.missing_package), "",
         "the package animated wallpapers still need, or nothing", FILE_ERRORS),
+    "clip-colour": Command(
+        printing_json(lambda video: clip_colour.per_second(Path(video))), "<video>",
+        "how colourful the clip is each second (0 grey .. 1 full colour), as JSON, for a theme's ui.json clipColour",
+        FILE_ERRORS + (ValueError, subprocess.CalledProcessError)),
     "wallpaper-engine": Command(
         printing_json(wallpaper_engine.listing), "",
         "Wallpaper Engine's subscribed wallpapers, as JSON", FILE_ERRORS),
