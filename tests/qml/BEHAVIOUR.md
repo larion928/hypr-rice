@@ -185,7 +185,9 @@ offscreen (see the end of this file); everything else is checked by hand on the 
 - A theme's ui.json "headerIcon" may be an animated GIF or WebP: it plays once when a menu opens, then rests on
   its first frame.
 - A theme's ui.json "titleScale" scales every title of the menus and its card in the theme lists (a wide pixel font
-  is drawn larger than most at the same size).
+  is drawn larger than most at the same size); "titleGrid" then snaps the size to a multiple of it (a pixel font
+  is sharp only there), never below one.
+- Theme lists: the rice's own themes by name, then the user's and the catalog's in the order they were added.
 - A theme's ui.json "fonts" (files in its folder) are in the menus as soon as the theme is the current one, with no
   restart of the shell.
 

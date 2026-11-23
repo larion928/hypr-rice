@@ -81,6 +81,13 @@ class EveryMenu(MenuTest):
         self.sandbox.write_theme(self.sandbox.palette, {"fonts": ["assets/test.ttf"]})
         self.sandbox.wait_for("power", f"Qt.fontFamilies().indexOf('{family}') >= 0", True)
 
+    def test_a_pixel_font_theme_gets_its_title_sizes_scaled_onto_its_grid(self):
+        value = self.open("power")
+        self.sandbox.write_theme(self.sandbox.palette, {"titleScale": 0.65, "titleGrid": 8})
+        self.sandbox.wait_for("power", "Theme.titleSize(24)", 16)
+        self.assertEqual(value("Theme.titleSize(16)"), 8)
+        self.assertEqual(value("Theme.titleSize(40)"), 24)
+
 
 class Launcher(MenuTest):
     def test_commands_and_search(self):

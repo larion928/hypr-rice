@@ -6,6 +6,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "titles.js" as Titles
 import "url.js" as Url
 
 Singleton {
@@ -40,8 +41,6 @@ Singleton {
     readonly property string glyphFont: "JetBrainsMono Nerd Font"
 
     readonly property bool italicTitle: !!ui.italicTitle
-    // A display font drawn larger than most at the same size (a wide pixel font) is scaled down by its theme.
-    readonly property real titleScale: ui.titleScale ?? 1
     readonly property int border: ui.border ?? 1
     readonly property int slideMs: ui.slideMs ?? 260
     readonly property int cardRadius: ui.cardRadius ?? 10
@@ -53,9 +52,9 @@ Singleton {
         return Math.min(ui.radius ?? 14, max);
     }
 
-    // A size given for titles, as the theme's title font needs it.
+    // A size given for titles, as the theme's title font needs it (titles.js).
     function titleSize(px) {
-        return Math.round(px * titleScale);
+        return Titles.titleSize(px, ui);
     }
 
     // A title as the theme writes titles: some themes in upper case.

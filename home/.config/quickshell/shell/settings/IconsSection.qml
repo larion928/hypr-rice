@@ -125,6 +125,9 @@ Item {
                 }
                 Text {
                     anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 10 }
+                    width: parent.width - 12
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideRight
                     text: batteryCell.modelData.pal.label
                     font.family: Theme.bodyFont; font.pixelSize: 12
                     color: Theme.fg
