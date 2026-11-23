@@ -10,6 +10,13 @@ tell_shell() {
     quickshell ipc -p "$HOME/.config/quickshell/shell" call wallpaper locked "$1" >/dev/null 2>&1
 }
 
+# hyprlock sizes a picture in pixels only: a theme's lock picture half a screen high needs the screens of now.
+half=$(hyprctl monitors -j 2>/dev/null \
+    | jq '[.[] | (if .transform % 2 == 1 then .width else .height end) / .scale] | min / 2 | floor' 2>/dev/null)
+if [[ $half =~ ^[0-9]+$ ]]; then
+    sed -i "s/^\$screen_half = .*/\$screen_half = $half/" "$HOME/.config/hypr/hyprlock-colors.conf"
+fi
+
 tell_shell true
 hyprlock "$@"
 status=$?

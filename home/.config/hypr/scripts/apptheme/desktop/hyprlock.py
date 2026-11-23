@@ -15,6 +15,9 @@ def apply(theme, wallpaper):
     lines.append(f"$font = {theme.font}")
     lines.append(f"$display_font = {theme.display}")
     lines.append(f"$theme_dir = {theme.dir}")
+    # hyprlock sizes a picture in pixels only; a theme's lock picture may be half a screen high. rice-lock puts
+    # the lowest screen's half here before each lock; this one stays for a hyprlock started by hand.
+    lines.append("$screen_half = 540")
     if wallpaper:
         lines.append(f"$wallpaper = {wallpaper}")
     else:
