@@ -192,6 +192,17 @@
         "tooltip": true,
         "on-click": "~/.local/bin/phone-panel"
     },
+    "custom/wallpaper": {
+        "exec": "~/.local/bin/wallpaper-panel bar",
+        "return-type": "json",
+        "interval": "once",
+        "signal": 13,
+        "tooltip": true,
+        "on-click": "~/.local/bin/wallpaper-panel",
+        "on-click-right": "~/.local/bin/wallpaper-panel sound",
+        "on-scroll-up": "~/.local/bin/wallpaper-panel louder",
+        "on-scroll-down": "~/.local/bin/wallpaper-panel quieter"
+    },
     "custom/power": {
         "exec": "~/.local/bin/power-mode",
         "return-type": "json",

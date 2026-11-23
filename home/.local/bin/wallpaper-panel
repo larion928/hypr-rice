@@ -1,0 +1,20 @@
+#!/bin/bash
+# wallpaper-panel — the animated wallpaper's sound (services/Wallpaper.qml of the shell) and its card.
+#   wallpaper-panel                 toggle the card (menu "wallpaper" of ~/.config/quickshell/shell)
+#   wallpaper-panel sound           switch the sound on or off (the feature wallpaper-sound)
+#   wallpaper-panel louder|quieter  change the volume
+#   wallpaper-panel bar             waybar JSON for custom/wallpaper
+source "$HOME/.config/quickshell/menus.sh"
+
+# The bar shows nothing while the shell is down: no one knows the wallpaper's sound then.
+IDLE_BAR='{"text": "", "tooltip": "", "class": "none"}'
+
+case "${1:-}" in
+    "") menus_call toggle wallpaper "" ;;
+    sound) shell_call wallpaper switchSound ;;
+    louder) shell_call wallpaper louder ;;
+    quieter) shell_call wallpaper quieter ;;
+    # Not shell_call: waybar runs this at its own start, and starting the shell from here races hyprland.lua.
+    bar) quickshell ipc -p "$MENUS_SHELL" call wallpaper bar 2>/dev/null || echo "$IDLE_BAR" ;;
+    *) echo "wallpaper-panel [sound|louder|quieter|bar]" >&2; exit 2 ;;
+esac

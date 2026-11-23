@@ -52,7 +52,7 @@ function all(themes, home) {
         { id: "notif", name: "Уведомления", desc: "история", glyph: "\uf0f3",
           keys: "notifications уведомления история", run: [bin + "notif-panel"] },
         { id: "lock", name: "Блокировка экрана", desc: "Alt+I", glyph: "\uf023",
-          keys: "lock блокировка заблокировать", run: ["hyprlock"] },
+          keys: "lock блокировка заблокировать", run: ["rice-lock"] },
         { id: "suspend", name: "Сон", desc: "systemctl suspend", glyph: "\uf186",
           keys: "suspend sleep сон", run: ["systemctl", "suspend"] },
         { id: "logout", name: "Выйти из сессии", desc: "нужно подтверждение", glyph: "\uf2f5", danger: true,

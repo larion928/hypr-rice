@@ -1,6 +1,7 @@
 // Player card (waybar custom/player, player-panel): the active MPRIS player's cover, track and controls, and
 // the other players to switch to. Which player is active is Players' choice (services/Players.qml), shared
 // with the media keys and the bar. A control the player does not support is not shown.
+// The animated wallpaper's sound, when its clip has one, is switched and set at the bottom.
 import QtQuick
 import QtQuick.Effects
 import Quickshell.Services.Mpris
@@ -180,6 +181,14 @@ OverlayPanel {
                         onPicked: Players.pick(modelData)
                     }
                 }
+            }
+
+            Column {
+                visible: Wallpaper.connected && Wallpaper.hasSound
+                width: parent.width
+                spacing: 6
+                SectionTitle { text: "Звук обоев" }
+                WallpaperRow { width: parent.width }
             }
         }
     }

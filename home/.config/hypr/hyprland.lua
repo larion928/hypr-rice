@@ -60,9 +60,11 @@ end)
 --- ANIMATED WALLPAPER ---
 --------------------------
 
--- The animated wallpaper (~/.local/bin/wallpaper) is one mpv drawing on every monitor, so it pauses
--- everywhere or nowhere: it pauses while each monitor shows a fullscreen window, and plays while any
--- monitor shows the wallpaper. A fullscreen window on a workspace no monitor shows hides nothing.
+-- The animated wallpaper (~/.local/bin/wallpaper) is one mpv drawing on every monitor, so it is hidden
+-- everywhere or nowhere: hidden while each monitor shows a fullscreen window, shown while any monitor shows
+-- the wallpaper. ~/.local/bin/wallpaper-hidden is told each change: its sound fades out while it is hidden,
+-- and it pauses when the feature wallpaper-pause is on. A fullscreen window on a workspace no monitor shows
+-- hides nothing.
 -- A maximized window (fullscreen_mode 1) leaves the wallpaper in the gaps; only a fullscreen one (2) hides it.
 local FULLSCREEN = 2
 
@@ -86,29 +88,27 @@ local function wallpaper_hidden(closing)
 end
 
 -- Sent only when it changes: the events below come on every workspace switch, and each send starts a process.
-local wallpaper_paused = nil
+local wallpaper_was_hidden = nil
 
--- Switched off, the wallpaper never pauses; one paused when it was switched off resumes on the next event,
--- and until then fullscreen windows still hide it.
-local function update_wallpaper_pause(closing)
-    local hidden = on("wallpaper-pause") and wallpaper_hidden(closing)
-    if hidden ~= wallpaper_paused then
-        wallpaper_paused = hidden
-        hl.exec_cmd("~/.local/bin/wallpaper-pause " .. (hidden and "yes" or "no"))
+local function update_wallpaper_hidden(closing)
+    local hidden = wallpaper_hidden(closing)
+    if hidden ~= wallpaper_was_hidden then
+        wallpaper_was_hidden = hidden
+        hl.exec_cmd("~/.local/bin/wallpaper-hidden " .. (hidden and "yes" or "no"))
     end
 end
 
-hl.on("window.close", update_wallpaper_pause)
+hl.on("window.close", update_wallpaper_hidden)
 for _, event in ipairs({ "window.fullscreen", "window.open", "window.destroy", "window.move_to_workspace",
                          "workspace.active", "workspace.special_active", "workspace.move_to_monitor",
                          "monitor.added", "monitor.removed" }) do
-    hl.on(event, function() update_wallpaper_pause(nil) end)
+    hl.on(event, function() update_wallpaper_hidden(nil) end)
 end
 -- A new player (a theme change, the autostart) starts playing: it gets the current state again.
 hl.on("layer.opened", function(layer)
     if layer.namespace == "mpvpaper" then
-        wallpaper_paused = nil
-        update_wallpaper_pause(nil)
+        wallpaper_was_hidden = nil
+        update_wallpaper_hidden(nil)
     end
 end)
 

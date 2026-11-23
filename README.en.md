@@ -118,7 +118,8 @@ Every menu opens in the current theme's colours and fonts; pressing its key agai
 | Games | Alt+G | the game library (below) |
 | Clipboard | Alt+Shift+V | the last 100 copied entries, search; switched on in Features |
 | Notifications | bell | history by day, search, do not disturb |
-| Player | "Плеер" module on the bar | cover, track, seek bar, buttons, volume, the source to show when several programs play |
+| Player | "Плеер" module on the bar | cover, track, seek bar, buttons, volume, the source to show when several programs play; a wallpaper clip's sound |
+| Wallpaper sound | "Звук обоев" module on the bar (Тема → Панель) | the wallpaper clip's card: cover, sound on/off, volume; right click switches the sound, the wheel changes the volume |
 | Screenshots | camera on the bar | every shot, preview, copy, delete |
 | Phone | "Телефон" module on the bar | KDE Connect: charge, find the phone, ping, send files and the clipboard, the phone's files in Thunar, pairing; switched on in Features |
 
@@ -193,6 +194,7 @@ Each one with its name in the Функции tab and whether it is on right afte
 **Wallpapers**
 
 - **Pausing animated wallpapers** (Пауза анимированных обоев, on). The wallpaper stops while a fullscreen window covers it entirely. Less load in games and when watching videos.
+- **Wallpaper sound** (Звук обоев, off). A wallpaper clip plays with its own sound. The sound fades out while a fullscreen window covers the wallpaper, another player is playing or the screen is locked. The volume is in the player on the bar.
 
 **System**
 

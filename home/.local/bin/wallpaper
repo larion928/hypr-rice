@@ -42,8 +42,10 @@ fi
 [ -n "$video" ] || exit 1
 # The bottom layer: above awww's background, below every window and the bar. -p pauses it while
 # Hyprland stops drawing it. A fullscreen window on the workspace a monitor shows pauses it through the
-# control socket: the Hyprland config watches for that and runs wallpaper-pause. (mpvpaper's own -a FULL
-# paused it for a fullscreen window on any workspace, hidden ones too.)
+# control socket: the Hyprland config watches for that and runs wallpaper-hidden. (mpvpaper's own -a FULL
+# paused it for a fullscreen window on any workspace, hidden ones too.) It starts silent: the shell's
+# services/Wallpaper.qml turns a clip's sound on and fades it in when the user wants the wallpaper's sound.
 control="${XDG_RUNTIME_DIR:-/tmp}/hypr-rice-wallpaper.sock"
-exec "$PLAYER" -f -p -l bottom -o "no-audio loop hwdec=auto panscan=1.0 input-ipc-server=$control" \
+exec "$PLAYER" -f -p -l bottom \
+    -o "aid=no volume=0 audio-client-name=hypr-rice-wallpaper loop hwdec=auto panscan=1.0 input-ipc-server=$control" \
     ALL "$video" {lock}>&-

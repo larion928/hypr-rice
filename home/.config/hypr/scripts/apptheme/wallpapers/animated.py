@@ -1,7 +1,7 @@
 """Animated wallpapers in one format: whatever was added (a GIF, an .mp4, .webm, .mkv, ...) is played
 from an H.264 mp4 by mpvpaper (~/.local/bin/wallpaper), which the GPU decodes: yuv420p, no wider than
-the screen, at most 30 frames a second, no sound. A file already like that plays as it is; any other
-is converted once into .animated/ next to it."""
+the screen, at most 30 frames a second, with its sound when it has some (one track). A file already like
+that plays as it is; any other is converted once into .animated/ next to it."""
 import json
 import shutil
 import subprocess
@@ -25,7 +25,7 @@ def playable(path):
     if path.suffix.lower() == ".mp4" and fits(path):
         return str(path)
     target = path.parent / CONVERTED / f"{path.stem}.mp4"
-    if not target.exists() or target.stat().st_mtime < path.stat().st_mtime:
+    if not target.exists() or target.stat().st_mtime < path.stat().st_mtime or lost_sound(path, target):
         convert(path, target)
     return str(target)
 
@@ -59,7 +59,8 @@ def import_into(source, folder, name=""):
 
 
 def fits(video):
-    """H.264 in yuv420p, no sound, no wider than the screen, at most MAX_FPS frames a second."""
+    """H.264 in yuv420p, no wider than the screen, at most MAX_FPS frames a second; besides the picture
+    nothing but one sound track."""
     probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries",
                             "stream=codec_type,codec_name,pix_fmt,width,avg_frame_rate", "-of", "json", str(video)],
                            capture_output=True, text=True)
@@ -68,7 +69,8 @@ def fits(video):
     except (ValueError, KeyError):
         return False
     videos = [stream for stream in streams if stream.get("codec_type") == "video"]
-    if len(videos) != 1 or len(streams) != 1:  # a second stream is sound (or subtitles)
+    sounds = [stream for stream in streams if stream.get("codec_type") == "audio"]
+    if len(videos) != 1 or len(sounds) > 1 or len(streams) != len(videos) + len(sounds):
         return False
     stream = videos[0]
     return (stream.get("codec_name") == "h264" and stream.get("pix_fmt") == "yuv420p"
@@ -81,12 +83,25 @@ def convert(source, target):
     width = screen_width()
     # Even sizes for yuv420p; never wider than the screen, never upscaled; no more than MAX_FPS frames.
     scale = f"scale='trunc(min({width},iw)/2)*2':-2,fps='min({MAX_FPS},source_fps)'"
-    made = subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(source), "-an", "-vf", scale,
-                           "-c:v", "libx264", "-preset", "medium", "-crf", "23", "-pix_fmt", "yuv420p",
-                           "-movflags", "+faststart", str(target)], capture_output=True, text=True)
+    # The first sound track, if any; subtitles and the rest stay behind.
+    made = subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(source), "-map", "0:v:0", "-map", "0:a:0?",
+                           "-vf", scale, "-c:v", "libx264", "-preset", "medium", "-crf", "23", "-pix_fmt", "yuv420p",
+                           "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(target)],
+                           capture_output=True, text=True)
     if made.returncode != 0:
         target.unlink(missing_ok=True)
         raise ValueError(f"{source.name} не перевёлся в mp4: {made.stderr.strip()[:200]}")
+
+
+def lost_sound(source, converted):
+    """A copy converted before the sound was kept: its source has sound, the copy has none."""
+    return has_sound(source) and not has_sound(converted)
+
+
+def has_sound(video):
+    probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=index",
+                            "-of", "csv=p=0", str(video)], capture_output=True, text=True)
+    return bool(probe.stdout.strip())
 
 
 def frame_rate(stream):

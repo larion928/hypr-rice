@@ -82,7 +82,9 @@ PATHS=(
     .local/bin/proton-run
     .local/bin/games
     .local/bin/wallpaper
-    .local/bin/wallpaper-pause
+    .local/bin/wallpaper-hidden
+    .local/bin/rice-lock
+    .local/bin/wallpaper-panel
     .local/bin/rice-install-package
     .local/bin/clipboard-history
     .local/bin/clipboard-store

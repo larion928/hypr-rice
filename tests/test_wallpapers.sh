@@ -77,7 +77,7 @@ PY
 }
 
 # Animated wallpapers play from one format: an H.264 mp4 in yuv420p, no wider than the screen, at most
-# 30 frames a second, no sound; one already like that plays as it is.
+# 30 frames a second, with its sound; one already like that plays as it is.
 test_animated_wallpapers_one_format() {
     command -v ffmpeg >/dev/null || { echo "нет ffmpeg, пропускаю"; return 0; }
     mkdir -p "$HOME/w"
@@ -98,9 +98,14 @@ def streams(video):
 
 clip = animated.playable(home / "w/clip.mkv")
 assert clip == str(home / "w/.animated/clip.mp4"), clip
-[video] = streams(clip)  # one stream: the sound is gone
+video, sound = streams(clip)
+assert sound["codec_type"] == "audio", "звук пропал"
 assert (video["codec_name"], video["pix_fmt"], video["width"], video["avg_frame_rate"]) == ("h264", "yuv420p", 640, "30/1"), video
 assert animated.playable(clip) == clip, "подходящий mp4 переделан заново"
+# A copy converted before the sound was kept is made again.
+subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", clip, "-an", "-c:v", "copy", str(home / "silent.mp4")], check=True)
+Path(clip).write_bytes((home / "silent.mp4").read_bytes())
+assert len(streams(animated.playable(home / "w/clip.mkv"))) == 2, "старая копия без звука осталась"
 gif = animated.playable(home / "w/anim.gif")
 assert streams(gif)[0]["avg_frame_rate"] == "10/1", "у GIF прибавились кадры"
 

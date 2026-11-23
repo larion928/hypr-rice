@@ -4,8 +4,8 @@
 // closes; the scripts open and close them over IPC:
 //   quickshell ipc -p ~/.config/quickshell/shell call menus toggle <menu> [argument]
 // open, close and isOpen work the same way. Menus: launcher, settings, themes, help, power, notif, network, games,
-// shots, shot, picker (the colour picker), clipboard, player, phone. Colours and fonts follow the current theme as it changes
-// (common/Theme.qml).
+// shots, shot, picker (the colour picker), clipboard, player, phone, wallpaper. Colours and fonts follow the
+// current theme as it changes (common/Theme.qml).
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -26,6 +26,7 @@ import qs.picker
 import qs.polkit
 import qs.player
 import qs.phone
+import qs.wallpaper
 import qs.services
 
 ShellRoot {
@@ -34,11 +35,14 @@ ShellRoot {
     readonly property var slots: ({ launcher: launcherSlot, settings: settingsSlot, themes: themesSlot, help: helpSlot,
                                     power: powerSlot, notif: notifSlot, network: networkSlot, games: gamesSlot,
                                     shots: shotsSlot, shot: shotSlot, picker: pickerSlot, clipboard: clipboardSlot,
-                                    player: playerSlot, phone: phoneSlot })
+                                    player: playerSlot, phone: phoneSlot,
+                                    wallpaper: wallpaperSlot })
     // Made at start, not when the card first opens: the media keys and the bar ask it from the first minute.
     readonly property var players: Players
     // Made at start too: the bar shows the phone's battery while the menu is closed.
     readonly property var phones: Phones
+    // Made at start too: it gives a new wallpaper player its sound and answers wallpaper-hidden.
+    readonly property var wallpaper: Wallpaper
 
     function slot(name) {
         const found = slots[name];
@@ -70,6 +74,7 @@ ShellRoot {
     MenuSlot { id: clipboardSlot; Clipboard {} }
     MenuSlot { id: playerSlot; Player {} }
     MenuSlot { id: phoneSlot; Phone {} }
+    MenuSlot { id: wallpaperSlot; WallpaperCard {} }
 
     // The session's polkit agent: an app asking for an administrator's rights gets the password window.
     PolkitAgent { id: polkitAgent }

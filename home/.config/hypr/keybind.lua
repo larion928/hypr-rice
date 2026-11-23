@@ -94,7 +94,7 @@ hl.bind(key("K"), hl.dsp.window.resize({ x = 0,   y = -70, relative = true }), {
 hl.bind(key("J"), hl.dsp.window.resize({ x = 0,   y = 70,  relative = true }), { repeating = true })
 
 -- Main binds
-bind("lock",         key("I"),         hl.dsp.exec_cmd("hyprlock"),                     desc("Система | Заблокировать экран"))
+bind("lock",         key("I"),         hl.dsp.exec_cmd("rice-lock"),                    desc("Система | Заблокировать экран"))
 bind("browser",      key("B"),         hl.dsp.exec_cmd(browser),                        desc("Приложения | Браузер"))
 local telegram = installed("AyuGram") and "AyuGram" or installed("Telegram") and "Telegram" or nil
 if telegram then

@@ -4,7 +4,9 @@
 Each test starts its own shell. Skipped without quickshell."""
 import json
 import shutil
+import socket
 import subprocess
+import threading
 import time
 import unittest
 
@@ -420,6 +422,116 @@ class Player(MenuTest):
         self.escape_closes("player")
 
 
+class FakeMpv:
+    """mpv's control socket as the wallpaper's player gives it: answers the clip's tracks (one sound track) and
+    keeps every command it got."""
+
+    ANSWERS = {"track-list": [{"type": "video"}, {"type": "audio"}], "duration": 100.0, "time-pos": 12.5}
+
+    def __init__(self, path):
+        self.received = []
+        self.server = socket.socket(socket.AF_UNIX)
+        self.server.bind(str(path))
+        self.server.listen()
+        threading.Thread(target=self.serve, daemon=True).start()
+
+    def serve(self):
+        while True:
+            try:
+                connection, _ = self.server.accept()
+            except OSError:  # closed by the test
+                return
+            with connection, connection.makefile("rw") as stream:
+                for line in stream:
+                    message = json.loads(line)
+                    command = message["command"]
+                    self.received.append(command)
+                    data = self.ANSWERS.get(command[1]) if command[0] == "get_property" else None
+                    stream.write(json.dumps({"data": data, "request_id": message.get("request_id", 0),
+                                             "error": "success"}) + "\n")
+                    stream.flush()
+
+    def sent(self, name):
+        return [command[2] for command in self.received if command[:2] == ["set_property", name]]
+
+    def close(self):
+        self.server.close()
+
+
+@unittest.skipUnless(resident(), "the per-panel menus have no resident shell")
+class WallpaperSound(MenuTest):
+    def setUp(self):
+        super().setUp()
+        self.player = FakeMpv(self.sandbox.runtime / "hypr-rice-wallpaper.sock")
+        self.addCleanup(self.player.close)
+
+    def switch(self, **features):
+        state = self.sandbox.home / ".config/hypr-rice/features.json"
+        state.parent.mkdir(parents=True, exist_ok=True)
+        state.write_text(json.dumps({key.replace("_", "-"): on for key, on in features.items()}))
+
+    def tell(self, *args):
+        return self.sandbox._ipc(self.sandbox.processes["shell"], "wallpaper", *args)
+
+    def test_the_sound_fades_in_and_a_hidden_wallpaper_pauses_only_once_it_faded_out(self):
+        self.switch(wallpaper_sound=True, wallpaper_pause=True)
+        value = self.open("player")
+        self.assertEqual(self.tell("hidden", "false"), "ok")
+        self.sandbox.wait_for("player", "Wallpaper.level", 1)
+        self.assertEqual(self.player.sent("aid"), ["auto"])
+        self.assertEqual(self.player.sent("volume")[-1], 50)
+        self.assertEqual(value("Wallpaper.duration"), 100)
+
+        self.tell("hidden", "true")
+        self.sandbox.wait_for("player", "Wallpaper.level", 0)
+        time.sleep(0.2)
+        after_fade = self.player.received[self.player.received.index(["set_property", "volume", 0]):]
+        self.assertEqual(after_fade[-2:], [["set_property", "aid", "no"], ["set_property", "pause", True]])
+
+        self.tell("hidden", "false")
+        self.sandbox.wait_for("player", "Wallpaper.level", 1)
+        self.assertEqual(self.player.sent("pause")[-1], False)
+
+    def test_switched_off_it_stays_silent_and_the_card_switches_it(self):
+        self.switch(wallpaper_sound=False, wallpaper_pause=False)
+        value = self.open("player")
+        self.tell("hidden", "false")
+        self.sandbox.wait_for("player", "Wallpaper.hasSound", True)
+        self.tell("hidden", "true")
+        time.sleep(0.3)
+        self.assertEqual((self.player.sent("aid"), self.player.sent("pause")), ([], [False]))
+        value("Wallpaper.switchSound()")
+        time.sleep(0.5)
+        self.assertIn("features.py on wallpaper-sound", self.sandbox.recorded())
+
+    def test_the_card_asks_how_far_the_clip_played_only_while_open(self):
+        self.switch(wallpaper_sound=False)
+        self.open("wallpaper")
+        self.tell("hidden", "false")
+        self.sandbox.wait_for("wallpaper", "Wallpaper.position", 12.5)
+        self.assertEqual(self.sandbox.eval("wallpaper", "Wallpaper.status"), "звук выключен")
+        self.escape_closes("wallpaper")
+        asked = len([command for command in self.player.received if command == ["get_property", "time-pos"]])
+        time.sleep(1.2)
+        self.assertEqual(len([command for command in self.player.received if command == ["get_property", "time-pos"]]),
+                         asked)
+
+    def test_the_lock_screen_quiets_it_and_the_volume_is_kept(self):
+        self.switch(wallpaper_sound=True)
+        self.open("player")
+        self.tell("hidden", "false")
+        self.sandbox.wait_for("player", "Wallpaper.level", 1)
+        self.tell("louder")
+        self.sandbox.wait_for("player", "Wallpaper.volume", 60)
+        self.assertEqual(json.loads((self.sandbox.home / ".config/hypr-rice/wallpaper-sound.json").read_text()),
+                         {"volume": 60})
+        self.assertEqual(self.tell("locked", "true"), "ok")
+        self.sandbox.wait_for("player", "Wallpaper.level", 0)
+        self.tell("locked", "false")
+        self.sandbox.wait_for("player", "Wallpaper.level", 1)
+        self.assertEqual(self.player.sent("volume")[-1], 60)
+
+
 @unittest.skipUnless(resident(), "the per-panel menus have no resident shell")
 class Phone(MenuTest):
     # The sandbox has no session bus and the feature is off: no watcher runs, no phone is known.
@@ -477,7 +589,8 @@ class ResidentShell(MenuTest):
 SCRIPTS = {"launcher": ("launcher", ""), "settings-panel": ("settings", "monitors"), "theme-picker": ("themes", ""),
            "help-panel": ("help", ""), "power-menu": ("power", ""), "notif-panel": ("notif", ""),
            "network-panel": ("network", ""), "games": ("games", ""), "shots-gallery": ("shots", ""),
-           "player-panel": ("player", ""), "phone-panel": ("phone", "")}
+           "player-panel": ("player", ""), "phone-panel": ("phone", ""),
+           "wallpaper-panel": ("wallpaper", "")}
 # A quickshell that records its arguments; `ipc` fails until `-d` (the start) has run once when $DOWN is set.
 FAKE_QUICKSHELL = """#!/bin/sh
 printf '%s\\n' "$*" >> "$CALLS"

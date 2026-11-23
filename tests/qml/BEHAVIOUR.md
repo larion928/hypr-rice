@@ -167,6 +167,24 @@ offscreen (see the end of this file); everything else is checked by hand on the 
   opened to pair; empty only with the feature off or the shell down. Signalled (12) on every change; never starts
   the shell. `[auto]` (the bar text from a phone, the glyph alone for an unpaired one)
 
+## Wallpaper sound — waybar custom/wallpaper, `wallpaper-panel`, the player card (feature "wallpaper-sound")
+
+- services/Wallpaper.qml drives the animated wallpaper's mpv over its control socket. The player starts silent
+  (aid=no, volume 0); with the feature on and a sound track in the clip, the track is switched on and the volume
+  fades in over 1 s; it fades out while the wallpaper is hidden (wallpaper-hidden), the screen is locked
+  (rice-lock) or another MPRIS player plays, and the track is switched off once silent. Hidden with the feature
+  "wallpaper-pause" on: paused only after the fade; shown: resumed at once. `[auto]` (a fake mpv socket)
+- Volume ±10 (`wallpaper-panel louder|quieter`, the card, the player's row), kept in
+  ~/.config/hypr-rice/wallpaper-sound.json. The sound button switches the feature. `[auto]`
+- The card (menu "wallpaper"): cover, title and artist from the theme's ui.json "wallpaperCard" (title "Обои"
+  without one), the state ("звук выключен", why it is quiet, the volume), −, sound, + over the cover, how far
+  the clip has played along the bottom edge. No animated wallpaper / no sound track: says so, no controls.
+- The player card lists "Обои" under "Звук обоев" while the wallpaper has a sound track.
+- The bar (`wallpaper-panel bar`): a volume glyph (on / quiet / off) with the state in the tooltip; empty while
+  the wallpaper has no sound or the shell is down. Signalled (13) on every change; never starts the shell.
+- A theme's ui.json "headerIcon" may be an animated GIF or WebP: it plays once when a menu opens, then rests on
+  its first frame.
+
 ## Administrator password — polkit, always running
 
 - When a program asks polkit for an administrator's rights: the password window in the theme; Esc, a click

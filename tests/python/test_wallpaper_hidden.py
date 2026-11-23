@@ -1,6 +1,7 @@
-"""The animated wallpaper pauses only while fullscreen windows hide it: the Hyprland config decides from its
-events (driven here through a stand-in `hl` under plain Lua), wallpaper-pause tells mpv through its control
-socket (a stand-in socket here), and wallpaper gives mpvpaper that socket."""
+"""The animated wallpaper is hidden only while fullscreen windows cover it: the Hyprland config decides from its
+events (driven here through a stand-in `hl` under plain Lua) and runs wallpaper-hidden, which tells the shell, or
+without a shell pauses mpv through its control socket (a stand-in socket here) when the feature wallpaper-pause is
+on; wallpaper gives mpvpaper that socket and starts it silent."""
 import json
 import shutil
 import socket
@@ -96,13 +97,13 @@ class FullscreenEventsTest(unittest.TestCase):
             if line.startswith("-- "):
                 event = f"{len(commands)} {line[3:]}"
                 commands[event] = []
-            elif event and "wallpaper-pause" in line:
+            elif event and "wallpaper-hidden" in line:
                 commands[event].append(line.split()[-1])
         return list(commands.values())
 
-    def test_switched_off_it_never_pauses(self):
+    def test_it_is_told_whether_the_pause_feature_is_on_or_off(self):
         (self.sandbox.home / ".config/hypr-rice/features.json").write_text('{"wallpaper-pause": false}')
-        self.assertEqual(self.commands_after([("window.fullscreen", [(2, None)], None)]), [["no"]])
+        self.assertEqual(self.commands_after([("window.fullscreen", [(2, None)], None)]), [["yes"]])
 
     def test_fullscreen_on_a_hidden_workspace_keeps_it_playing(self):
         # A fullscreen window on workspace 10 while workspace 2 is shown: the monitor shows no fullscreen.
@@ -170,39 +171,54 @@ class FakeMpv:
         self.server.close()
 
 
-class WallpaperPauseTest(unittest.TestCase):
+class WallpaperHiddenTest(unittest.TestCase):
     def setUp(self):
         self.sandbox = Sandbox()
         self.socket = self.sandbox.runtime / SOCKET_NAME
+        # No shell runs in the sandbox: quickshell answers nothing, as with no shell running.
+        self.sandbox.stub("quickshell")
 
     def tearDown(self):
         self.sandbox.cleanup()
 
-    def test_it_sets_mpv_pause(self):
+    def commands_sent(self, *states, **env):
         player = FakeMpv(self.socket)
         try:
-            paused = self.sandbox.run([LIVE_BIN / "wallpaper-pause", "yes"], timeout=10)
-            played = self.sandbox.run([LIVE_BIN / "wallpaper-pause", "no"], timeout=10)
+            for state in states:
+                result = self.sandbox.run([LIVE_BIN / "wallpaper-hidden", state], timeout=10, **env)
+                self.assertEqual(result.returncode, 0, result.stderr)
         finally:
             player.close()
-        self.assertEqual(paused.returncode, 0, paused.stderr)
-        self.assertEqual(played.returncode, 0, played.stderr)
-        self.assertEqual([command["command"] for command in player.received],
+        return [command["command"] for command in player.received]
+
+    def test_without_a_shell_it_sets_mpv_pause(self):
+        self.assertEqual(self.commands_sent("yes", "no"),
                          [["set_property", "pause", True], ["set_property", "pause", False]])
 
+    def test_without_a_shell_and_with_the_pause_off_it_keeps_playing(self):
+        (self.sandbox.home / ".config/hypr-rice").mkdir(parents=True, exist_ok=True)
+        (self.sandbox.home / ".config/hypr-rice/features.json").write_text('{"wallpaper-pause": false}')
+        self.assertEqual(self.commands_sent("yes"), [["set_property", "pause", False]])
+
+    def test_a_shell_that_answers_does_it_all(self):
+        self.sandbox.stub("quickshell", "echo ok")
+        self.assertEqual(self.commands_sent("yes"), [])
+        self.assertIn("quickshell ipc -p " + str(self.sandbox.home / ".config/quickshell/shell")
+                      + " call wallpaper hidden true", self.sandbox.recorded())
+
     def test_without_an_animated_wallpaper_there_is_nothing_to_do(self):
-        result = self.sandbox.run([LIVE_BIN / "wallpaper-pause", "yes"], timeout=10)
+        result = self.sandbox.run([LIVE_BIN / "wallpaper-hidden", "yes"], timeout=10)
         self.assertEqual((result.returncode, result.stderr), (0, ""))
 
     def test_a_player_that_is_gone_is_nothing_to_do(self):
         stale = socket.socket(socket.AF_UNIX)
         stale.bind(str(self.socket))
         stale.close()
-        result = self.sandbox.run([LIVE_BIN / "wallpaper-pause", "no"], timeout=10)
+        result = self.sandbox.run([LIVE_BIN / "wallpaper-hidden", "no"], timeout=10)
         self.assertEqual((result.returncode, result.stderr), (0, ""))
 
     def test_anything_but_yes_or_no_is_a_usage_error(self):
-        result = self.sandbox.run([LIVE_BIN / "wallpaper-pause", "maybe"], timeout=10)
+        result = self.sandbox.run([LIVE_BIN / "wallpaper-hidden", "maybe"], timeout=10)
         self.assertEqual(result.returncode, 1)
         self.assertIn("usage", result.stderr)
 
@@ -215,7 +231,7 @@ class WallpaperPlayerTest(unittest.TestCase):
         self.sandbox.cleanup()
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "no ffmpeg")
-    def test_the_player_gets_the_control_socket_and_no_pause_for_hidden_fullscreen(self):
+    def test_the_player_gets_the_control_socket_starts_silent_and_no_pause_for_hidden_fullscreen(self):
         clip = self.sandbox.home / "clip.mp4"
         made = self.sandbox.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=320x180:r=10:d=1",
                                  "-c:v", "libx264", "-pix_fmt", "yuv420p", clip])
@@ -228,6 +244,7 @@ class WallpaperPlayerTest(unittest.TestCase):
         self.assertIn(f"input-ipc-server={self.sandbox.runtime / SOCKET_NAME}", started[0])
         self.assertNotIn(" -a ", started[0])
         self.assertIn(" -p ", started[0])
+        self.assertIn("aid=no volume=0", started[0])
 
 
 if __name__ == "__main__":

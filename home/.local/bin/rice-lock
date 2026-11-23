@@ -1,0 +1,17 @@
+#!/bin/bash
+# rice-lock — locks the screen (hyprlock). The wallpaper's sound fades out before the lock comes up and back
+# in after it is unlocked: the shell (services/Wallpaper.qml) is told both. Every place that locks the
+# screen (the key, the power menu, the launcher) runs this, not hyprlock itself.
+set -u
+# A second lock would end at once while the first one is still up, and would give the sound back under it.
+pgrep -x hyprlock >/dev/null && exit 0
+
+tell_shell() {
+    quickshell ipc -p "$HOME/.config/quickshell/shell" call wallpaper locked "$1" >/dev/null 2>&1
+}
+
+tell_shell true
+hyprlock "$@"
+status=$?
+tell_shell false
+exit "$status"
