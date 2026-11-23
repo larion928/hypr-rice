@@ -1,6 +1,8 @@
 // The animated wallpaper's card (waybar custom/wallpaper, wallpaper-panel): the clip's cover, title and artist
 // from the theme's ui.json "wallpaperCard" ({ "cover": a path in the theme's folder, "title", "artist" }), its
 // sound switch and volume, and how far the clip has played. The sound is services/Wallpaper.qml's.
+// The cover may be shown as the theme's LED screen: "leds": { "tile": a picture of LED cells in the theme's
+// folder, dark between the LEDs and transparent where they shine, "pitch": a cell's size in px }.
 import QtQuick
 import QtQuick.Effects
 import qs.common
@@ -39,10 +41,33 @@ OverlayPanel {
         }
         MouseArea { anchors.fill: parent }   // clicks inside do not close
 
+        // The cover one pixel per LED, under the cells.
+        Item {
+            id: ledScreen
+            readonly property int pitch: menu.track.leds ? menu.track.leds.pitch : 0
+            visible: pitch > 0 && cover.visible
+            width: pitch > 0 ? Math.ceil(card.width / pitch) * pitch : 0
+            height: pitch > 0 ? Math.ceil(card.height / pitch) * pitch : 0
+            Image {
+                anchors.fill: parent
+                source: ledScreen.visible ? cover.source : ""
+                sourceSize: Qt.size(ledScreen.width / ledScreen.pitch, ledScreen.height / ledScreen.pitch)
+                smooth: false
+                asynchronous: true
+            }
+            Image {
+                anchors.fill: parent
+                source: ledScreen.visible ? "file://" + Theme.dir + "/" + menu.track.leds.tile : ""
+                fillMode: Image.Tile
+            }
+        }
+
+        // Over the LEDs, faintly: their glow.
         Image {
             id: cover
             anchors.fill: parent
             visible: status === Image.Ready
+            opacity: ledScreen.pitch > 0 ? 0.22 : 1
             source: menu.track.cover && Theme.dir ? "file://" + Theme.dir + "/" + menu.track.cover : ""
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
