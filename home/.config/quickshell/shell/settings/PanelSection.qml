@@ -169,9 +169,12 @@ Item {
                 BarModule { editor: panelEditor; themeEdit: panelEditor.themeEdit; side: "modules-left" }
             }
         }
+        // At the bar's middle, as waybar puts it; pushed aside into the free stretch when a long group on either
+        // side reaches the middle, as waybar does too, so it never covers that group's modules.
         Row {
             id: centerRow
-            anchors.centerIn: parent
+            x: Math.max(mockBar.gapStart + 6, Math.min((mockBar.width - width) / 2, mockBar.gapEnd - 6 - width))
+            anchors.verticalCenter: parent.verticalCenter
             spacing: 6
             Repeater {
                 model: themeEdit.editing ? (themeEdit.panel()["modules-center"] || []) : []
