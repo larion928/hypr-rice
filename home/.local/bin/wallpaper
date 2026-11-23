@@ -20,6 +20,11 @@ case "${file,,}" in
     *) animated=0 ;;
 esac
 
+# A player stopped mid-sound clicks: the shell fades its sound out first, and says how long that takes.
+if pgrep -x "$(basename "$PLAYER")" >/dev/null; then
+    fade_ms=$(quickshell ipc -p "$HOME/.config/quickshell/shell" call wallpaper silence 2>/dev/null)
+    [[ "$fade_ms" =~ ^[0-9]+$ ]] && [ "$fade_ms" -gt 0 ] && sleep "$((fade_ms / 1000)).$(printf %03d $((fade_ms % 1000)))"
+fi
 pkill -x "$(basename "$PLAYER")" 2>/dev/null
 if [ "$animated" = 0 ]; then
     awww img "$file"
@@ -45,7 +50,8 @@ fi
 # control socket: the Hyprland config watches for that and runs wallpaper-hidden. (mpvpaper's own -a FULL
 # paused it for a fullscreen window on any workspace, hidden ones too.) It starts silent: the shell's
 # services/Wallpaper.qml turns a clip's sound on and fades it in when the user wants the wallpaper's sound.
+# Each wallpaper starts from its beginning: the user's mpv config (which mpvpaper reads) may resume files.
 control="${XDG_RUNTIME_DIR:-/tmp}/hypr-rice-wallpaper.sock"
-exec "$PLAYER" -f -p -l bottom \
-    -o "aid=no volume=0 audio-client-name=hypr-rice-wallpaper loop hwdec=auto panscan=1.0 input-ipc-server=$control" \
-    ALL "$video" {lock}>&-
+options="aid=no volume=0 audio-client-name=hypr-rice-wallpaper save-position-on-quit=no resume-playback=no"
+options+=" loop hwdec=auto panscan=1.0 input-ipc-server=$control"
+exec "$PLAYER" -f -p -l bottom -o "$options" ALL "$video" {lock}>&-

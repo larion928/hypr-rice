@@ -504,6 +504,16 @@ class WallpaperSound(MenuTest):
         time.sleep(0.5)
         self.assertIn("features.py on wallpaper-sound", self.sandbox.recorded())
 
+    def test_before_the_player_is_stopped_its_sound_fades_out(self):
+        self.switch(wallpaper_sound=True)
+        self.open("player")
+        self.tell("hidden", "false")
+        self.sandbox.wait_for("player", "Wallpaper.level", 1)
+        self.assertEqual(int(self.tell("silence")), 500)
+        self.sandbox.wait_for("player", "Wallpaper.level", 0, timeout=2)
+        self.assertEqual(self.player.sent("aid")[-1], "no")
+        self.assertEqual(self.tell("silence"), "0")
+
     def test_the_card_asks_how_far_the_clip_played_only_while_open(self):
         self.switch(wallpaper_sound=False)
         self.open("wallpaper")

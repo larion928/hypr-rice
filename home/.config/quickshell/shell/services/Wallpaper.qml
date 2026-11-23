@@ -16,6 +16,8 @@ Singleton {
     id: wallpaper
 
     readonly property int fadeMs: 1000
+    // Shorter: ~/.local/bin/wallpaper waits for it before it stops the player (a theme change).
+    readonly property int leaveMs: 500
     readonly property int volumeStep: 10
     // "signal" of custom/wallpaper in waybar/config.base.json.
     readonly property int barSignal: 13
@@ -23,11 +25,13 @@ Singleton {
     // Told over IPC: by wallpaper-hidden (Hyprland's fullscreen events) and rice-lock.
     property bool hidden: false
     property bool locked: false
+    // The player is about to be stopped (silence()); a new one is heard again.
+    property bool leaving: false
 
     readonly property bool connected: player.connected
     readonly property bool soundOn: Features.on("wallpaper-sound")
     readonly property bool otherPlaying: Players.all.some(other => other.isPlaying)
-    readonly property bool audible: connected && hasSound && soundOn && !hidden && !locked && !otherPlaying
+    readonly property bool audible: connected && hasSound && soundOn && !hidden && !locked && !otherPlaying && !leaving
     readonly property bool paused: hidden && Features.on("wallpaper-pause")
     readonly property int volume: settings.volume
     readonly property string status: !soundOn ? "звук выключен"
@@ -51,7 +55,7 @@ Singleton {
         if (audible) {
             send(["set_property", "aid", "auto"]);
         }
-        fadeTo(audible ? 1 : 0);
+        fadeTo(audible ? 1 : 0, fadeMs);
     }
     onPausedChanged: applyPause()
     onLevelChanged: {
@@ -94,11 +98,20 @@ Singleton {
         settings.volume = Math.max(0, Math.min(100, value));
     }
 
-    function fadeTo(target) {
+    function fadeTo(target, fullMs) {
         fader.stop();
         fader.to = target;
-        fader.duration = Math.abs(target - level) * fadeMs;
+        fader.duration = Math.abs(target - level) * fullMs;
         fader.start();
+    }
+
+    // The milliseconds until it is silent.
+    function silence() {
+        const left = Math.round(level * leaveMs);
+        leaving = true;
+        fadeTo(0, leaveMs);
+        leavingTimeout.restart();
+        return left;
     }
 
     // Paused only once the sound has faded out; resumed at once, before it fades in.
@@ -162,6 +175,7 @@ Singleton {
 
     function forget() {
         fader.stop();
+        leaving = false;
         level = 0;
         hasSound = false;
         duration = 0;
@@ -208,6 +222,13 @@ Singleton {
         id: switchProcess
     }
 
+    // The player silenced for a stop that did not come (the wallpaper script failed) is heard again.
+    Timer {
+        id: leavingTimeout
+        interval: 10000
+        onTriggered: wallpaper.leaving = false
+    }
+
     BarSignal {
         id: waybarModule
         number: wallpaper.barSignal
@@ -251,6 +272,9 @@ Singleton {
         }
         function bar(): string {
             return wallpaper.barJson;
+        }
+        function silence(): int {
+            return wallpaper.silence();
         }
     }
 }

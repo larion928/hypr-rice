@@ -245,6 +245,7 @@ class WallpaperPlayerTest(unittest.TestCase):
         self.assertNotIn(" -a ", started[0])
         self.assertIn(" -p ", started[0])
         self.assertIn("aid=no volume=0", started[0])
+        self.assertIn("save-position-on-quit=no resume-playback=no", started[0])
 
 
 if __name__ == "__main__":
