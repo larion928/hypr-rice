@@ -57,7 +57,7 @@ Item {
             anchors.centerIn: parent
             visible: !coverImage.visible && !iconImage.visible
             text: card.game.name.charAt(0).toUpperCase()
-            font.family: Theme.titleFont; font.pixelSize: 96
+            font.family: Theme.titleFont; font.pixelSize: Theme.titleSize(96)
             color: Theme.accent
         }
         Rectangle {

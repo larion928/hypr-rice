@@ -40,6 +40,8 @@ Singleton {
     readonly property string glyphFont: "JetBrainsMono Nerd Font"
 
     readonly property bool italicTitle: !!ui.italicTitle
+    // A display font drawn larger than most at the same size (a wide pixel font) is scaled down by its theme.
+    readonly property real titleScale: ui.titleScale ?? 1
     readonly property int border: ui.border ?? 1
     readonly property int slideMs: ui.slideMs ?? 260
     readonly property int cardRadius: ui.cardRadius ?? 10
@@ -49,6 +51,11 @@ Singleton {
     // The theme's corner radius, capped for a part whose size cannot take more.
     function radius(max) {
         return Math.min(ui.radius ?? 14, max);
+    }
+
+    // A size given for titles, as the theme's title font needs it.
+    function titleSize(px) {
+        return Math.round(px * titleScale);
     }
 
     // A title as the theme writes titles: some themes in upper case.

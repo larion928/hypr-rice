@@ -77,7 +77,7 @@ OverlayPanel {
         anchors { horizontalCenter: parent.horizontalCenter; bottom: cards.top; bottomMargin: 60 }
         text: "Тема оформления"
         font.family: menu.cur.pal.display || "serif"
-        font.pixelSize: 40
+        font.pixelSize: Math.round(40 * (menu.cur.ui.titleScale ?? 1))
         color: Theme.fg
     }
 

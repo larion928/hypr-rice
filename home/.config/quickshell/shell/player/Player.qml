@@ -63,7 +63,7 @@ OverlayPanel {
 
             Text {
                 text: Theme.title("Плеер")
-                font.family: Theme.titleFont; font.pixelSize: 24; font.bold: true; font.italic: Theme.italicTitle
+                font.family: Theme.titleFont; font.pixelSize: Theme.titleSize(24); font.bold: true; font.italic: Theme.italicTitle
                 color: Theme.fg
             }
 

@@ -90,7 +90,7 @@ Item {
             }
             Text {
                 text: card.entry.ui.upperTitle ? card.entry.pal.label.toUpperCase() : card.entry.pal.label
-                font.family: card.entry.pal.display; font.pixelSize: 26
+                font.family: card.entry.pal.display; font.pixelSize: Math.round(26 * (card.entry.ui.titleScale ?? 1))
                 font.italic: !!card.entry.ui.italicTitle
                 color: card.c.fg
                 anchors.verticalCenter: parent.verticalCenter

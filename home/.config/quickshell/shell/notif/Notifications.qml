@@ -214,13 +214,13 @@ OverlayPanel {
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: Theme.ui.headerGlyph || "\uf0f3"
-                    font.family: Theme.titleFont; font.pixelSize: 40
+                    font.family: Theme.titleFont; font.pixelSize: Theme.titleSize(40)
                     color: Theme.alpha(Theme.muted, 0.6)
                 }
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: menu.query ? "Ничего не найдено" : "Уведомлений нет"
-                    font.family: Theme.titleFont; font.pixelSize: 16; font.italic: Theme.italicTitle
+                    font.family: Theme.titleFont; font.pixelSize: Theme.titleSize(16); font.italic: Theme.italicTitle
                     color: Theme.muted
                 }
             }

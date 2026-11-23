@@ -44,7 +44,7 @@ Item {
         SectionTitle {
             anchors.verticalCenter: parent.verticalCenter
             text: page.chosen ? "\"" + page.chosen.pal.label + "\"" : ""
-            font.pixelSize: 16
+            font.pixelSize: Theme.titleSize(16)
             font.bold: false
         }
         Chip { text: "Изменить"; primary: true; onClicked: page.themeEdit.open(page.chosen) }
@@ -81,7 +81,7 @@ Item {
                     spacing: 10
                     Text {
                         text: card.modelData.pal.label
-                        font.family: Theme.titleFont; font.pixelSize: 22
+                        font.family: Theme.titleFont; font.pixelSize: Theme.titleSize(22)
                         color: card.colors.fg
                     }
                     Row {

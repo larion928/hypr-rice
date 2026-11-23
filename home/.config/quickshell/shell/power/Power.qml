@@ -114,7 +114,7 @@ OverlayPanel {
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: card.armed ? "Точно?" : card.modelData.label
-                            font.family: Theme.titleFont; font.pixelSize: 16; font.italic: Theme.italicTitle
+                            font.family: Theme.titleFont; font.pixelSize: Theme.titleSize(16); font.italic: Theme.italicTitle
                             color: card.armed ? Theme.crit : Theme.fg
                         }
                         Text {

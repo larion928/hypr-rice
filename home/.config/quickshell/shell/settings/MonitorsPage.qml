@@ -51,7 +51,7 @@ Item {
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: screenRect.modelData.name
-                        font.family: Theme.titleFont; font.pixelSize: 18; font.bold: true
+                        font.family: Theme.titleFont; font.pixelSize: Theme.titleSize(18); font.bold: true
                         color: Theme.fg
                     }
                     Text {
@@ -194,7 +194,7 @@ Item {
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: "Оставить эти настройки?"
-                font.family: Theme.titleFont; font.pixelSize: 24
+                font.family: Theme.titleFont; font.pixelSize: Theme.titleSize(24)
                 color: Theme.fg
             }
             Text {

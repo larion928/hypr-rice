@@ -237,7 +237,7 @@ OverlayPanel {
                 anchors.centerIn: parent
                 visible: files.count === 0
                 text: "Скриншотов пока нет. Сделать: Print"
-                font.family: Theme.titleFont; font.pixelSize: 18; font.italic: Theme.italicTitle
+                font.family: Theme.titleFont; font.pixelSize: Theme.titleSize(18); font.italic: Theme.italicTitle
                 color: Theme.muted
             }
         }

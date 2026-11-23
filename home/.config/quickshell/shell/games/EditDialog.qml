@@ -30,7 +30,7 @@ Rectangle {
             spacing: 14
             SectionTitle {
                 text: "Игра"
-                font.pixelSize: 20
+                font.pixelSize: Theme.titleSize(20)
                 font.bold: false
             }
             Text {
