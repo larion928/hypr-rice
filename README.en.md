@@ -196,6 +196,7 @@ Each one with its name in the Функции tab and whether it is on right afte
 
 - **Pausing animated wallpapers** (Пауза анимированных обоев, on). The wallpaper stops while a fullscreen window covers it entirely. Less load in games and when watching videos.
 - **Wallpaper sound** (Звук обоев, off). A wallpaper clip plays with its own sound. The sound fades out while a fullscreen window covers the wallpaper, another player is playing or the screen is locked. The volume is in the player on the bar.
+- **Colour with the clip** (Цвет в такт клипу, on). If the theme can (Средневековье), the menus, the bar and the window borders turn grey with the wallpaper clip and get their colour back when the clip does.
 
 **System**
 

@@ -3,8 +3,8 @@ pragma Singleton
 // The palette following the theme's wallpaper clip: where the clip turns grey, so do the menus, notifications and
 // the rest the shell draws, the bar and the window borders. The theme names its clip and the clip's colour, second
 // by second, in ui.json "clipColour": {"clip": a file in the theme's folder, "track": a JSON list of 0..1 per second
-// made by `themegen.py clip-colour <clip>`}. Only while that very clip plays: another wallpaper on the same theme
-// keeps the full palette.
+// made by `themegen.py clip-colour <clip>`}. Only while that very clip plays and the feature clip-colour is on:
+// another wallpaper on the same theme keeps the full palette.
 // The shell's own colours move smoothly (Theme.colourfulness); the bar and the borders in outsideSteps steps a full
 // fade, since each step rewrites the bar's style (waybar rereads clip-colours.css, imported last by waybar-start)
 // and sends Hyprland the borders.
@@ -23,7 +23,7 @@ Singleton {
     readonly property var barColours: ["bg", "bg2", "fg", "muted", "accent", "accent2", "accent3"]
 
     readonly property var setup: Theme.ui.clipColour || null
-    readonly property bool following: setup !== null && Wallpaper.connected && Wallpaper.path === Theme.dir + "/" + setup.clip
+    readonly property bool following: setup !== null && Features.on("clip-colour") && Wallpaper.connected && Wallpaper.path === Theme.dir + "/" + setup.clip
     readonly property var track: following ? Theme.parse(trackFile.text(), []) : []
     readonly property real target: track.length ? (track[Math.min(track.length - 1, Math.floor(Wallpaper.position))] ?? 1) : 1
     readonly property real outsideShare: Math.round(Theme.colourfulness * outsideSteps) / outsideSteps

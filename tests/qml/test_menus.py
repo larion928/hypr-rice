@@ -484,6 +484,12 @@ class ClipColour(MenuTest):
         self.player = FakeMpv(self.sandbox.runtime / "hypr-rice-wallpaper.sock")
         self.player.ANSWERS = {**FakeMpv.ANSWERS, "path": str(theme / "clip.mp4")}
         self.addCleanup(self.player.close)
+        self.switch(True)
+
+    def switch(self, on):
+        state = self.sandbox.home / ".config/hypr-rice/features.json"
+        state.parent.mkdir(parents=True, exist_ok=True)
+        state.write_text(json.dumps({"clip-colour": on}))
 
     def test_the_palette_greys_where_the_clip_does_and_comes_back(self):
         value = self.open("player")
@@ -508,6 +514,16 @@ class ClipColour(MenuTest):
         borders = [call for call in self.sandbox.recorded() if call.startswith("hyprctl eval")]
         self.assertEqual(borders[-1], 'hyprctl eval hl.config({general={col={active_border={colors={"#e3a857ff","#f3e3c0ff"},'
                                       'angle=45},inactive_border={colors={"#7d746aab"},angle=0}}}})')
+
+    def test_switched_off_the_colours_come_back_at_once(self):
+        self.open("player")
+        self.sandbox._ipc(self.sandbox.processes["shell"], "wallpaper", "hidden", "false")
+        self.sandbox.wait_for("player", "Theme.colourfulness", 0)
+        self.switch(False)
+        self.sandbox.wait_for("player", "Theme.colourfulness", 1)
+        self.assertEqual((self.sandbox.home / ".config/hypr-rice/waybar/clip-colours.css").read_text(), "")
+        borders = [call for call in self.sandbox.recorded() if call.startswith("hyprctl eval")]
+        self.assertIn('"#e3a857ff","#f3e3c0ff"', borders[-1])
 
     def test_another_clip_on_the_same_theme_keeps_the_palette(self):
         self.player.ANSWERS = {**self.player.ANSWERS, "path": "/elsewhere/clip.mp4"}
