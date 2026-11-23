@@ -7,6 +7,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.common
 import Quickshell.Services.Mpris
 import "../common/pango.js" as Pango
 
@@ -46,18 +47,11 @@ Singleton {
         });
     }
 
-    onBarJsonChanged: barRefresh.restart()
+    onBarJsonChanged: waybarModule.refresh()
 
-    // A track change sends several property changes at once: one signal for all of them.
-    Timer {
-        id: barRefresh
-        interval: 150
-        onTriggered: barSignalProcess.running = true
-    }
-
-    Process {
-        id: barSignalProcess
-        command: ["pkill", "-RTMIN+" + players.barSignal, "-x", "waybar"]
+    BarSignal {
+        id: waybarModule
+        number: players.barSignal
     }
 
     Instantiator {

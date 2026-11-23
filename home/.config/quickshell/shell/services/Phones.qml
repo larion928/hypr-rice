@@ -99,17 +99,11 @@ Singleton {
         }
     }
     Component.onCompleted: watcher.running = enabled
-    onBarJsonChanged: barRefresh.restart()
+    onBarJsonChanged: waybarModule.refresh()
 
-    Timer {
-        id: barRefresh
-        interval: 150
-        onTriggered: barSignalProcess.running = true
-    }
-
-    Process {
-        id: barSignalProcess
-        command: ["pkill", "-RTMIN+" + phone.barSignal, "-x", "waybar"]
+    BarSignal {
+        id: waybarModule
+        number: phone.barSignal
     }
 
     Process {
