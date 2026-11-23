@@ -98,6 +98,19 @@ class Settings(MenuTest):
         self.assertTrue(self.sandbox.is_open("settings"))
         self.escape_closes("settings")
 
+    def test_the_theme_catalog_shows_its_packs_and_escape_closes_it(self):
+        value = self.open("settings", "theme")
+        # Set as themegen's catalog command prints it: opening the real one would reach GitHub.
+        value("ownThemes.packs = [{id: 'hacker-plus', label: 'hacker+', about: 'Темы для хакеров', themes: ["
+              "{name: 'mr-robot', label: 'Mr. Robot', preview: '', state: 'absent'},"
+              "{name: 'dawn', label: 'Dawn', preview: '', state: 'installed'},"
+              "{name: 'night', label: 'Night', preview: '', state: 'taken'}]}]")
+        value("ownThemes.dialog = 'catalog'")
+        time.sleep(0.3)
+        self.sandbox.key("settings", KEY["Escape"])
+        self.assertEqual(value("ownThemes.dialog"), "")
+        self.assertTrue(self.sandbox.is_open("settings"))
+
     def test_monitors(self):
         value = self.open("settings")
         self.sandbox.wait_for("settings", "mon.edit.length", 2)

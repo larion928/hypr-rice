@@ -5,13 +5,13 @@ import qs.common
 import qs.services
 
 // Themes of the user's own and the list's tools: a new theme (a copy of another with its edits written in), one
-// from a file, an export, a delete, a factory reset, bringing back a removed one. themegen.py does the work, then
-// the theme list is read again.
+// from a file or from the theme catalog, an export, a delete, a factory reset, bringing back a removed one.
+// themegen.py does the work, then the theme list is read again.
 Scope {
     id: ownThemes
 
     required property ThemeEditStore themeEdit
-    property string dialog: ""     // "new", "import", "export", "delete", "factory" or "restore": what the dialog asks
+    property string dialog: ""     // "new", "import", "export", "delete", "factory", "restore" or "catalog": what is open
     property var subject: null     // the theme a new one copies, or the one to export, reset or delete
     property string busy: ""       // what runs now
     property string error: ""
@@ -20,6 +20,7 @@ Scope {
     property string pickingFor: "" // "import" or "export": what the file dialog is for
     property bool picking: false   // a file dialog is open: the window steps aside
     property var removed: []       // the rice's themes the user removed: [{name, label}]
+    property var packs: []         // the theme catalog while it is open: [{id, label, about, themes: [{name, label, preview, state}]}]
     property string selected: ""   // the theme picked in the list; the current one until then
     property int themePage: 0      // the tab of the theme list shown
     readonly property int perPage: 8
@@ -46,10 +47,21 @@ Scope {
         run("Возвращаю тему…", ["restore", name]);
     }
     function remove() {
-        if (themeEdit.editing && themeEdit.editing.name === subject.name) {
+        removeNamed(subject.name);
+    }
+    function removeNamed(name) {
+        if (themeEdit.editing && themeEdit.editing.name === name) {
             themeEdit.editing = null;
         }
-        run("Удаляю…", ["delete", subject.name]);
+        run("Удаляю…", ["delete", name]);
+    }
+    function openCatalog() {
+        ask("catalog", null);
+        packs = [];
+        run("Открываю каталог…", ["catalog"]);
+    }
+    function installFromCatalog(name) {
+        run("Скачиваю и проверяю…", ["catalog-install", name]);
     }
     function pickFile(kind) {
         pickingFor = kind;
@@ -82,6 +94,15 @@ Scope {
             return;
         }
         const command = args[0];
+        if (command === "catalog") {
+            readCatalog(lines);
+            return;
+        }
+        if (dialog === "catalog") {  // a theme installed or removed there: the list and the catalog's states change
+            ThemeList.refresh();
+            run("Обновляю каталог…", ["catalog"]);
+            return;
+        }
         if (command === "export") {
             done = "Сохранено: " + args[2];
             return;
@@ -99,6 +120,14 @@ Scope {
         }
         ThemeList.refresh();
         removedProc.running = true;
+    }
+
+    function readCatalog(lines) {
+        try {
+            packs = JSON.parse(lines[lines.length - 1]);
+        } catch (e) {
+            error = lines.join("\n") || "каталог не прочитался";
+        }
     }
 
     Connections {

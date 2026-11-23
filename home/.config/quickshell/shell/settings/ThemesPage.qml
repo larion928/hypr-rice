@@ -3,9 +3,9 @@ import qs.common
 import qs.services
 import "../common/url.js" as Url
 
-// Тема: on the left what adds or brings back themes and the tabs of the list (8 themes to a tab); on the right what
-// can be done with the theme selected below. A theme's own settings (ThemeEditor) and the dialogs of OwnThemes
-// open over the list.
+// Тема: on the left what adds or brings back themes (a file, the catalog, the removed ones) and the tabs of the list
+// (8 themes to a tab); on the right what can be done with the theme selected below. A theme's own settings
+// (ThemeEditor), the dialogs of OwnThemes and the catalog open over the list.
 Item {
     id: page
 
@@ -20,6 +20,7 @@ Item {
         id: tools
         spacing: 10
         Chip { text: "Из файла…"; onClicked: page.ownThemes.ask("import", null) }
+        Chip { text: "Каталог…"; onClicked: page.ownThemes.openCatalog() }
         Chip {
             visible: page.ownThemes.removed.length > 0
             text: "Вернуть удалённые (" + page.ownThemes.removed.length + ")"
@@ -94,7 +95,7 @@ Item {
                 Text {
                     visible: card.modelData.current || card.modelData.user
                     anchors { right: parent.right; rightMargin: 14; bottom: parent.bottom; bottomMargin: 16 }
-                    text: card.modelData.current ? "сейчас" : "своя"
+                    text: card.modelData.current ? "сейчас" : card.modelData.catalog ? "каталог" : "своя"
                     font.family: Theme.bodyFont; font.pixelSize: 13
                     color: card.modelData.current ? card.colors.accent : card.colors.muted
                 }
@@ -119,8 +120,13 @@ Item {
     }
     OwnThemeDialog {
         anchors.fill: parent
-        visible: page.ownThemes.dialog !== ""
+        visible: page.ownThemes.dialog !== "" && page.ownThemes.dialog !== "catalog"
         themeEdit: page.themeEdit
+        ownThemes: page.ownThemes
+    }
+    CatalogDialog {
+        anchors.fill: parent
+        visible: page.ownThemes.dialog === "catalog"
         ownThemes: page.ownThemes
     }
 }
