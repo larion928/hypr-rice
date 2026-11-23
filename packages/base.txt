@@ -18,7 +18,6 @@ awww
 kitty
 fish
 thunar
-thunar-volman
 gvfs
 gvfs-mtp
 tumbler
@@ -40,7 +39,6 @@ playerctl
 git
 openssh
 base-devel
-rsync
 jq
 zenity          # file dialog for the theme settings (Alt+F2, Тема → Обои)
 pacman-contrib
