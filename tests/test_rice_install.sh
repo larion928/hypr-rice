@@ -189,15 +189,39 @@ test_update_removes_stale_rice_files() {
     grep -qx '.config/hypr/hyprland.lua' "$MANIFEST" || fail "нет списка поставленных файлов"
     echo ".local/bin/renamed-script" >> "$MANIFEST"  # shipped by the previous version
     echo old > "$HOME/.local/bin/renamed-script"
+    echo ".config/hypr/themes/gone/palette.json" >> "$MANIFEST"  # a theme the previous version had
+    mkdir -p "$HOME/.config/hypr/themes/gone"
+    echo '{}' > "$HOME/.config/hypr/themes/gone/palette.json"
     echo mine > "$HOME/.local/bin/my-script"
     echo ".config/fish/fish_variables" >> "$MANIFEST"  # shipped by versions before 2026-11, fish writes it since
     mkdir -p "$HOME/.config/fish"
     echo 'SETUVAR mine:1' > "$HOME/.config/fish/fish_variables"
     copy_rice_files >/dev/null 2>&1
     [ ! -e "$HOME/.local/bin/renamed-script" ] || fail "остался файл прежней версии"
+    [ -d "$HOME/.local/bin" ] || fail "удалена папка, где остались другие файлы"
+    [ ! -e "$HOME/.config/hypr/themes/gone" ] || fail "осталась пустая папка ушедшей темы"
     [ -e "$HOME/.local/bin/my-script" ] || fail "удалён свой файл"
     grep -qx 'SETUVAR mine:1' "$HOME/.config/fish/fish_variables" || fail "удалены переменные fish пользователя"
     ! grep -qx '.local/bin/renamed-script' "$MANIFEST" || fail "убранный файл остался в списке"
+}
+
+# A theme that left the rice for the catalog stays with whoever has it: moved among their own themes, listed
+# as from its pack, its files no longer the rice's to remove.
+test_update_keeps_a_theme_moved_to_the_catalog() {
+    load_rice
+    mkdir -p "$HOME/.config/hypr" "$HOME/.local/bin"
+    echo installed > "$HOME/.config/hypr/.rice-installed"
+    inspect_existing_desktop >/dev/null
+    copy_rice_files >/dev/null 2>&1
+    mkdir -p "$HOME/.config/hypr/themes/mr-robot"
+    echo '{"name": "mr-robot"}' > "$HOME/.config/hypr/themes/mr-robot/palette.json"
+    echo ".config/hypr/themes/mr-robot/palette.json" >> "$MANIFEST"  # shipped by the previous version
+    copy_rice_files >/dev/null 2>&1
+    [ -L "$HOME/.config/hypr/themes/mr-robot" ] || fail "на месте темы нет ссылки"
+    grep -q mr-robot "$HOME/.config/hypr-rice/themes/mr-robot/palette.json" || fail "файлы темы не перенесены"
+    jq -e '."mr-robot".pack == "hacker-plus"' "$HOME/.config/hypr-rice/catalog-themes.json" >/dev/null \
+        || fail "тема не записана как тема каталога"
+    ! grep -q 'themes/mr-robot/' "$MANIFEST" || fail "файлы темы остались в списке райса"
 }
 
 # The home folder may hold characters sed treats specially; USER may be unset.

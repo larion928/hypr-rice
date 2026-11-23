@@ -3,9 +3,9 @@
 [Русский](README.md) · **English**
 
 A ready desktop for Arch Linux: Hyprland 0.57+ (Lua config), menus and windows in Quickshell, a Waybar
-bar. Nine themes. A theme changes everything at once: colours and fonts, window animations, wallpapers,
-the lock screen and the SDDM login screen, the menus, the bar, the volume window, the screenshot
-animation and sound, and the look of the programs.
+bar. Eight themes and a catalog of more. A theme changes everything at once: colours and fonts, window
+animations, wallpapers, the lock screen and the SDDM login screen, the menus, the bar, the volume window,
+the screenshot animation and sound, and the look of the programs.
 
 ![themes](docs/themes.jpg)
 
@@ -54,7 +54,12 @@ When another rice or desktop is found (niri, KDE, GNOME, another Hyprland rice, 
 
 ## Themes
 
-`claude`, `night`, `hacker`, `cyberpunk`, `frieren`, `sakura`, `coffee`, `ocean`, `mr-robot`.
+`claude`, `night`, `hacker`, `cyberpunk`, `frieren`, `sakura`, `coffee`, `ocean`.
+
+More themes, in packs, are in the [catalog](https://github.com/larion928/hypr-rice-themes) (`mr-robot` in the
+"hacker+" pack, for one): Alt+F2 → Тема → "Каталог…", `rice themes` or "Темы из каталога" in the `rice` menu.
+The rice's author has read and signed every catalog theme; one is installed only when the signature and the
+checksum match, and `rice update` keeps it current.
 
 Switch with Alt+Shift+T (theme cards in their own colours), the launcher ("Тема …") or
 `changetheme <theme>` in a terminal.
@@ -141,7 +146,7 @@ The settings window opens with Alt+F2, the gear on the bar or from the launcher.
 - **Keys.** Change any hotkey ("Изменить", then press the new combo), disable or reset it, add your own
   "combo → command", switch the main modifier Alt ↔ Super. Taken combos are highlighted. Your changes
   live in `~/.config/hypr/binds-user.lua`.
-- **Theme.** Every theme, editing a theme (see Themes), import, copy, export, reset, delete.
+- **Theme.** Every theme, editing a theme (see Themes), the theme catalog, import, copy, export, reset, delete.
 - **Features.** Parts of the rice that can be switched off (list below). When a feature needs a package, the
   window offers to install it. The input and experimental features are switched on after a warning that they
   may get in the way, and how to switch them off. The same from a terminal: `rice features`,
@@ -238,6 +243,7 @@ The install leaves a `rice` command. Its menu opens in a terminal or from the la
 |---|---|
 | `rice apps` | install more programs: the same checklist, installed ones ticked |
 | `rice remove` | remove programs from the list |
+| `rice themes` | themes from the catalog: the ticked ones are installed, `rice themes install\|remove <theme or pack>` |
 | `rice update` | update the rice from GitHub: its files and missing packages (your theme and this machine's settings stay; the system is not upgraded) |
 | `rice upgrade` | upgrade the system and programs, AUR included |
 | `rice features` | the rice's features: the list, `rice features on\|off <id>` |

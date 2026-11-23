@@ -27,6 +27,7 @@ copy_rice_files() {  # home/ of the rice into ~; MODE, DO_BACKUP and FOREIGN_CON
     done
     copy_home_except "${theirs[@]}" "${kept[@]}"
     for f in "${MERGED_JSON[@]}"; do put_merged_file "$f"; done
+    keep_themes_moved_to_catalog
     remove_stale_files
     write_manifest "${ours[@]}"
     if printf '%s\n' "${theirs[@]}" | grep -q '^\.config/fish/'; then info "fish: оставлен твой конфиг"; fi
@@ -153,6 +154,38 @@ put_merged_file() {  # put_merged_file PATH: ~/PATH.rice-tmp in place of ~/PATH,
 # user's set -U, abbreviations, colours).
 OWNED_BY_USER_NOW=(.config/fish/fish_variables)
 
+# Themes that left the rice for the theme catalog, with their pack. A copy an earlier version installed is not
+# removed as stale: it moves among the user's own themes and is listed as installed from the catalog, so
+# whoever uses it keeps it. Its archive sha256 is not known here, so rice update takes the catalog's copy
+# (the same theme) as soon as the catalog can be reached.
+MOVED_TO_CATALOG=(mr-robot=hacker-plus)
+
+keep_themes_moved_to_catalog() {
+    local entry name folder own="$HOME/.config/hypr-rice/themes"
+    for entry in "${MOVED_TO_CATALOG[@]}"; do
+        name=${entry%%=*}
+        folder="$HOME/.config/hypr/themes/$name"
+        if [ -e "$SRC/home/.config/hypr/themes/$name" ] || [ ! -d "$folder" ] || [ -L "$folder" ] \
+            || [ -e "$own/$name" ]; then
+            continue  # still the rice's, not installed, removed by the user, or a theme of the user's own by that name
+        fi
+        mkdir -p "$own"
+        mv "$folder" "$own/$name"
+        ln -s "$own/$name" "$folder"
+        list_as_catalog_theme "$name" "${entry#*=}"
+        # Its files are the user's now: remove_stale_files would delete them through the link.
+        sed -i "\#^\.config/hypr/themes/$name/#d" "$MANIFEST"
+        ok "тема $name теперь в каталоге тем (rice themes), у тебя она осталась"
+    done
+}
+
+list_as_catalog_theme() {  # list_as_catalog_theme NAME PACK
+    local installed="$HOME/.config/hypr-rice/catalog-themes.json"
+    [ -f "$installed" ] || echo '{}' > "$installed"
+    jq --arg name "$1" --arg pack "$2" '.[$name] = {pack: $pack, sha256: ""}' "$installed" > "$installed.tmp"
+    mv "$installed.tmp" "$installed"
+}
+
 remove_stale_files() {  # what the previous version put in ~ and this one no longer ships
     local path
     [ -f "$MANIFEST" ] || return 0
@@ -160,6 +193,8 @@ remove_stale_files() {  # what the previous version put in ~ and this one no lon
         printf '%s\n' "${OWNED_BY_USER_NOW[@]}" | grep -qxF "$path" && continue
         if [ ! -e "$SRC/home/$path" ] && [ ! -L "$SRC/home/$path" ]; then
             rm -f "$HOME/$path"
+            # A folder left empty goes too: an empty theme folder would hide a theme of the user's own of that name.
+            rmdir -p --ignore-fail-on-non-empty "$(dirname "$HOME/$path")" 2>/dev/null || true
         fi
     done < "$MANIFEST"
 }
