@@ -59,13 +59,32 @@ Row {
         font.bold: !header.icon
         color: Theme.accent
     }
-    Text {
+    Item {
         visible: header.text !== ""
         anchors.verticalCenter: parent.verticalCenter
-        text: Theme.title(header.text)
-        font.family: Theme.titleFont
-        font.pixelSize: header.size
-        font.italic: Theme.italicTitle
-        color: Theme.fg
+        width: title.implicitWidth
+        height: title.implicitHeight
+
+        // ui.json headerFringe: a faint red copy 2 px to the left and a cyan one to the right, the colour fringe
+        // round the letters of a lit screen. At 1 px the antialiased letter edge covered it.
+        Repeater {
+            model: Theme.ui.headerFringe ? [{ colour: "#ff3030", shift: -2 }, { colour: "#30e0ff", shift: 2 }] : []
+            Text {
+                required property var modelData
+                x: modelData.shift
+                text: title.text
+                font: title.font
+                color: modelData.colour
+                opacity: 0.5
+            }
+        }
+        Text {
+            id: title
+            text: Theme.title(header.text)
+            font.family: Theme.titleFont
+            font.pixelSize: header.size
+            font.italic: Theme.italicTitle
+            color: Theme.fg
+        }
     }
 }
