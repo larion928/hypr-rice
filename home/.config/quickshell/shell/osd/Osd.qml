@@ -351,7 +351,14 @@ Scope {
                     Behavior on level { NumberAnimation { duration: 160 } }
                     onLevelChanged: requestPaint()
                     onPhChanged: requestPaint()
+                    onVisibleChanged: requestPaint()
                     onPaint: {
+                        // Paints only while wave is the shown style. A Canvas also repaints itself on every resize,
+                        // and under the leds style each showing made the arc below fail with "Incorrect argument
+                        // radius".
+                        if (!visible) {
+                            return;
+                        }
                         const g = getContext("2d");
                         g.reset();
                         const r = height / 2;
