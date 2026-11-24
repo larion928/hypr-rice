@@ -45,7 +45,25 @@ MainColor="$5"
 AccentColor="$3"
 BackgroundColor="$4"
 Font="$6"
-HeaderText=""
+CONF
+    # sugar-candy's own words are English. An empty value counts as unset (theme.conf's "Welcome!" came back),
+    # so the header is a space.
+    cat >> "$SDDM_THEME/theme.conf.user" <<'CONF'
+HeaderText=" "
+DateFormat="dddd, d MMMM"
+TranslatePlaceholderUsername="Пользователь"
+TranslateUsernamePlaceholder="Пользователь"
+TranslatePlaceholderPassword="Пароль"
+TranslateShowPassword="Показать пароль"
+TranslateLogin="Войти"
+TranslateLoginFailedWarning="Неверный пароль, попробуй ещё раз"
+TranslateCapslockWarning="Включён Caps Lock"
+TranslateSession="Сессия:"
+TranslateSuspend="Сон"
+TranslateHibernate="Гибернация"
+TranslateReboot="Перезагрузка"
+TranslateShutdown="Выключение"
+TranslateVirtualKeyboardButton="Экранная клавиатура"
 CONF
     # sugar-candy leaves the picture beside the form only with the form on a panel of its own and no blur.
     if [ $# -eq 7 ]; then
