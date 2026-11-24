@@ -199,7 +199,7 @@ offscreen (see the end of this file); everything else is checked by hand on the 
 ## OSD — always running
 
 - Shows volume (PipeWire default sink) and brightness (first backlight) changes for 1.4 s in the theme's
-  `osdStyle` (pill, ascii, neon, minimal, retro, wave); ignores the values at start; follows theme switches. `[auto]`
+  `osdStyle` (pill, ascii, neon, minimal, retro, wave, leds: a column at the right edge); ignores the values at start; follows theme switches. `[auto]`
   (loads, follows the theme)
 
 ## Automated checks

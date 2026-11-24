@@ -1,5 +1,5 @@
 // Volume / brightness OSD. Reacts to changes rather than keys: PipeWire for the default sink, sysfs for the first
-// backlight. The look follows the current theme (ui.json "osdStyle": pill, ascii, neon, minimal, retro, wave).
+// backlight. The look follows the current theme (ui.json "osdStyle": pill, ascii, neon, minimal, retro, wave, leds).
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -12,6 +12,8 @@ Scope {
     id: osd
 
     readonly property string style: Theme.ui.osdStyle || "pill"
+    // leds is a column at the right edge; every other style is a strip above the bottom edge.
+    readonly property bool column: style === "leds"
     readonly property int r: Theme.radius(22)
 
     property string kind: "volume"   // what is being shown
@@ -77,10 +79,12 @@ Scope {
         // Shown on whichever monitor has focus now.
         screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? null
         visible: osd.shown || fade.running
-        anchors.bottom: true
+        anchors.bottom: !osd.column
+        anchors.right: osd.column
         margins.bottom: 90
-        implicitWidth: 360
-        implicitHeight: 72
+        margins.right: 24
+        implicitWidth: osd.column ? 72 : 360
+        implicitHeight: osd.column ? 400 : 72
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
         WlrLayershell.layer: WlrLayer.Overlay
@@ -93,7 +97,13 @@ Scope {
             anchors.fill: parent
             opacity: osd.shown ? 1 : 0
             Behavior on opacity { NumberAnimation { id: fade; duration: osd.shown ? 120 : 260 } }
-            transform: Translate { y: osd.shown ? 0 : 14; Behavior on y { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } } }
+            // Slides in from the edge it stands at.
+            transform: Translate {
+                x: osd.column && !osd.shown ? 14 : 0
+                y: !osd.column && !osd.shown ? 14 : 0
+                Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                Behavior on y { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+            }
 
             // pill: rounded card, icon, bar, percent (claude, frieren, sakura)
             Rectangle {
@@ -249,6 +259,72 @@ Scope {
                         anchors.verticalCenter: parent.verticalCenter
                         text: String(osd.pct).padStart(3, " ") + "%"
                         font.family: Theme.titleFont; font.pixelSize: 18; font.bold: true
+                        color: Theme.fg
+                    }
+                }
+            }
+
+            // leds: an LED screen three wide that lights row by row from the bottom, amber up to cream (nyan-medieval)
+            Rectangle {
+                id: ledScreen
+                visible: osd.style === "leds"
+                anchors.fill: parent
+                radius: 8
+                color: Theme.alpha(Theme.bg, 0.92)
+                border.color: Theme.alpha(Theme.accent3, 0.6)
+
+                readonly property int rows: 20
+                readonly property int columns: 3
+                readonly property int ledSize: 12
+                readonly property int litRows: Math.round(osd.value * rows)
+
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 10
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: osd.icon
+                        font.family: Theme.glyphFont; font.pixelSize: 24
+                        color: osd.levelColour
+                    }
+                    Grid {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        columns: ledScreen.columns
+                        spacing: 3
+                        Repeater {
+                            model: ledScreen.rows * ledScreen.columns
+                            Item {
+                                id: led
+                                required property int index
+                                readonly property int rowFromBottom: ledScreen.rows - 1 - Math.floor(index / ledScreen.columns)
+                                readonly property bool on: rowFromBottom < ledScreen.litRows
+                                readonly property color lit: osd.muted
+                                    ? Theme.muted
+                                    : Qt.tint(Theme.accent, Theme.alpha(Theme.accent2, rowFromBottom / (ledScreen.rows - 1)))
+                                width: ledScreen.ledSize
+                                height: ledScreen.ledSize
+
+                                // The glow spills past the LED onto its neighbours, as on the clip's screen.
+                                Rectangle {
+                                    visible: led.on
+                                    anchors.centerIn: parent
+                                    width: parent.width + 8
+                                    height: width
+                                    radius: width / 2
+                                    color: Qt.rgba(led.lit.r, led.lit.g, led.lit.b, 0.28)
+                                }
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: 3
+                                    color: led.on ? led.lit : Theme.alpha(Theme.accent3, 0.2)
+                                }
+                            }
+                        }
+                    }
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: osd.pct
+                        font.family: Theme.bodyFont; font.pixelSize: 15; font.bold: true
                         color: Theme.fg
                     }
                 }
