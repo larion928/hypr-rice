@@ -3,7 +3,9 @@
 # /etc/sudoers.d/hypr-theme. Root never reads the user's files here: colours, font and the
 # wallpaper path arrive as arguments and are only checked for format.
 #   hypr-theme-root folders <papirus colour>
-#   hypr-theme-root sddm <wallpaper path> <accent #rrggbb> <bg #rrggbb> <fg #rrggbb> <font>
+#   hypr-theme-root sddm <picture path> <accent #rrggbb> <bg #rrggbb> <fg #rrggbb> <font> [beside]
+#                                        the login screen: the picture fills the screen, or with "beside"
+#                                        stands whole beside the login form on the bg colour
 #   hypr-theme-root browser-policy-off   remove the colour policy older versions set for
 #                                        Chromium-based browsers (it locks out theme extensions)
 #   hypr-theme-root power saver|balanced|performance   CPU boost and governor, GPU power level
@@ -26,12 +28,13 @@ folders)
     exec /usr/bin/papirus-folders -C "$2" -t Papirus-Dark
     ;;
 sddm)
-    [ $# -eq 6 ] || die "usage: sddm WALLPAPER ACCENT BG FG FONT"
+    [ $# -eq 6 ] || [ $# -eq 7 ] || die "usage: sddm PICTURE ACCENT BG FG FONT [beside]"
+    [ "${7:-beside}" = beside ] || die "bad layout: $7"
     wall=$2
     # String checks only: the greeter (user sddm) is the one that opens the file.
     # Any name (wallpapers may be Cyrillic) except what could break the quoted config value.
     [[ $wall == "$THEMES"/* && $wall != *..* && ! $wall =~ [\"\\\$\`[:cntrl:]] && $wall =~ \.(png|jpg|jpeg|webp)$ ]] \
-        || die "wallpaper must be an image under $THEMES"
+        || die "picture must be an image under $THEMES"
     hex "$3"; hex "$4"; hex "$5"
     [[ $6 =~ ^[A-Za-z0-9\ ._-]{1,64}$ ]] || die "bad font name"
     cat > "$SDDM_THEME/theme.conf.user" <<CONF
@@ -44,6 +47,17 @@ BackgroundColor="$4"
 Font="$6"
 HeaderText=""
 CONF
+    # sugar-candy leaves the picture beside the form only with the form on a panel of its own and no blur.
+    if [ $# -eq 7 ]; then
+        cat >> "$SDDM_THEME/theme.conf.user" <<'CONF'
+ScaleImageCropped="false"
+HaveFormBackground="true"
+PartialBlur="false"
+FullBlur="false"
+FormPosition="left"
+BackgroundImageHAlignment="center"
+CONF
+    fi
     chmod 644 "$SDDM_THEME/theme.conf.user"
     if [ ! -f /etc/sddm.conf.d/10-theme.conf ]; then
         mkdir -p /etc/sddm.conf.d

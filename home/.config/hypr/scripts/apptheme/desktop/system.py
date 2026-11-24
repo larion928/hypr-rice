@@ -21,13 +21,26 @@ def apply(theme, wallpaper):
     if folders and (not stamp.exists() or stamp.read_text().strip() != folders):
         run_detached(["sh", "-c", 'sudo -n "$0" folders "$1" >/dev/null && printf "%s\\n" "$1" > "$2"',
                       ROOT_HELPER, folders, str(stamp)])
-    if wallpaper:
-        colors = theme.colors
-        run_detached(["sudo", "-n", ROOT_HELPER, "sddm", wallpaper,
-                      colors["accent"], colors["bg"], colors["fg"], theme.display])
+    login = login_screen(theme, wallpaper)
+    if login:
+        run_detached(["sudo", "-n", ROOT_HELPER, "sddm", *login])
     # Older rice versions themed Chromium through a colour policy, which locks out theme extensions.
     if any(Path(folder, "hypr-rice.json").exists() for folder in CHROMIUM_POLICY_DIRS):
         run_detached(["sudo", "-n", ROOT_HELPER, "browser-policy-off"])
+
+
+def login_screen(theme, wallpaper):
+    """hypr-theme-root's sddm arguments; [] when there is no picture to show. A theme's ui.json "login"
+    {"image", "background"} puts its picture whole beside the login form, on that colour; otherwise the
+    wallpaper fills the screen."""
+    colors = theme.colors
+    login = theme.ui.get("login")
+    if login:
+        return [str(theme.dir / login["image"]), colors["accent"], login.get("background", colors["bg"]),
+                colors["fg"], theme.display, "beside"]
+    if wallpaper:
+        return [wallpaper, colors["accent"], colors["bg"], colors["fg"], theme.display]
+    return []
 
 
 def run_detached(argv):

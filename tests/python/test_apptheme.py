@@ -1,4 +1,5 @@
 """The apptheme modules' own rules: how files are written, what a theme falls back to."""
+import json
 import unittest
 
 from rice_sandbox import Sandbox
@@ -137,6 +138,24 @@ assert (HYPR / "hyprlock.conf").is_symlink()
 hyprlock.apply(load("bare"), None)
 link = HYPR / "hyprlock.conf"
 assert not link.is_symlink() and GENERATED in link.read_text() and "input-field" in link.read_text()
+""")
+
+    def test_a_login_picture_stands_beside_the_form_and_the_wallpaper_fills_the_screen_otherwise(self):
+        self.sandbox.add_theme("night")
+        lit = self.sandbox.add_theme("lit")
+        ui = json.loads((lit / "ui.json").read_text())
+        ui["login"] = {"image": "assets/login.png", "background": "#000000"}
+        (lit / "ui.json").write_text(json.dumps(ui))
+        self.check("""
+from apptheme.desktop.system import login_screen
+from apptheme.themes.theme import load
+night, lit = load("night"), load("lit")
+picture, accent, bg, fg, font, layout = login_screen(lit, "/walls/a.png")
+assert picture == str(lit.dir / "assets/login.png") and bg == "#000000" and layout == "beside", login_screen(lit, None)
+assert login_screen(lit, None)[0] == picture, "the login picture needs no wallpaper"
+assert login_screen(night, "/walls/a.png") == ["/walls/a.png", night.colors["accent"], night.colors["bg"],
+                                               night.colors["fg"], night.display]
+assert login_screen(night, None) == []
 """)
 
     def test_config_local_json_must_keep_modules_as_tables(self):
