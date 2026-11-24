@@ -191,7 +191,7 @@ def download(url, theme, path):
 THEME_FILE = re.compile(r"(palette\.json|ui\.json|hypr\.lua|style\.css|histui\.css|hyprlock\.conf|waybar\.json"
                         r"|battery\.py|screenshot\.qml|screen\.frag|shutter\.wav"
                         r"|[^/]+\.(png|jpg|jpeg|webp|gif|mp4)"
-                        r"|assets/[^/]+\.(svg|png|jpg|jpeg|webp|gif|json))")
+                        r"|assets/[^/]+\.(svg|png|jpg|jpeg|webp|gif|json|txt))")
 
 
 def unpacked(archive, name, into):
